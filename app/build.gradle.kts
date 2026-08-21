@@ -23,6 +23,29 @@ android {
         buildConfig = true
     }
 
+    packaging {
+        resources {
+            // The HiveMQ client pulls in six Netty jars, each carrying these. INDEX.LIST is
+            // a jar index and io.netty.versions.properties is build metadata; neither means
+            // anything inside an APK, so dropping them loses nothing.
+            excludes += setOf(
+                "META-INF/INDEX.LIST",
+                "META-INF/io.netty.versions.properties",
+                "META-INF/DEPENDENCIES",
+            )
+            // Licence and notice files are kept rather than excluded — Netty is Apache-2.0
+            // and its NOTICE has to travel with the binary. pickFirst keeps one copy where
+            // the plain merge refuses duplicates. Proper third-party attribution before a
+            // public release is tracked separately; see the going-public checklist.
+            pickFirsts += setOf(
+                "META-INF/LICENSE",
+                "META-INF/LICENSE.txt",
+                "META-INF/NOTICE",
+                "META-INF/NOTICE.txt",
+            )
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -45,6 +68,10 @@ dependencies {
     implementation(project(":rules"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.annotation)
+    implementation(libs.androidx.datastore.preferences)
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.hivemq.mqtt.client)
 }
 
 detekt {

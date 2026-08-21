@@ -227,6 +227,42 @@ cmd_unlock() {
     ok "unlock broadcast sent"
 }
 
+# Broker settings, so they need not be typed with a remote. The password reaches the device
+# as a broadcast extra and therefore appears in the system log: fine for a debug build,
+# which is the only kind that carries this receiver.
+cmd_configure() {
+    require_device
+    local host="" port="" user="" pass="" prefix="" tls=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+        --host) host="$2"; shift 2 ;;
+        --port) port="$2"; shift 2 ;;
+        --user) user="$2"; shift 2 ;;
+        --pass) pass="$2"; shift 2 ;;
+        --prefix) prefix="$2"; shift 2 ;;
+        --tls) tls="$2"; shift 2 ;;
+        *) shift ;;
+        esac
+    done
+
+    local args=()
+    [[ -n "$host" ]] && args+=(--es host "$(shell_quote "$host")")
+    [[ -n "$port" ]] && args+=(--es port "$port")
+    [[ -n "$user" ]] && args+=(--es user "$(shell_quote "$user")")
+    [[ -n "$pass" ]] && args+=(--es pass "$(shell_quote "$pass")")
+    [[ -n "$prefix" ]] && args+=(--es prefix "$(shell_quote "$prefix")")
+    [[ -n "$tls" ]] && args+=(--es tls "$tls")
+
+    if [[ ${#args[@]} -eq 0 ]]; then
+        bad "nothing to set; pass at least one of --host --port --user --pass --prefix --tls"
+        return 1
+    fi
+
+    broadcast CONFIGURE "${args[@]}"
+    sleep 2
+    adb_ logcat -d -s TVSitter:I | grep -E "configured:|mqtt:" | tail -4 | sed 's/^/    /'
+}
+
 cmd_status() {
     require_device
     # The buffer is deliberately not cleared: the log is the only record of what the
@@ -288,6 +324,7 @@ tools/device.sh <command>          target: $DEVICE (override with TVSITTER_DEVIC
   lock [reason] show the lock screen (debug builds only)
   unlock        dismiss the lock screen
   status        ask the service for its current state
+  configure     set broker settings: --host --port --user --pass --prefix --tls
   reboot-test   reboot the TV and measure whether the service comes back
 EOF
 }
@@ -301,6 +338,7 @@ watch) cmd_watch ;;
 lock) cmd_lock "$@" ;;
 unlock) cmd_unlock ;;
 status) cmd_status ;;
+configure) shift; cmd_configure "$@" ;;
 reboot-test) cmd_reboot_test ;;
 *) usage ;;
 esac

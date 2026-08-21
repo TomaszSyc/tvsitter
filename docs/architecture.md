@@ -264,6 +264,34 @@ stale entry even while the device is down. Device state has to come from `adb de
 the same family of reason, `doctor` no longer decides whether the service is running by
 grepping the log — the buffer rotates during boot — and asks `dumpsys accessibility` instead.
 
+## D14 — Pairing over zeroconf and a PIN, so nobody retypes broker credentials
+
+MQTT stays the data plane (D4), but nothing about it should be typed twice.
+
+Setup becomes: install the app on the TV, Home Assistant reports "TV Sitter discovered",
+enter the PIN shown on the TV, done. The integration reads the broker address and credentials
+from **Home Assistant's own MQTT config entry**, which it can do in-process, and pushes them
+to the TV over a one-shot local endpoint that only answers when presented with the PIN on
+screen. The app advertises itself over mDNS as `_tvsitter._tcp`.
+
+Why a PIN at all: without it, anything on the local network could hand the TV a broker to
+talk to, which is the same as handing it a new set of rules. The PIN is on the TV screen, so
+possessing it means standing in the room — the same assumption the rest of the product makes.
+
+**Credentials: shared by default, dedicated by choice.** The config flow offers what Home
+Assistant already has, so the common path involves no typing, and carries a section for
+supplying a separate account instead. That keeps the recommendation in `SECURITY.md` — give
+TV Sitter its own account with an ACL scoped to its topic prefix, because anyone able to
+publish to `<prefix>/cmd` can unlock the TV — available to whoever wants it, without making
+it the price of admission.
+
+Rejected: having the integration create a Home Assistant user by itself. The API allows it.
+An integration that mints accounts is a level of reach that would rightly alarm both
+reviewers and users.
+
+The manual route stays for development: `tools/device.sh configure` writes the same settings
+over ADB, which is how this was brought up in the first place.
+
 ## No open hardware questions from the M0 spike
 
 Everything the spike set out to answer is answered, in D9 through D13. What it turned up

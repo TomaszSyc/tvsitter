@@ -7,6 +7,10 @@ changing the contract is a single commit touching both sides.
 The topic prefix is configurable and defaults to `tvsitter/livingroom`. Referred to as
 `<p>` below.
 
+How a TV learns the broker address, credentials and prefix is **not** part of this contract:
+that is pairing, described in `architecture.md` as D14. Nothing here should ever be typed
+twice.
+
 | Topic | Direction | QoS | Retained | Payload |
 |---|---|---|---|---|
 | `<p>/availability` | app → HA | 1 | yes (LWT) | `online` / `offline` |
