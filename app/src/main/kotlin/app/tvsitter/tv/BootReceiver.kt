@@ -11,9 +11,12 @@ import android.content.Intent
 import android.util.Log
 
 /**
- * For now just a log marker: we want to see the ordering of events after the TV reboots —
- * whether the accessibility service comes back on its own, and whether it does so before
- * BOOT_COMPLETED.
+ * Brings the enforcer back after a reboot.
+ *
+ * This used to be a log marker only, because the system revived the accessibility service by
+ * itself — measured at roughly 27 seconds after boot in D13. Since D16 there is no
+ * accessibility service, so this is the only thing that restarts enforcement, and the gap it
+ * leaves needs measuring again rather than assuming.
  */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -21,9 +24,7 @@ class BootReceiver : BroadcastReceiver() {
         // reached by a spoofed intent carrying a different action, or none at all.
         if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
 
-        Log.i(
-            EnforcerService.TAG,
-            "BOOT_COMPLETED, service connected=${EnforcerService.instance != null}",
-        )
+        Log.i(EnforcerService.TAG, "BOOT_COMPLETED, starting the enforcer")
+        EnforcerService.start(context)
     }
 }

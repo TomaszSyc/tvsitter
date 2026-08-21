@@ -6,23 +6,38 @@
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
     <!--
-      Declared so the app-op can be granted over ADB during setup. On Google TV there is
-      normally no UI to grant this to a sideloaded app, and an app-op for a permission the
-      app does not request has no effect at all — which is why an earlier attempt to measure
-      this looked like a refusal. Being evaluated in #20 as the route away from needing an
-      accessibility service, which unmasks password fields system-wide (D15).
+      The lock is drawn as a TYPE_APPLICATION_OVERLAY window (D16). On Google TV there is
+      normally no UI to grant this to a sideloaded app, so setup grants the app-op over ADB —
+      and an app-op for a permission the app does not declare has no effect at all, which is
+      why this line matters.
+
+      This replaced an accessibility service. That asked to read everything on screen and every
+      keystroke; this asks to draw on top. In an app a parent has to trust with the family
+      television, that difference is the point.
     -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
     <!-- Granted over ADB: appops set app.tvsitter.tv GET_USAGE_STATS allow -->
     <uses-permission
         android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />
+
     <!-- Needed to enumerate and name the child's apps when building rules. -->
     <uses-permission
         android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
+
+    <!--
+      Nothing revives this service for free any more. An accessibility service came back about
+      27 seconds after a reboot without being asked (D13); a foreground service has to keep
+      itself alive, which is what these are for.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!--
       Both backup attributes are set on purpose. allowBackup="false" covers Android 11 and
@@ -52,15 +67,11 @@
 
         <service
             android:name=".EnforcerService"
-            android:exported="true"
-            android:label="@string/accessibility_service_label"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility_service_config" />
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Enforces parental screen-time limits on this television" />
         </service>
 
         <receiver

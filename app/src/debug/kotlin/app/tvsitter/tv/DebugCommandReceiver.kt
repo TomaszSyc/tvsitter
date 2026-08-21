@@ -36,29 +36,37 @@ class DebugCommandReceiver : BroadcastReceiver() {
             return
         }
 
-        // The SAW spike deliberately does not go through the accessibility service: the
-        // whole point is that it has to work with that service switched off.
-        if (intent.action == ACTION_SAW_LOCK || intent.action == ACTION_SAW_UNLOCK) {
-            val service = Intent(context, SawSpikeService::class.java).apply {
-                if (intent.action == ACTION_SAW_UNLOCK) action = SawSpikeService.ACTION_HIDE
-                intent.getStringExtra("reason")?.let { putExtra("reason", it) }
-            }
-            context.startForegroundService(service)
-            return
-        }
-
-        val service = EnforcerService.instance
-        if (service == null) {
-            Log.w(EnforcerService.TAG, "${intent.action}: accessibility service is not connected")
-            return
-        }
+        // Routed through the service by intent rather than through the singleton, so a
+        // command still lands when the process has been killed and has to be restarted.
         when (intent.action) {
-            ACTION_LOCK -> service.lock(intent.getStringExtra("reason") ?: "lock test from ADB")
-            ACTION_UNLOCK -> service.unlock()
-            ACTION_STATUS -> Log.i(
-                EnforcerService.TAG,
-                "STATUS: locked=${service.isLocked} foreground=${service.foregroundPackage}",
+            ACTION_LOCK -> context.startForegroundService(
+                Intent(context, EnforcerService::class.java).apply {
+                    action = EnforcerService.ACTION_LOCK
+                    putExtra(
+                        EnforcerService.EXTRA_REASON,
+                        intent.getStringExtra("reason") ?: "lock test from ADB",
+                    )
+                },
             )
+
+            ACTION_UNLOCK -> context.startForegroundService(
+                Intent(context, EnforcerService::class.java).apply {
+                    action = EnforcerService.ACTION_UNLOCK
+                },
+            )
+
+            ACTION_STATUS -> {
+                val service = EnforcerService.instance
+                if (service == null) {
+                    Log.w(EnforcerService.TAG, "STATUS: the enforcer is not running")
+                } else {
+                    Log.i(
+                        EnforcerService.TAG,
+                        "STATUS: locked=${service.isLocked} foreground=${service.foregroundPackage}",
+                    )
+                }
+            }
+
             else -> Log.w(EnforcerService.TAG, "unknown action: ${intent.action}")
         }
     }
@@ -101,7 +109,5 @@ class DebugCommandReceiver : BroadcastReceiver() {
         const val ACTION_UNLOCK = "app.tvsitter.tv.UNLOCK"
         const val ACTION_STATUS = "app.tvsitter.tv.STATUS"
         const val ACTION_CONFIGURE = "app.tvsitter.tv.CONFIGURE"
-        const val ACTION_SAW_LOCK = "app.tvsitter.tv.SAW_LOCK"
-        const val ACTION_SAW_UNLOCK = "app.tvsitter.tv.SAW_UNLOCK"
     }
 }

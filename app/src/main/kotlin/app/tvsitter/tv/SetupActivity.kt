@@ -7,7 +7,6 @@ package app.tvsitter.tv
 
 import android.app.Activity
 import android.app.AppOpsManager
-import android.content.Intent
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
@@ -36,13 +35,6 @@ class SetupActivity : Activity() {
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
         }
 
-        val openAccessibility = Button(this).apply {
-            text = getString(R.string.setup_open_accessibility)
-            setOnClickListener {
-                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-            }
-        }
-
         setContentView(
             LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
@@ -57,13 +49,16 @@ class SetupActivity : Activity() {
                     },
                 )
                 addView(report)
-                addView(openAccessibility)
             },
         )
     }
 
     override fun onResume() {
         super.onResume()
+        // Opening this screen is as good a moment as any to make sure the enforcer is up:
+        // nothing else revives it, and a user looking at diagnostics is usually looking
+        // because something stopped working.
+        EnforcerService.start(this)
         report.text = buildReport()
     }
 
@@ -83,15 +78,13 @@ class SetupActivity : Activity() {
             )
             appendLine(getString(R.string.setup_version, BuildConfig.VERSION_NAME))
             appendLine()
+            appendLine(getString(R.string.setup_service_running, if (service != null) yes else no))
             appendLine(
                 getString(
-                    R.string.setup_service_enabled,
-                    getString(
-                        if (isAccessibilityServiceEnabled()) R.string.setup_enabled else R.string.setup_disabled,
-                    ),
+                    R.string.setup_overlay,
+                    if (Settings.canDrawOverlays(this@SetupActivity)) yes else no,
                 ),
             )
-            appendLine(getString(R.string.setup_service_connected, if (service != null) yes else no))
             appendLine(getString(R.string.setup_usage_access, if (hasUsageStatsAccess()) yes else no))
             appendLine()
             appendLine(
@@ -102,20 +95,6 @@ class SetupActivity : Activity() {
             )
             appendLine(getString(R.string.setup_locked, if (service?.isLocked == true) yes else no))
         }
-    }
-
-    /**
-     * Reads Settings.Secure rather than AccessibilityManager.getEnabledAccessibilityServiceList()
-     * on purpose: we want the state the system has recorded, including the case where the
-     * service is enabled but failed to start.
-     */
-    private fun isAccessibilityServiceEnabled(): Boolean {
-        val enabled = Settings.Secure.getString(
-            contentResolver,
-            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
-        ).orEmpty()
-        val expected = "$packageName/${EnforcerService::class.java.name}"
-        return enabled.split(':').any { it.equals(expected, ignoreCase = true) }
     }
 
     /**

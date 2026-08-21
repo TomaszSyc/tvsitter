@@ -5,13 +5,15 @@
  */
 package app.tvsitter.tv
 
-import android.accessibilityservice.AccessibilityService
-import android.accessibilityservice.AccessibilityServiceInfo
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.Service
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.Build
+import android.os.IBinder
 import android.util.Log
-import android.view.KeyEvent
-import android.view.accessibility.AccessibilityEvent
 import app.tvsitter.rules.contract.Command
 import app.tvsitter.rules.contract.StateSnapshot
 import kotlinx.coroutines.CoroutineScope
@@ -25,96 +27,66 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
- * The heart of the app. An accessibility service is used here for two reasons:
- *  1. it is the only root-free source of "which app is in the foreground right now",
- *  2. it may draw its own window ([LockOverlay]) on top of someone else's app without
- *     the SYSTEM_ALERT_WINDOW permission, which frequently cannot be granted from the
- *     UI on Google TV.
+ * The heart of the app: it watches what is on screen, counts the time, and puts the lock up.
  *
- * The system also restarts accessibility services after a reboot and after the process
- * is killed — measured at roughly 27 seconds after boot on the target hardware, before
- * BOOT_COMPLETED — which is why the screen time counter lives here rather than in an
- * ordinary foreground service.
+ * A foreground service rather than an accessibility service, per D16. The privilege that buys
+ * is the whole point — "draw on top" instead of "read everything on screen and every
+ * keystroke" — and it stops password fields being unmasked system-wide, which merely having
+ * an accessibility service enabled does (D15).
+ *
+ * The cost is that nothing revives this for free. An accessibility service came back about 27
+ * seconds after a reboot without being asked; this has to restart itself from
+ * `BOOT_COMPLETED`, stay sticky, and expect to be killed.
  */
-class EnforcerService : AccessibilityService() {
-
-    @Volatile
-    var foregroundPackage: String? = null
-        private set
+class EnforcerService : Service() {
 
     private var overlay: LockOverlay? = null
     private var screenState: ScreenState? = null
     private var appLabels: AppLabels? = null
+    private var foregroundApps: ForegroundAppMonitor? = null
     private var mqtt: MqttBridge? = null
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var pendingPublish: Job? = null
 
-    val isLocked: Boolean
-        get() = overlay?.isShowing == true
+    val foregroundPackage: String? get() = foregroundApps?.current
 
-    override fun onServiceConnected() {
-        super.onServiceConnected()
+    val isLocked: Boolean get() = overlay?.isShowing == true
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onCreate() {
+        super.onCreate()
         instance = this
+        startForegroundNotification()
+
         overlay = LockOverlay(this)
         appLabels = AppLabels(this)
+        foregroundApps = ForegroundAppMonitor(this) { publishSoon() }
         screenState = ScreenState(this) { publishSoon() }.also { it.start() }
 
         Log.i(
             TAG,
-            "onServiceConnected(): version=${BuildConfig.VERSION_NAME} api=${Build.VERSION.SDK_INT} " +
+            "onCreate(): version=${BuildConfig.VERSION_NAME} api=${Build.VERSION.SDK_INT} " +
                 "model=${Build.MODEL} manufacturer=${Build.MANUFACTURER}",
         )
 
-        // Key filtering off until the lock actually needs it. The capability is declared in
-        // the service config so the user consents to it once and HOME stays interceptable,
-        // but a service receiving every keystroke is a keylogger by capability, and there is
-        // no reason for that to be live while nobody is locked out.
-        setKeyFiltering(enabled = false)
-
         scope.launch { startMqtt() }
+        scope.launch { watchForeground() }
         scope.launch { heartbeat() }
     }
 
-    override fun onAccessibilityEvent(event: AccessibilityEvent) {
-        if (event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
-        val pkg = event.packageName?.toString() ?: return
-        if (pkg == packageName) return
-
-        if (pkg != foregroundPackage) {
-            foregroundPackage = pkg
-            Log.i(TAG, "foreground=$pkg class=${event.className}")
-            publishSoon()
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        when (intent?.action) {
+            ACTION_LOCK -> lock(intent.getStringExtra(EXTRA_REASON) ?: getString(R.string.lock_title))
+            ACTION_UNLOCK -> unlock()
         }
-
-        // A new window may have appeared above ours, so push the lock back to the front.
-        if (isLocked) overlay?.reassert()
-    }
-
-    /**
-     * Remote key filtering. HOME is the one key an ordinary window cannot stop, and on the
-     * target hardware it is genuinely swallowed here — but only for events from a real
-     * remote. Injected events (`adb shell input keyevent`) bypass this callback entirely,
-     * so an ADB-driven test reports a false negative.
-     *
-     * Everything else must pass through, otherwise the lock screen's own controls die.
-     */
-    override fun onKeyEvent(event: KeyEvent): Boolean {
-        if (!isLocked) return false
-        if (event.action != KeyEvent.ACTION_DOWN) return false
-
-        Log.d(TAG, "onKeyEvent while locked: ${KeyEvent.keyCodeToString(event.keyCode)}")
-        return when (event.keyCode) {
-            KeyEvent.KEYCODE_HOME,
-            KeyEvent.KEYCODE_APP_SWITCH,
-            KeyEvent.KEYCODE_SETTINGS,
-            -> true
-            else -> false
-        }
+        // Sticky because there is no longer anything else to bring this back: if the system
+        // kills the process, restarting it is the only way the counter resumes.
+        return START_STICKY
     }
 
     fun lock(reason: String) {
-        setKeyFiltering(enabled = true)
         overlay?.show(
             title = getString(R.string.lock_title),
             subtitle = reason,
@@ -125,35 +97,7 @@ class EnforcerService : AccessibilityService() {
 
     fun unlock() {
         overlay?.hide()
-        setKeyFiltering(enabled = false)
         publishSoon()
-    }
-
-    /**
-     * Turns key filtering on and off at runtime.
-     *
-     * The declared flag is what makes [onKeyEvent] fire at all, so clearing it means the
-     * service stops seeing keystrokes entirely rather than merely ignoring them.
-     */
-    private fun setKeyFiltering(enabled: Boolean) {
-        val info = serviceInfo ?: return
-        val flag = AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS
-        val updated = if (enabled) info.flags or flag else info.flags and flag.inv()
-        if (updated == info.flags) return
-
-        info.flags = updated
-        runCatching { serviceInfo = info }
-            .onSuccess { Log.i(TAG, "key filtering ${if (enabled) "on" else "off"}") }
-            .onFailure { Log.w(TAG, "could not change key filtering", it) }
-    }
-
-    /** Drops any existing connection and reconnects with whatever is now stored. */
-    fun reconnectMqtt() {
-        scope.launch {
-            mqtt?.disconnect()
-            mqtt = null
-            startMqtt()
-        }
     }
 
     private suspend fun startMqtt() {
@@ -163,6 +107,15 @@ class EnforcerService : AccessibilityService() {
             return
         }
         mqtt = MqttBridge(config, ::handleCommand).also { it.connect() }
+    }
+
+    /** Drops any existing connection and reconnects with whatever is now stored. */
+    fun reconnectMqtt() {
+        scope.launch {
+            mqtt?.disconnect()
+            mqtt = null
+            startMqtt()
+        }
     }
 
     private fun handleCommand(command: Command) {
@@ -177,9 +130,23 @@ class EnforcerService : AccessibilityService() {
     }
 
     /**
-     * Window transitions arrive in bursts — opening one app can produce several within a
-     * few hundred milliseconds — so publishes are coalesced rather than sent per event.
+     * Polling replaces the accessibility service's window events. The interval is a
+     * compromise: fast enough that it does not matter for counting, slow enough to be
+     * unremarkable on a mains-powered device. It does mean a newly opened app is visible for
+     * a moment before the lock lands, which D16 accepts knowingly.
      */
+    private suspend fun watchForeground() {
+        val monitor = foregroundApps ?: return
+        if (!monitor.isUsable) {
+            Log.e(TAG, "usage stats unavailable — nothing will be detected")
+            return
+        }
+        while (scope.isActive) {
+            if (screenState?.isScreenOn != false) monitor.poll()
+            delay(FOREGROUND_POLL_MS)
+        }
+    }
+
     private fun publishSoon() {
         pendingPublish?.cancel()
         pendingPublish = scope.launch {
@@ -188,10 +155,6 @@ class EnforcerService : AccessibilityService() {
         }
     }
 
-    /**
-     * Republishes on a timer even when nothing changed, so that `ts` stays fresh and a
-     * consumer can tell a quiet TV from a stale retained payload.
-     */
     private suspend fun heartbeat() {
         while (scope.isActive) {
             delay(HEARTBEAT_MS)
@@ -201,7 +164,7 @@ class EnforcerService : AccessibilityService() {
 
     private fun publishNow() {
         val bridge = mqtt ?: return
-        val pkg = foregroundPackage
+        val pkg = foregroundApps?.current
         bridge.publish(
             StateSnapshot(
                 ts = System.currentTimeMillis(),
@@ -217,10 +180,36 @@ class EnforcerService : AccessibilityService() {
         )
     }
 
-    override fun onInterrupt() = Unit
+    private fun startForegroundNotification() {
+        val manager = getSystemService(NotificationManager::class.java)
+        manager?.createNotificationChannel(
+            NotificationChannel(
+                CHANNEL_ID,
+                getString(R.string.notification_channel),
+                NotificationManager.IMPORTANCE_LOW,
+            ),
+        )
+        val notification = Notification.Builder(this, CHANNEL_ID)
+            .setContentTitle(getString(R.string.app_name))
+            .setContentText(getString(R.string.notification_running))
+            .setSmallIcon(R.drawable.banner)
+            .setOngoing(true)
+            .build()
 
-    override fun onUnbind(intent: Intent?): Boolean {
-        Log.w(TAG, "onUnbind(): service detached — accessibility was turned off or the system killed us")
+        // The typed overload exists from API 29 and specialUse from 34; minSdk is 26.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(
+                NOTIFICATION_ID,
+                notification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
+    }
+
+    override fun onDestroy() {
+        Log.w(TAG, "onDestroy(): the enforcer is going down")
         mqtt?.disconnect()
         mqtt = null
         screenState?.stop()
@@ -228,20 +217,32 @@ class EnforcerService : AccessibilityService() {
         overlay?.hide()
         overlay = null
         appLabels = null
+        foregroundApps = null
         instance = null
         scope.cancel()
-        return super.onUnbind(intent)
+        super.onDestroy()
     }
 
     companion object {
         const val TAG = "TVSitter"
 
+        const val ACTION_LOCK = "app.tvsitter.tv.action.LOCK"
+        const val ACTION_UNLOCK = "app.tvsitter.tv.action.UNLOCK"
+        const val EXTRA_REASON = "reason"
+
+        private const val CHANNEL_ID = "tvsitter_enforcer"
+        private const val NOTIFICATION_ID = 1
         private const val PUBLISH_DEBOUNCE_MS = 400L
         private const val HEARTBEAT_MS = 60_000L
+        private const val FOREGROUND_POLL_MS = 1_500L
 
-        /** Accessibility services are singletons; the UI and ADB test hooks need a handle. */
         @Volatile
         var instance: EnforcerService? = null
             private set
+
+        /** Starts the service if it is not already running. Safe to call repeatedly. */
+        fun start(context: android.content.Context) {
+            context.startForegroundService(Intent(context, EnforcerService::class.java))
+        }
     }
 }

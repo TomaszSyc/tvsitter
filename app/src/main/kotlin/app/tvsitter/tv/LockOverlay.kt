@@ -5,7 +5,7 @@
  */
 package app.tvsitter.tv
 
-import android.accessibilityservice.AccessibilityService
+import android.content.Context
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.util.Log
@@ -20,16 +20,20 @@ import android.widget.TextView
 
 /**
  * Full-screen lock screen drawn as a
- * [WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY] window: it needs no
- * SYSTEM_ALERT_WINDOW permission and sits in a window layer above ordinary system alerts.
+ * [WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY] window, which needs the
+ * `SYSTEM_ALERT_WINDOW` app-op — granted over ADB during setup, as D16 explains.
  *
- * Deliberately built from plain views rather than Compose: an accessibility window has
- * none of the lifecycle owners Compose expects, and this class is load-bearing for the
- * whole product — the less machinery here, the fewer ways it can break.
+ * That window type sits at layer 111000, above every application window including the
+ * launcher, which is why there is no longer anything to re-assert: pressing HOME changes what
+ * is *behind* the lock and nothing more. The previous accessibility overlay had to be removed
+ * and re-added whenever a new window appeared above it.
+ *
+ * Deliberately built from plain views rather than Compose: this class is load-bearing for the
+ * whole product, and the less machinery here, the fewer ways it can break.
  */
-class LockOverlay(private val service: AccessibilityService) {
+class LockOverlay(private val context: Context) {
 
-    private val windowManager = service.getSystemService(WindowManager::class.java)
+    private val windowManager = context.getSystemService(WindowManager::class.java)
     private var root: View? = null
     private var subtitleView: TextView? = null
 
@@ -42,14 +46,14 @@ class LockOverlay(private val service: AccessibilityService) {
             return
         }
 
-        val askButton = Button(service).apply {
-            text = service.getString(R.string.lock_ask_more)
+        val askButton = Button(context).apply {
+            text = context.getString(R.string.lock_ask_more)
             isFocusable = true
             isFocusableInTouchMode = true
             setOnClickListener { onAskForTime() }
         }
 
-        val column = LinearLayout(service).apply {
+        val column = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
             addView(textView(title, sizeSp = 34f, color = Color.WHITE))
@@ -57,7 +61,7 @@ class LockOverlay(private val service: AccessibilityService) {
             addView(askButton)
         }
 
-        val container = FrameLayout(service).apply {
+        val container = FrameLayout(context).apply {
             setBackgroundColor(BACKDROP_COLOR)
             // The container must not be focusable itself. Made focusable, it wins focus and
             // then swallows every D-pad and ENTER event instead of letting them reach the
@@ -87,20 +91,6 @@ class LockOverlay(private val service: AccessibilityService) {
         )
     }
 
-    /** Re-inserts the window when another app window has appeared above the lock. */
-    fun reassert() {
-        val view = root ?: return
-        runCatching { windowManager.removeViewImmediate(view) }
-        val readded = runCatching { windowManager.addView(view, layoutParams()) }
-        if (readded.isFailure) {
-            Log.e(EnforcerService.TAG, "reassert() failed — the lock may be gone", readded.exceptionOrNull())
-            root = null
-        } else {
-            view.findFocus() ?: view.requestFocus()
-            Log.i(EnforcerService.TAG, "overlay reasserted above a new window")
-        }
-    }
-
     fun hide() {
         val view = root ?: return
         runCatching { windowManager.removeViewImmediate(view) }
@@ -113,14 +103,15 @@ class LockOverlay(private val service: AccessibilityService) {
     private fun layoutParams() = WindowManager.LayoutParams(
         WindowManager.LayoutParams.MATCH_PARENT,
         WindowManager.LayoutParams.MATCH_PARENT,
-        WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-        // Omitting FLAG_NOT_FOCUSABLE is intentional: the window must receive D-pad input.
+        WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+        // Omitting FLAG_NOT_FOCUSABLE is intentional, and load-bearing: without focus the
+        // D-pad reaches the app underneath and a child can navigate it blind behind the lock.
         WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
             WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
         PixelFormat.TRANSLUCENT,
     )
 
-    private fun textView(value: String, sizeSp: Float, color: Int) = TextView(service).apply {
+    private fun textView(value: String, sizeSp: Float, color: Int) = TextView(context).apply {
         text = value
         setTextColor(color)
         setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp)
