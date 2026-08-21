@@ -38,7 +38,7 @@ class MqttBridge(private val config: BrokerConfig, private val onCommand: (Comma
             return
         }
 
-        val built = MqttClient.builder()
+        val base = MqttClient.builder()
             .useMqttVersion5()
             .identifier("tvsitter-${topics.prefix.replace('/', '-')}")
             .serverHost(config.host)
@@ -50,8 +50,11 @@ class MqttBridge(private val config: BrokerConfig, private val onCommand: (Comma
             .initialDelay(1, TimeUnit.SECONDS)
             .maxDelay(RECONNECT_MAX_DELAY_S, TimeUnit.SECONDS)
             .applyAutomaticReconnect()
-            .apply { if (config.useTls) sslWithDefaultConfig() }
-            .buildAsync()
+
+        // The builder is immutable: sslWithDefaultConfig() returns a new one rather than
+        // mutating this one, so its result has to be carried forward. Discarding it — which
+        // an earlier version did inside an apply block — meant TLS silently did nothing.
+        val built = (if (config.useTls) base.sslWithDefaultConfig() else base).buildAsync()
         client = built
 
         built.connectWith()

@@ -53,6 +53,20 @@ class Settings(private val context: Context) {
     suspend fun brokerSnapshot(): BrokerConfig = broker.first()
 
     /**
+     * A stable identifier for this installation, generated once and kept.
+     *
+     * Deliberately not ANDROID_ID: that is a device identifier, and all this needs to be is
+     * something that stays the same across restarts so a paired TV keeps its identity. A
+     * random value is both narrower and sufficient.
+     */
+    suspend fun deviceId(): String {
+        context.dataStore.data.first()[KEY_DEVICE_ID]?.let { return it }
+        val generated = java.util.UUID.randomUUID().toString().take(DEVICE_ID_LENGTH)
+        context.dataStore.edit { prefs -> prefs[KEY_DEVICE_ID] = generated }
+        return generated
+    }
+
+    /**
      * Read, modify, write. A partial update is then just `copy()` at the call site, which
      * beats a row of nullable parameters where every one means "leave this alone".
      */
@@ -76,6 +90,9 @@ class Settings(private val context: Context) {
         val KEY_TOPIC_PREFIX = stringPreferencesKey("topic_prefix")
         val KEY_USE_TLS = booleanPreferencesKey("broker_tls")
 
+        val KEY_DEVICE_ID = stringPreferencesKey("device_id")
+
+        const val DEVICE_ID_LENGTH = 8
         const val DEFAULT_PORT = 1883
         const val DEFAULT_TOPIC_PREFIX = "tvsitter/livingroom"
     }

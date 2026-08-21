@@ -28,7 +28,12 @@ import kotlin.random.asKotlinRandom
  * configuration at all, which is the whole reason for D14 — and once a TV is paired there
  * is no open port and no broadcast, because neither has anything left to do.
  */
-class PairingManager(private val context: Context, private val onPaired: (PairRequest) -> Unit) {
+class PairingManager(
+    private val context: Context,
+    /** Resolved once by the caller through [Settings.deviceId]; see the note there. */
+    val deviceId: String,
+    private val onPaired: (PairRequest) -> Unit,
+) {
     private val nsdManager = context.getSystemService(NsdManager::class.java)
 
     private var session: PairingSession? = null
@@ -40,14 +45,6 @@ class PairingManager(private val context: Context, private val onPaired: (PairRe
     val pin: String? get() = session?.pin
 
     fun secondsRemaining(): Long = session?.secondsRemaining(System.currentTimeMillis()) ?: 0
-
-    val deviceId: String by lazy {
-        // ANDROID_ID is stable for this app on this device and survives reinstalls of other
-        // apps, which is what an identity needs to be. Not used for anything but naming.
-        Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
-            ?.take(DEVICE_ID_LENGTH)
-            ?: Build.MODEL.filter { it.isLetterOrDigit() }.take(DEVICE_ID_LENGTH)
-    }
 
     val deviceName: String by lazy {
         Settings.Global.getString(context.contentResolver, Settings.Global.DEVICE_NAME)
@@ -149,9 +146,5 @@ class PairingManager(private val context: Context, private val onPaired: (PairRe
         registration = listener
         runCatching { manager.registerService(info, NsdManager.PROTOCOL_DNS_SD, listener) }
             .onFailure { Log.e(EnforcerService.TAG, "pairing: registerService threw", it) }
-    }
-
-    private companion object {
-        const val DEVICE_ID_LENGTH = 8
     }
 }
