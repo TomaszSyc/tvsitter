@@ -11,10 +11,14 @@ import android.content.Intent
 import android.util.Log
 
 /**
- * Drives the M0 spike from ADB, for example:
- *   adb shell am broadcast -a app.tvsitter.tv.LOCK --es reason "lock test"
- *   adb shell am broadcast -a app.tvsitter.tv.UNLOCK
- *   adb shell am broadcast -a app.tvsitter.tv.STATUS
+ * Drives the M0 spike from ADB. The component must be addressed explicitly, because a
+ * manifest-declared receiver has not received implicit broadcasts since Android 8 — without
+ * `-n` the broadcast reports success and runs nothing:
+ *
+ *   R=app.tvsitter.tv/.DebugCommandReceiver
+ *   adb shell am broadcast -n $R -a app.tvsitter.tv.LOCK --es reason "lock test"
+ *   adb shell am broadcast -n $R -a app.tvsitter.tv.UNLOCK
+ *   adb shell am broadcast -n $R -a app.tvsitter.tv.STATUS
  */
 class DebugCommandReceiver : BroadcastReceiver() {
 

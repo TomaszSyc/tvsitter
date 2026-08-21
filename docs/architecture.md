@@ -92,11 +92,44 @@ An accessibility window has none of the lifecycle owners Compose expects. `LockO
 load-bearing for the entire app — the fewer layers here, the fewer things can break.
 Compose is reserved for configuration screens.
 
-## Open questions — to be settled by the M0 spike on real hardware
+## D9 — Accessibility does work on this firmware (spike, 2026-08-21)
 
-1. Can an accessibility service be enabled at all on TPV/Philips firmware for a
-   sideloaded app (Android 14 gates this behind a "restricted setting")?
-2. Does `TYPE_ACCESSIBILITY_OVERLAY` draw on top of **full-screen** YouTube? If not, the
+Answers open question 1. On the Philips Google TV TA5 (TPV, `PH1M_WW_9972`, Android 14,
+API 34, build `UKN2.241117.001`), a sideloaded accessibility service can be enabled, and
+does start:
+
+```
+onServiceConnected(): version=0.1.0-m0 api=34 model=Philips Google TV TA5 manufacturer=TPV
+```
+
+The route is ADB only — `appops set app.tvsitter.tv ACCESS_RESTRICTED_SETTINGS allow`,
+then writing `enabled_accessibility_services` and `accessibility_enabled`. Both app-ops
+grants took effect, and `settings get` confirmed the service list afterwards.
+
+Foreground detection works against real apps, including the ones that matter:
+`com.netflix.ninja` while playing, and `com.google.android.apps.tv.launcherx` after HOME.
+Decision D2 therefore stands.
+
+Real package names, from `tools/device.sh inventory` (261 packages on the device):
+`com.netflix.ninja`, `com.google.android.youtube.tv`, `com.disney.disneyplus`,
+`pl.tvn.player.tv`, and for the M5 anti-tamper work `com.android.tv.settings` and
+`com.android.vending`.
+
+Two traps found along the way, both now handled in `tools/device.sh`:
+
+- Getting ADB authorised needed **Revoke debugging authorisations** plus toggling network
+  debugging on the TV. Until that was done the daemon answered on port 5555 and refused
+  every key without ever showing the confirmation dialog — and Home Assistant's own,
+  previously working ADB connection went unavailable at the same time, which suggests a
+  rejected key can wedge the daemon for everyone.
+- A manifest-declared receiver has not received implicit broadcasts since Android 8, so
+  the debug hook has to be addressed as `-n app.tvsitter.tv/.DebugCommandReceiver`.
+  Without it `am broadcast` prints `Broadcast completed: result=0` and runs nothing, which
+  reads exactly like success.
+
+## Open questions — still to be settled on real hardware
+
+1. Does `TYPE_ACCESSIBILITY_OVERLAY` draw on top of **full-screen** video? If not, the
    fallback is a full-screen `Activity` of our own plus `GLOBAL_ACTION_HOME`.
 3. Does `onKeyEvent` receive `KEYCODE_HOME`, and can it swallow it? That is the one key an
    ordinary window cannot stop.
