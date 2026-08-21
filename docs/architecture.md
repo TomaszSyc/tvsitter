@@ -368,6 +368,82 @@ needs a **foreground service** to stay alive, which the system kills more readil
 an accessibility service; and our window would sit *below* `org.droidtv.tvsystemui`, so the TV's
 own volume and info bars would draw over the lock. Neither is an escape route, both are real.
 
+## D16 — SYSTEM_ALERT_WINDOW replaces the accessibility service. Supersedes D2
+
+Decided after the measurements in D15. The lock is drawn with `TYPE_APPLICATION_OVERLAY`,
+the foreground app comes from polled `UsageStatsManager`, and **no accessibility service is
+enabled at all**.
+
+Two reasons, in order of weight.
+
+The privilege asked for shrinks from "read everything on screen and every keystroke" to
+"draw on top". In an app whose entire value rests on a parent trusting it with the family
+television, that is not a technical detail — it is the difference between a reasonable ask
+and one nobody should grant.
+
+And it fixes D15: with no accessibility service enabled, password fields mask again. A
+parent typing their account PIN in front of the child whose screen time they are limiting was
+never acceptable.
+
+### What this supersedes or changes
+
+- **D2 is superseded.** Its reasoning was sound on the evidence available; D15 was the
+  evidence it lacked.
+- **D11's HOME interception no longer applies.** `onKeyEvent` needs an accessibility service.
+  This costs less than it sounds: a `SYSTEM_ALERT_WINDOW` at layer 111000 sits above every
+  app window including the launcher, so pressing HOME changes what is *behind* the lock and
+  nothing more. TVCP keeps a permanently present full-screen window for exactly this reason
+  (D10), and it is sturdier than the remove-and-re-add `reassert()` it replaces.
+- **D13 must be re-measured.** The system revived an accessibility service about 27 seconds
+  after boot, for free. A foreground service has to restart itself from `BOOT_COMPLETED`, and
+  the system kills those more readily. The gap after a reboot is now an open question again.
+- **The HDMI half of #16 changes shape.** `performGlobalAction(GLOBAL_ACTION_HOME)` is gone as
+  the way to leave an input and end its audio. The replacement is to launch our own
+  full-screen activity, which displaces the input rather than merely covering it — and
+  displacing it is what stops the sound.
+
+### What it costs, accepted knowingly
+
+Detection becomes polled, so a newly opened app is visible for a second or two before the
+lock appears. For counting screen time that is noise; for blocking it is a real if small
+regression, and the reason TVCP's enforcement feels less immediate than ours did.
+
+Our window sits *below* `org.droidtv.tvsystemui`, so the TV's own volume and info bars draw
+over the lock. Not an escape route, but visible.
+
+The process needs a foreground service, and therefore a notification. On a television that is
+close to invisible, but it is one more thing that can be killed.
+
+## D17 — The reboot gap grew from 27 to 67 seconds (measured, 2026-08-21)
+
+Re-measures what D13 established, because D16 invalidated it. The number is the cost of no
+longer having the system revive us for free.
+
+```
+BOOT_COMPLETED, starting the enforcer     22:26:55.565
+onCreate()                                22:26:55.938   (+373 ms)
+foreground=com.google.android.apps.tv.launcherx  22:26:56.358
+mqtt: connected                           22:26:58.577
+/proc/uptime 105.85s · process ETIME 39s  → started at uptime ~67s
+```
+
+Our own code is not the delay: enforcement resumes 373 milliseconds after the broadcast
+arrives. The delay is that `BOOT_COMPLETED` is delivered about 67 seconds into boot, where an
+accessibility service was revived at about 27 (D13) and, crucially, *before* `BOOT_COMPLETED`
+rather than because of it.
+
+**This is a real gap, not a rounding error.** By the time we started, our own first reading
+said the launcher had already been in the foreground — so the television was usable, and
+possibly being used, while nothing counted and nothing could block. Roughly forty seconds of
+that per reboot, and a child who works out that turning the TV off and on again buys a head
+start has found a genuine hole.
+
+Worth trying, not yet tried: `ACTION_LOCKED_BOOT_COMPLETED` with `directBootAware`, which
+fires earlier than `BOOT_COMPLETED`. A television has no credential lock to wait on, so the
+early start should be usable — with the caveat that credential-encrypted storage, and
+therefore our settings, is not readable until the user is unlocked. Starting the overlay and
+the counter early while deferring anything that needs settings is the shape of the fix.
+
 ## No open hardware questions from the M0 spike
 
 Everything the spike set out to answer is answered, in D9 through D13. What it turned up

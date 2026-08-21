@@ -33,13 +33,18 @@ and those are the reason for this project.
 
 ```
 ┌─ Android TV / Google TV ─────────────────────┐        ┌─ Home Assistant ─────────────┐
-│ EnforcerService (AccessibilityService)       │        │ custom_components/tvsitter   │
-│  • detects the foreground app                │        │  • entities: screen, app,    │
+│ EnforcerService (foreground service)         │        │ custom_components/tvsitter   │
+│  • detects the foreground app (usage events) │        │  • entities: screen, app,    │
 │  • draws a lock screen over other apps       │  MQTT  │    time left, lock switch    │
-│  • counts screen time, 10 s tick             │◄──────►│  • time requests → push      │
+│  • counts screen time                        │◄──────►│  • time requests → push      │
 │ RulesEngine (:rules, plain Kotlin)           │        │  • dashboard and statistics  │
 └──────────────────────────────────────────────┘        └──────────────────────────────┘
 ```
+
+**No accessibility service.** The permission asked for is "draw on top", not "read everything
+on screen and every keystroke" — and merely having an accessibility service enabled stops
+Android masking password fields, so a parent typing their account PIN on the TV would do it in
+front of an audience. See D15 and D16 in [`docs/architecture.md`](docs/architecture.md).
 
 The decision to block is made **on the TV**. A Home Assistant outage, a dropped Wi-Fi
 link or a broker restart cannot unlock the TV. Home Assistant supplies the rules, shows

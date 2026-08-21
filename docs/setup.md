@@ -56,35 +56,42 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```bash
 PKG=app.tvsitter.tv
 
-# Android 13+ blocks accessibility services for sideloaded apps ("restricted setting").
-# Google TV usually has no "Allow restricted settings" entry in its UI, so this has to be
-# unblocked over ADB.
-adb shell appops set "$PKG" ACCESS_RESTRICTED_SETTINGS allow
+# The lock is drawn as a TYPE_APPLICATION_OVERLAY window. Google TV has no UI to grant
+# this to a sideloaded app. Note that an app-op only takes effect for a permission the
+# app declares — granting one it does not ask for silently does nothing, which is a
+# confusing hour to lose.
+adb shell appops set "$PKG" SYSTEM_ALERT_WINDOW allow
 
-# Usage access — Android TV lacks the settings screen this is normally granted from.
+# Foreground-app detection reads usage events. Android TV lacks the settings screen this
+# is normally granted from.
 adb shell appops set "$PKG" GET_USAGE_STATS allow
 ```
 
-## 4. Enable the accessibility service
+No accessibility service is involved. That is deliberate, and the reason is worth knowing:
+merely having one enabled makes apps stop masking password fields, so a parent typing their
+account PIN on the TV does it in front of an audience. See D15 and D16 in
+`architecture.md`.
 
-Safest with the remote: Settings → Accessibility → TV Sitter → on.
-
-Doing it over ADB requires care not to wipe services that are already enabled — that
-setting is a single colon-separated field:
+If you ran a build from before that change, remove the leftover service:
 
 ```bash
-PKG=app.tvsitter.tv
-SVC="$PKG/$PKG.EnforcerService"
-CURRENT=$(adb shell settings get secure enabled_accessibility_services | tr -d '\r')
-
-case "$CURRENT" in
-  *"$SVC"*)   echo "already on the list" ;;
-  null|"")    adb shell settings put secure enabled_accessibility_services "$SVC" ;;
-  *)          adb shell settings put secure enabled_accessibility_services "$CURRENT:$SVC" ;;
-esac
-
-adb shell settings put secure accessibility_enabled 1
+tools/device.sh disable-a11y
 ```
+
+## 4. Start it once
+
+```bash
+tools/device.sh start
+```
+
+**This step is not optional and is easy to miss.** Installing an app does not start it, and
+nothing else will until the next reboot — the accessibility service this replaced was started
+by the system when it was enabled, and a foreground service is not. Opening TV Sitter from the
+launcher does the same thing, which is what a user would do anyway.
+
+After a reboot the enforcer restarts itself from `BOOT_COMPLETED`, which on the test device
+arrives about 67 seconds into boot (D17). The television is usable before that, so there is a
+real gap; #23 tracks closing it.
 
 ## 5. Check that it works
 
@@ -92,20 +99,19 @@ adb shell settings put secure accessibility_enabled 1
 tools/device.sh doctor
 ```
 
-Reports the device, the install, both app-ops and whether the service is actually bound.
-The bound state comes from `dumpsys accessibility` rather than the log, because the log
-buffer rotates during boot and a log-based check reports a false negative exactly when you
-most want the answer.
+Reports the device, the install, both app-ops and whether the enforcer is actually running —
+plus a warning if a pre-D16 accessibility service is still enabled.
 
 ```bash
 adb logcat -s TVSitter:*
 ```
 
-Enabling the service must produce an `onServiceConnected()` line, followed by a
-`foreground=<package>` line every time the app on the TV changes.
+Starting the service must produce `onCreate()`, and a `foreground=<package>` line within a
+second or two of changing app on the TV. Detection is polled rather than pushed, so it lags
+slightly by design.
 
-There is also a diagnostics screen on the TV itself — the **TV Sitter** tile in the
-launcher shows permission state and the app currently detected.
+There is also a diagnostics screen on the TV: the **TV Sitter** tile in the launcher shows
+permission state and the app currently detected, and starting it also starts the enforcer.
 
 In **debug** builds the lock can be driven from your computer, without the remote:
 

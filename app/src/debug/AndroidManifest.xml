@@ -5,13 +5,6 @@
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
-
-    <!-- Only for the #20 spike: without an accessibility service the process needs a
-         foreground service to stay alive, and that is part of what is being measured. -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-
     <application>
         <receiver
             android:name=".DebugCommandReceiver"
@@ -22,18 +15,7 @@
                 <action android:name="app.tvsitter.tv.UNLOCK" />
                 <action android:name="app.tvsitter.tv.STATUS" />
                 <action android:name="app.tvsitter.tv.CONFIGURE" />
-                <action android:name="app.tvsitter.tv.SAW_LOCK" />
-                <action android:name="app.tvsitter.tv.SAW_UNLOCK" />
             </intent-filter>
         </receiver>
-
-        <service
-            android:name=".SawSpikeService"
-            android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Measuring whether SYSTEM_ALERT_WINDOW can replace the accessibility overlay" />
-        </service>
     </application>
 </manifest>

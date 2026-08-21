@@ -18,7 +18,6 @@ set -euo pipefail
 
 DEVICE="${TVSITTER_DEVICE:-<tv-ip>:5555}"
 PKG="app.tvsitter.tv"
-SERVICE="$PKG/$PKG.EnforcerService"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APK="$REPO_ROOT/app/build/outputs/apk/debug/app-debug.apk"
 
@@ -73,47 +72,37 @@ cmd_doctor() {
     fi
 
     say "Permissions"
-    for op in ACCESS_RESTRICTED_SETTINGS GET_USAGE_STATS; do
+    for op in SYSTEM_ALERT_WINDOW GET_USAGE_STATS; do
         local mode
         mode="$(adb_ shell appops get "$PKG" "$op" 2>/dev/null | tr -d '\r' || true)"
         if [[ "$mode" == *allow* ]]; then ok "$op: $mode"; else bad "$op: ${mode:-not set}"; fi
     done
 
-    say "Accessibility service"
-    local enabled
-    enabled="$(adb_ shell settings get secure enabled_accessibility_services | tr -d '\r')"
-    if [[ "$enabled" == *"$SERVICE"* ]]; then
-        ok "listed as enabled"
+    say "Enforcer"
+    if adb_ shell dumpsys activity services "$PKG" 2>/dev/null | grep -q "EnforcerService"; then
+        ok "service is running"
+        adb_ shell dumpsys activity services "$PKG" 2>/dev/null |
+            grep -oE "isForeground=[a-z]+" | head -1 | sed 's/^/    /'
     else
-        bad "not in the list — run: tools/device.sh enable-a11y"
-        info "current list: ${enabled}"
-    fi
-    local master
-    master="$(adb_ shell settings get secure accessibility_enabled | tr -d '\r')"
-    if [[ "$master" == "1" ]]; then
-        ok "accessibility master switch on"
-    else
-        bad "master switch off ($master)"
-    fi
-
-    # The authority is the bound-services list, not the log. After a reboot the log buffer
-    # rotates and a log-only check reports a false negative exactly when it matters most.
-    if adb_ shell dumpsys accessibility 2>/dev/null | grep -q "Service\[label=TV Sitter"; then
-        ok "bound and running (dumpsys accessibility)"
-        adb_ shell dumpsys accessibility 2>/dev/null |
-            grep -oE "label=TV Sitter.{0,60}capabilities=[0-9]+" | head -1 | sed 's/^/    /'
-    else
-        bad "not bound — the service is listed as enabled but is not running"
-    fi
-
-    if adb_ logcat -d -s TVSitter:I 2>/dev/null | grep -q onServiceConnected; then
-        info "onServiceConnected() still in the log buffer"
+        bad "not running — run: tools/device.sh start"
     fi
 
     local uptime_s process_age
     uptime_s="$(adb_ shell cat /proc/uptime | cut -d. -f1 | tr -d '\r')"
     process_age="$(adb_ shell ps -A -o ETIME,NAME 2>/dev/null | awk '/app.tvsitter.tv/ {print $1; exit}' | tr -d '\r')"
     [[ -n "$process_age" ]] && info "device up ${uptime_s}s, our process alive ${process_age}"
+
+    say "Accessibility"
+    local enabled
+    enabled="$(adb_ shell settings get secure enabled_accessibility_services | tr -d '\r')"
+    if [[ "$enabled" == *"$PKG"* ]]; then
+        bad "an old TV Sitter accessibility service is still enabled"
+        info "Since D16 the app does not use one. Merely having an accessibility service"
+        info "enabled unmasks password fields system-wide, so remove it:"
+        info "  tools/device.sh disable-a11y"
+    else
+        ok "no accessibility service, as intended since D16"
+    fi
 }
 
 cmd_install() {
@@ -130,11 +119,11 @@ cmd_install() {
     adb_ install -r "$APK"
 
     say "Granting permissions the remote cannot grant"
-    # Android 13+ hides accessibility behind a "restricted setting" for sideloaded apps,
-    # and Google TV usually has no UI entry to lift it.
-    adb_ shell appops set "$PKG" ACCESS_RESTRICTED_SETTINGS allow
+    # Google TV has no UI to give a sideloaded app either of these. An app-op only takes
+    # effect for a permission the app declares, which both of these are.
+    adb_ shell appops set "$PKG" SYSTEM_ALERT_WINDOW allow
     adb_ shell appops set "$PKG" GET_USAGE_STATS allow
-    for op in ACCESS_RESTRICTED_SETTINGS GET_USAGE_STATS; do
+    for op in SYSTEM_ALERT_WINDOW GET_USAGE_STATS; do
         local mode
         mode="$(adb_ shell appops get "$PKG" "$op" | tr -d '\r')"
         if [[ "$mode" == *allow* ]]; then
@@ -143,41 +132,34 @@ cmd_install() {
             bad "$op did not take: $mode"
         fi
     done
+
+    cmd_start
 }
 
-cmd_enable_a11y() {
+cmd_start() {
     require_device
-    say "Enabling the accessibility service"
-    local current
-    current="$(adb_ shell settings get secure enabled_accessibility_services | tr -d '\r')"
-
-    # This setting is one colon-separated field shared by every accessibility service on
-    # the device. Overwriting it would silently disable whatever else the user relies on.
-    case "$current" in
-    *"$SERVICE"*)
-        ok "already present"
-        ;;
-    null | "")
-        adb_ shell settings put secure enabled_accessibility_services "$SERVICE"
-        ok "list was empty, set to $SERVICE"
-        ;;
-    *)
-        adb_ shell settings put secure enabled_accessibility_services "$current:$SERVICE"
-        ok "appended to existing list ($current)"
-        ;;
-    esac
-    adb_ shell settings put secure accessibility_enabled 1
-
-    say "Verifying"
-    sleep 2
-    if adb_ logcat -d -s TVSitter:I | grep -q onServiceConnected; then
-        ok "service connected"
-        adb_ logcat -d -s TVSitter:I | grep onServiceConnected | tail -1 | sed 's/^/    /'
+    say "Starting the enforcer"
+    # Through the activity, not `am start-foreground-service`: the service is not exported,
+    # so the shell cannot start it directly — and it should stay that way. Opening the app is
+    # also exactly what a user does after installing it, since nothing else starts the
+    # service until the next reboot.
+    adb_ shell am start -n "$PKG/.SetupActivity" >/dev/null 2>&1
+    sleep 3
+    if adb_ shell dumpsys activity services "$PKG" 2>/dev/null | grep -q "EnforcerService"; then
+        ok "running"
+        adb_ logcat -d -s TVSitter:I | grep -E "onCreate|mqtt:" | tail -3 | sed 's/^/    /'
     else
-        bad "no onServiceConnected() yet"
-        info "On Android 13+ the setting can be written and still refused. Open"
-        info "Settings → Accessibility → TV Sitter on the TV and check what it says."
+        bad "did not start"
     fi
+}
+
+# Only for cleaning up after the pre-D16 builds.
+cmd_disable_a11y() {
+    require_device
+    say "Removing the accessibility service"
+    adb_ shell settings delete secure enabled_accessibility_services >/dev/null
+    adb_ shell settings put secure accessibility_enabled 0
+    ok "removed; password fields will mask again"
 }
 
 cmd_inventory() {
@@ -276,12 +258,15 @@ cmd_status() {
 cmd_reboot_test() {
     require_device
     say "Reboot survival test"
-    info "The counter lives in the accessibility service because the system is supposed to"
-    info "restart it after a reboot. This measures whether that holds, and how long the gap is."
+    info "Since D16 nothing revives the enforcer for free. The accessibility service it"
+    info "replaced came back on its own about 27 seconds after boot (D13); a foreground"
+    info "service has to restart itself from BOOT_COMPLETED, so this measures whether it"
+    info "does and how long enforcement is absent."
     adb_ reboot
     local start
     start="$(date +%s)"
     info "rebooting; waiting for the device to answer again"
+
     # The device state has to come from `adb devices`, not from the output of `adb connect`.
     # A stale entry makes connect answer "already connected" even while the device is down,
     # so matching on its output loops forever — which it did the first time this ran.
@@ -295,21 +280,34 @@ cmd_reboot_test() {
             return 1
         fi
     done
-    ok "reachable after $(($(date +%s) - start))s"
+    local reachable_at=$(($(date +%s) - start))
+    ok "reachable after ${reachable_at}s"
 
     local waited=0
-    until adb_ logcat -d -s TVSitter:I 2>/dev/null | grep -q onServiceConnected; do
+    until adb_ shell ps -A -o NAME 2>/dev/null | grep -q "app.tvsitter.tv"; do
         sleep 5
         waited=$((waited + 5))
         if [[ $waited -ge 180 ]]; then
-            bad "no onServiceConnected() within ${waited}s after reboot"
-            info "That is a finding, not a script failure — record it on issue #5."
+            bad "the enforcer did not start within ${waited}s of the device answering"
+            info "That is a finding, not a script failure — it is the gap D16 warned about."
+            info "Log so far:"
+            adb_ logcat -d -s TVSitter:V | tail -5 | sed 's/^/      /' || true
             return 1
         fi
     done
-    ok "service back ${waited}s after the device answered"
-    say "Ordering of events"
-    adb_ logcat -d -s TVSitter:I | grep -E "onServiceConnected|BOOT_COMPLETED" | sed 's/^/    /'
+    ok "enforcer running ${waited}s after the device answered (~$((reachable_at + waited))s from reboot)"
+
+    say "What the log says"
+    # `|| true` because grep exits non-zero when nothing matches, and under `set -o pipefail`
+    # that aborts the whole run — losing the measurement that had already succeeded.
+    adb_ logcat -d -s TVSitter:V | grep -E "BOOT_COMPLETED|onCreate|mqtt:" | head -6 |
+        sed 's/^/    /' || true
+
+    say "Process age against uptime"
+    local uptime_s process_age
+    uptime_s="$(adb_ shell cat /proc/uptime | cut -d. -f1 | tr -d '\r')"
+    process_age="$(adb_ shell ps -A -o ETIME,NAME 2>/dev/null | awk '/app.tvsitter.tv/ {print $1; exit}' | tr -d '\r')"
+    info "device up ${uptime_s}s, our process alive ${process_age}"
 }
 
 usage() {
@@ -318,7 +316,8 @@ tools/device.sh <command>          target: $DEVICE (override with TVSITTER_DEVIC
 
   doctor        report device, install, permission and service state
   install       build the debug APK, install it, grant the ADB-only permissions
-  enable-a11y   enable the accessibility service without clobbering other services
+  start         start the enforcer foreground service
+  disable-a11y  remove the accessibility service left by pre-D16 builds
   inventory     dump the installed package list to build/device-packages.txt
   watch         tail the TVSitter log
   lock [reason] show the lock screen (debug builds only)
@@ -332,7 +331,8 @@ EOF
 case "${1:-}" in
 doctor) cmd_doctor ;;
 install) cmd_install ;;
-enable-a11y) cmd_enable_a11y ;;
+start) cmd_start ;;
+disable-a11y) cmd_disable_a11y ;;
 inventory) cmd_inventory ;;
 watch) cmd_watch ;;
 lock) cmd_lock "$@" ;;

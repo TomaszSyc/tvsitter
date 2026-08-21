@@ -87,7 +87,11 @@ class MqttBridge(private val config: BrokerConfig, private val onCommand: (Comma
     }
 
     fun publish(snapshot: StateSnapshot) {
-        val active = client ?: return
+        // Quietly skipped while disconnected rather than attempted and warned about. State is
+        // republished on a heartbeat anyway, and a retained topic means nothing is lost — but
+        // a warning at startup, before the connection is up, reads like the cause of whatever
+        // someone is actually debugging.
+        val active = client?.takeIf { it.state.isConnected } ?: return
         active.publishWith()
             .topic(topics.state)
             .payload(ContractCodec.encode(snapshot).toByteArray())
@@ -100,7 +104,13 @@ class MqttBridge(private val config: BrokerConfig, private val onCommand: (Comma
     }
 
     fun publish(request: TimeRequest) {
-        val active = client ?: return
+        // A request is different: it must not be silently dropped, because a child pressed a
+        // button and is waiting for an answer. Logged loudly so the failure is visible.
+        val active = client?.takeIf { it.state.isConnected }
+        if (active == null) {
+            Log.w(EnforcerService.TAG, "mqtt: not connected, time request could not be sent")
+            return
+        }
         active.publishWith()
             .topic(topics.request)
             .payload(ContractCodec.encode(request).toByteArray())

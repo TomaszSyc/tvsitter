@@ -1,23 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="accessibility_service_summary">Pilnuje czasu przed telewizorem</string>
-    <string name="accessibility_service_description">TV Sitter rozpoznaje, która aplikacja jest na
-        pierwszym planie, zlicza czas ekranowy i pokazuje ekran blokady, kiedy skończy się
-        przydzielony czas. Bez tej usługi aplikacja nie potrafi nic zablokować.</string>
+    <string name="notification_channel">Pilnowanie czasu ekranowego</string>
+    <string name="notification_running">Pilnuje czasu przed telewizorem</string>
 
     <string name="lock_title">Koniec czasu na dziś</string>
     <string name="lock_ask_more">Poproś rodzica o więcej czasu</string>
 
-    <string name="setup_open_accessibility">Otwórz ustawienia dostępności</string>
     <string name="setup_device">Urządzenie: %1$s %2$s, API %3$d</string>
     <string name="setup_version">Wersja aplikacji: %1$s</string>
-    <string name="setup_service_enabled">Usługa dostępności: %1$s</string>
-    <string name="setup_service_connected">Usługa podłączona w procesie: %1$s</string>
+    <string name="setup_service_running">Usługa działa: %1$s</string>
+    <string name="setup_overlay">Prawo rysowania nad aplikacjami: %1$s</string>
     <string name="setup_usage_access">Dostęp do statystyk użycia: %1$s</string>
     <string name="setup_foreground">Aplikacja na pierwszym planie: %1$s</string>
     <string name="setup_locked">Blokada aktywna: %1$s</string>
-    <string name="setup_enabled">włączona</string>
-    <string name="setup_disabled">wyłączona</string>
     <string name="setup_yes">tak</string>
     <string name="setup_no">nie</string>
     <string name="setup_unknown">(brak danych)</string>
