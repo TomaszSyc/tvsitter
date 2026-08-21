@@ -55,6 +55,15 @@ class DebugCommandReceiver : BroadcastReceiver() {
                 },
             )
 
+            ACTION_PAIR -> {
+                val service = EnforcerService.instance
+                if (service == null) {
+                    Log.w(EnforcerService.TAG, "PAIR: the enforcer is not running")
+                } else {
+                    service.requestPairing()
+                }
+            }
+
             ACTION_STATUS -> {
                 val service = EnforcerService.instance
                 if (service == null) {
@@ -97,7 +106,7 @@ class DebugCommandReceiver : BroadcastReceiver() {
                         "user=${stored.username.ifBlank { "(none)" }} tls=${stored.useTls} " +
                         "password=${if (stored.password.isBlank()) "(none)" else "(set)"}",
                 )
-                EnforcerService.instance?.reconnectMqtt()
+                EnforcerService.instance?.reloadTelemetry()
             } finally {
                 pending.finish()
             }
@@ -109,5 +118,6 @@ class DebugCommandReceiver : BroadcastReceiver() {
         const val ACTION_UNLOCK = "app.tvsitter.tv.UNLOCK"
         const val ACTION_STATUS = "app.tvsitter.tv.STATUS"
         const val ACTION_CONFIGURE = "app.tvsitter.tv.CONFIGURE"
+        const val ACTION_PAIR = "app.tvsitter.tv.PAIR"
     }
 }

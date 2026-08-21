@@ -245,6 +245,14 @@ cmd_configure() {
     adb_ logcat -d -s TVSitter:I | grep -E "configured:|mqtt:" | tail -4 | sed 's/^/    /'
 }
 
+# Opens a pairing window on demand, for testing the flow without wiping the configuration.
+cmd_pair() {
+    require_device
+    broadcast PAIR
+    sleep 2
+    adb_ logcat -d -s TVSitter:I | grep -E "pairing:" | tail -3 | sed 's/^/    /' || true
+}
+
 cmd_status() {
     require_device
     # The buffer is deliberately not cleared: the log is the only record of what the
@@ -323,6 +331,7 @@ tools/device.sh <command>          target: $DEVICE (override with TVSITTER_DEVIC
   lock [reason] show the lock screen (debug builds only)
   unlock        dismiss the lock screen
   status        ask the service for its current state
+  pair          open a pairing window and print the PIN
   configure     set broker settings: --host --port --user --pass --prefix --tls
   reboot-test   reboot the TV and measure whether the service comes back
 EOF
@@ -338,6 +347,7 @@ watch) cmd_watch ;;
 lock) cmd_lock "$@" ;;
 unlock) cmd_unlock ;;
 status) cmd_status ;;
+pair) cmd_pair ;;
 configure) shift; cmd_configure "$@" ;;
 reboot-test) cmd_reboot_test ;;
 *) usage ;;
