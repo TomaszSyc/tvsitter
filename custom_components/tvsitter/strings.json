@@ -1,0 +1,23 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "TV Sitter",
+        "description": "Enter the MQTT topic prefix configured in the app on your TV.",
+        "data": {
+          "name": "TV name",
+          "topic_prefix": "MQTT topic prefix"
+        },
+        "data_description": {
+          "topic_prefix": "No wildcards, for example tvsitter/livingroom."
+        }
+      }
+    },
+    "error": {
+      "invalid_topic_prefix": "The prefix must not be empty or contain + or # characters."
+    },
+    "abort": {
+      "already_configured": "This TV is already configured."
+    }
+  }
+}

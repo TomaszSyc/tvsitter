@@ -1,0 +1,63 @@
+/*
+ * TV Sitter — parental control for Android TV / Google TV.
+ * Copyright (C) 2026 Tomasz Syc
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+package app.tvsitter.rules
+
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
+import java.time.ZonedDateTime
+
+/**
+ * Clock for the budget day.
+ *
+ * The accounting day starts at [dayStartHour], not at midnight. Without that, a child
+ * watching at 23:59 gets a fresh allowance at 00:00 for the rest of the night — the exact
+ * opposite of what this app is for.
+ *
+ * The whole class is plain Kotlin with no Android dependencies so it can be tested on the
+ * JVM without an emulator.
+ */
+class BudgetClock(
+    private val zone: ZoneId,
+    private val dayStartHour: Int = DEFAULT_DAY_START_HOUR,
+) {
+    init {
+        require(dayStartHour in 0..23) { "dayStartHour must be within 0..23, was $dayStartHour" }
+    }
+
+    /** The budget day that [instant] belongs to. */
+    fun budgetDay(instant: Instant): LocalDate {
+        val local = instant.atZone(zone)
+        return if (local.hour < dayStartHour) {
+            local.toLocalDate().minusDays(1)
+        } else {
+            local.toLocalDate()
+        }
+    }
+
+    /** Whether both moments fall in the same budget day, and therefore share one allowance. */
+    fun isSameBudgetDay(first: Instant, second: Instant): Boolean =
+        budgetDay(first) == budgetDay(second)
+
+    /**
+     * The next moment the counter resets, always strictly after [instant].
+     *
+     * [ZonedDateTime.of] is used on purpose: across a daylight saving transition it resolves
+     * a non-existent local time by shifting forward instead of throwing.
+     */
+    fun nextReset(instant: Instant): Instant =
+        ZonedDateTime.of(
+            budgetDay(instant).plusDays(1),
+            LocalTime.of(dayStartHour, 0),
+            zone,
+        ).toInstant()
+
+    companion object {
+        /** 04:00 — "small hours" in human terms, and safely outside real viewing time. */
+        const val DEFAULT_DAY_START_HOUR: Int = 4
+    }
+}

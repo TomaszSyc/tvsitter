@@ -1,0 +1,32 @@
+name: HACS
+
+# Manual and scheduled only, not on every push: while the repository is private and
+# has no release, HACS validation is bound to fail (it requires a public repository with
+# a description, topics and a release). Once the repository is public, add:
+#   push:
+#     branches: [main]
+#   pull_request:
+on:
+  schedule:
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hacs:
+    name: HACS validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hacs/action@main
+        with:
+          category: integration
+
+  hassfest:
+    name: Home Assistant manifest validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: home-assistant/actions/hassfest@master

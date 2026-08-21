@@ -1,0 +1,23 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "TV Sitter",
+        "description": "Podaj prefiks topiców MQTT ustawiony w aplikacji na telewizorze.",
+        "data": {
+          "name": "Nazwa telewizora",
+          "topic_prefix": "Prefiks topiców MQTT"
+        },
+        "data_description": {
+          "topic_prefix": "Bez znaków wieloznacznych, np. tvsitter/salon."
+        }
+      }
+    },
+    "error": {
+      "invalid_topic_prefix": "Prefiks nie może być pusty ani zawierać znaków + i #."
+    },
+    "abort": {
+      "already_configured": "Ten telewizor jest już skonfigurowany."
+    }
+  }
+}

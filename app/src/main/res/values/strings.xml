@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TV Sitter</string>
+    <string name="accessibility_service_label">TV Sitter</string>
+    <string name="accessibility_service_summary">Keeps an eye on TV screen time</string>
+    <string name="accessibility_service_description">TV Sitter detects which app is in the
+        foreground, counts screen time and shows a lock screen once the allowance runs out.
+        Without this service the app cannot block anything.</string>
+
+    <string name="lock_title">That is it for today</string>
+    <string name="lock_ask_more">Ask a parent for more time</string>
+    <string name="lock_pin">Enter parent PIN</string>
+
+    <string name="setup_open_accessibility">Open accessibility settings</string>
+    <string name="setup_device">Device: %1$s %2$s, API %3$d</string>
+    <string name="setup_version">App version: %1$s</string>
+    <string name="setup_service_enabled">Accessibility service: %1$s</string>
+    <string name="setup_service_connected">Service connected in process: %1$s</string>
+    <string name="setup_usage_access">Usage access granted: %1$s</string>
+    <string name="setup_foreground">Foreground app: %1$s</string>
+    <string name="setup_locked">Lock active: %1$s</string>
+    <string name="setup_enabled">enabled</string>
+    <string name="setup_disabled">disabled</string>
+    <string name="setup_yes">yes</string>
+    <string name="setup_no">no</string>
+    <string name="setup_unknown">(no data yet)</string>
+</resources>
