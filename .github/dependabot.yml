@@ -1,0 +1,29 @@
+version: 2
+
+updates:
+  # Reads gradle/libs.versions.toml as well as the build scripts.
+  - package-ecosystem: gradle
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Warsaw
+    open-pull-requests-limit: 5
+    labels: ["dependencies"]
+    groups:
+      # AndroidX releases move together; one PR per week beats fifteen.
+      androidx:
+        patterns: ["androidx.*"]
+      kotlin:
+        patterns: ["org.jetbrains.kotlin*", "org.jetbrains.kotlinx*"]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    labels: ["dependencies"]
+
+# No pip entry on purpose: the Home Assistant integration declares no requirements,
+# and its Python dependencies come from Home Assistant itself.

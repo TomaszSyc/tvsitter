@@ -1,0 +1,23 @@
+# Gradle / Android
+.gradle/
+build/
+local.properties
+*.apk
+*.aab
+*.keystore
+!debug.keystore
+captures/
+.cxx/
+.kotlin/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# macOS
+.DS_Store
+
+# Secrets: MQTT broker credentials, PINs and similar
+secrets.properties
+ha/secrets.yaml
