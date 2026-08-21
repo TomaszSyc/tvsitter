@@ -89,10 +89,17 @@ launcher shows permission state and the app currently detected.
 In **debug** builds the lock can be driven from your computer, without the remote:
 
 ```bash
-adb shell am broadcast -a app.tvsitter.tv.LOCK --es reason "lock test"
-adb shell am broadcast -a app.tvsitter.tv.STATUS
-adb shell am broadcast -a app.tvsitter.tv.UNLOCK
+R=app.tvsitter.tv/.DebugCommandReceiver
+adb shell am broadcast -n $R -a app.tvsitter.tv.LOCK --es reason "lock test"
+adb shell am broadcast -n $R -a app.tvsitter.tv.STATUS
+adb shell am broadcast -n $R -a app.tvsitter.tv.UNLOCK
 ```
+
+The `-n` is not optional. Since Android 8 a receiver declared in a manifest does not
+receive implicit broadcasts, so without it `am broadcast` reports `result=0` and runs
+nothing at all — it looks like it worked.
+
+Easier: `tools/device.sh lock`, `status`, `unlock`.
 
 The receiver handling those commands exists in debug builds only; it is absent from the
 release manifest.
