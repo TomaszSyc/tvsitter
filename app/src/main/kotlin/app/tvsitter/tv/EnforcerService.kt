@@ -6,6 +6,7 @@
 package app.tvsitter.tv
 
 import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Intent
 import android.os.Build
 import android.util.Log
@@ -65,6 +66,12 @@ class EnforcerService : AccessibilityService() {
                 "model=${Build.MODEL} manufacturer=${Build.MANUFACTURER}",
         )
 
+        // Key filtering off until the lock actually needs it. The capability is declared in
+        // the service config so the user consents to it once and HOME stays interceptable,
+        // but a service receiving every keystroke is a keylogger by capability, and there is
+        // no reason for that to be live while nobody is locked out.
+        setKeyFiltering(enabled = false)
+
         scope.launch { startMqtt() }
         scope.launch { heartbeat() }
     }
@@ -107,6 +114,7 @@ class EnforcerService : AccessibilityService() {
     }
 
     fun lock(reason: String) {
+        setKeyFiltering(enabled = true)
         overlay?.show(
             title = getString(R.string.lock_title),
             subtitle = reason,
@@ -117,7 +125,26 @@ class EnforcerService : AccessibilityService() {
 
     fun unlock() {
         overlay?.hide()
+        setKeyFiltering(enabled = false)
         publishSoon()
+    }
+
+    /**
+     * Turns key filtering on and off at runtime.
+     *
+     * The declared flag is what makes [onKeyEvent] fire at all, so clearing it means the
+     * service stops seeing keystrokes entirely rather than merely ignoring them.
+     */
+    private fun setKeyFiltering(enabled: Boolean) {
+        val info = serviceInfo ?: return
+        val flag = AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS
+        val updated = if (enabled) info.flags or flag else info.flags and flag.inv()
+        if (updated == info.flags) return
+
+        info.flags = updated
+        runCatching { serviceInfo = info }
+            .onSuccess { Log.i(TAG, "key filtering ${if (enabled) "on" else "off"}") }
+            .onFailure { Log.w(TAG, "could not change key filtering", it) }
     }
 
     /** Drops any existing connection and reconnects with whatever is now stored. */

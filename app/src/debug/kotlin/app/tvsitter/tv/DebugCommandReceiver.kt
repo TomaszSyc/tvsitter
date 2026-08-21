@@ -36,6 +36,17 @@ class DebugCommandReceiver : BroadcastReceiver() {
             return
         }
 
+        // The SAW spike deliberately does not go through the accessibility service: the
+        // whole point is that it has to work with that service switched off.
+        if (intent.action == ACTION_SAW_LOCK || intent.action == ACTION_SAW_UNLOCK) {
+            val service = Intent(context, SawSpikeService::class.java).apply {
+                if (intent.action == ACTION_SAW_UNLOCK) action = SawSpikeService.ACTION_HIDE
+                intent.getStringExtra("reason")?.let { putExtra("reason", it) }
+            }
+            context.startForegroundService(service)
+            return
+        }
+
         val service = EnforcerService.instance
         if (service == null) {
             Log.w(EnforcerService.TAG, "${intent.action}: accessibility service is not connected")
@@ -90,5 +101,7 @@ class DebugCommandReceiver : BroadcastReceiver() {
         const val ACTION_UNLOCK = "app.tvsitter.tv.UNLOCK"
         const val ACTION_STATUS = "app.tvsitter.tv.STATUS"
         const val ACTION_CONFIGURE = "app.tvsitter.tv.CONFIGURE"
+        const val ACTION_SAW_LOCK = "app.tvsitter.tv.SAW_LOCK"
+        const val ACTION_SAW_UNLOCK = "app.tvsitter.tv.SAW_UNLOCK"
     }
 }

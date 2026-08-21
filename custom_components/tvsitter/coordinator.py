@@ -104,7 +104,7 @@ class TvSitterClient:
                     SCHEMA_VERSION,
                 )
             return
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             _LOGGER.warning("Undecodable state payload on %s", message.topic)
             return
 

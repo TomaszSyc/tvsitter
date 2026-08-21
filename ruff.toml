@@ -2,7 +2,7 @@
 # package, and inventing package metadata to hold a linter setting would be misleading.
 
 line-length = 88
-target-version = "py313"
+target-version = "py314"
 
 [lint]
 select = [
