@@ -1,0 +1,141 @@
+/*
+ * TV Sitter — parental control for Android TV / Google TV.
+ * Copyright (C) 2026 Tomasz Syc
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+package app.tvsitter.rules.contract
+
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
+
+class ContractCodecTest {
+
+    private val snapshot = StateSnapshot(
+        ts = 1787315400000,
+        fw = "0.1.0",
+        screenOn = true,
+        locked = false,
+        appId = "com.netflix.ninja",
+        appName = "Netflix",
+        usedTodaySeconds = 4210,
+        remainingTodaySeconds = 1190,
+        bonusTodaySeconds = 900,
+        perApp = mapOf("com.netflix.ninja" to 610, "com.google.android.youtube.tv" to 3600),
+        activeWindow = "weekday_afternoon",
+        rulesRev = 7,
+    )
+
+    @Test
+    fun `state survives a round trip`() {
+        assertEquals(snapshot, ContractCodec.decodeState(ContractCodec.encode(snapshot)))
+    }
+
+    /**
+     * The wire format is a contract with the Home Assistant integration, so the field names
+     * are asserted literally. Renaming a Kotlin property must not silently rename a key.
+     */
+    @Test
+    fun `state uses the documented field names`() {
+        val keys = (Json.parseToJsonElement(ContractCodec.encode(snapshot)) as JsonObject).keys
+        assertEquals(
+            setOf(
+                "schema", "ts", "fw", "screen_on", "locked", "app_id", "app_name",
+                "used_today_s", "remaining_today_s", "bonus_today_s", "per_app",
+                "active_window", "rules_rev",
+            ),
+            keys,
+        )
+    }
+
+    @Test
+    fun `no limit is null and not zero`() {
+        val unlimited = snapshot.copy(remainingTodaySeconds = null)
+        val encoded = ContractCodec.encode(unlimited)
+
+        assertTrue(encoded.contains("\"remaining_today_s\":null"), encoded)
+        assertNull(ContractCodec.decodeState(encoded).remainingTodaySeconds)
+    }
+
+    @Test
+    fun `an added field does not break an older reader`() {
+        val withExtra = ContractCodec.encode(snapshot).dropLast(1) + ""","something_new":42}"""
+        assertEquals(snapshot, ContractCodec.decodeState(withExtra))
+    }
+
+    @Test
+    fun `a newer schema is refused rather than guessed`() {
+        val fromTheFuture = ContractCodec.encode(snapshot)
+            .replace("\"schema\":${Contract.SCHEMA_VERSION}", "\"schema\":${Contract.SCHEMA_VERSION + 1}")
+
+        val thrown = assertThrows<UnsupportedSchemaException> { ContractCodec.decodeState(fromTheFuture) }
+        assertEquals(Contract.SCHEMA_VERSION + 1, thrown.found)
+    }
+
+    @Test
+    fun `a payload without a schema is read as the current one`() {
+        val handWritten = """{"ts":1,"fw":"x","screen_on":false,"locked":true}"""
+        val decoded = ContractCodec.decodeState(handWritten)
+
+        assertEquals(Contract.SCHEMA_VERSION, decoded.schema)
+        assertTrue(decoded.locked)
+    }
+
+    @Test
+    fun `every command survives a round trip`() {
+        val commands = listOf(
+            Command.Lock("bedtime"),
+            Command.Lock(),
+            Command.Unlock(30),
+            Command.Unlock(),
+            Command.Grant(requestId = "8f14e45f", minutes = 15),
+            Command.Deny(requestId = "8f14e45f"),
+            Command.SetRules(rev = 8, rules = buildJsonObject { put("daily_limit_min", 60) }),
+            Command.StopApp("com.google.android.youtube.tv"),
+            Command.Ping,
+        )
+
+        commands.forEach { command ->
+            val encoded = ContractCodec.encode(command)
+            assertEquals(command, ContractCodec.decodeCommand(encoded), encoded)
+        }
+    }
+
+    @Test
+    fun `commands are discriminated by op, as documented`() {
+        assertTrue(ContractCodec.encode(Command.Lock("bedtime")).contains("\"op\":\"lock\""))
+        assertTrue(ContractCodec.encode(Command.Ping).contains("\"op\":\"ping\""))
+        assertTrue(
+            ContractCodec.encode(Command.Grant("abc", 15)).contains("\"req_id\":\"abc\""),
+        )
+    }
+
+    @Test
+    fun `an unknown command is rejected, not silently ignored`() {
+        assertThrows<SerializationException> {
+            ContractCodec.decodeCommand("""{"op":"factory_reset"}""")
+        }
+    }
+
+    @Test
+    fun `a time request keeps its documented shape`() {
+        val request = TimeRequest(
+            id = "8f14e45f",
+            appId = "com.netflix.ninja",
+            askedMinutes = 15,
+            ts = 1787315400000,
+        )
+        val encoded = ContractCodec.encode(request)
+
+        assertTrue(encoded.contains("\"kind\":\"more_time\""), encoded)
+        assertTrue(encoded.contains("\"asked_minutes\":15"), encoded)
+        assertEquals(request, ContractCodec.decodeRequest(encoded))
+    }
+}

@@ -5,9 +5,17 @@ build:
 
 style:
   MagicNumber:
-    # Colours, text sizes and paddings in the lock overlay are inherently literal. Naming
-    # every one of them would add indirection without adding meaning.
-    excludes: ["**/LockOverlay.kt", "**/SetupActivity.kt"]
+    # Overriding `excludes` replaces detekt's defaults rather than adding to them, so the
+    # test globs have to be repeated here — test fixtures are supposed to be literal.
+    # Colours, text sizes and paddings in the lock overlay are inherently literal too;
+    # naming every one of them would add indirection without adding meaning.
+    excludes:
+      - "**/test/**"
+      - "**/androidTest/**"
+      - "**/*.Test.kt"
+      - "**/*.Spec.kt"
+      - "**/LockOverlay.kt"
+      - "**/SetupActivity.kt"
   ReturnCount:
     active: false
 

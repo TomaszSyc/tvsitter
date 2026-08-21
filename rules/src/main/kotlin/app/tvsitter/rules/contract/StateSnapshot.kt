@@ -1,0 +1,55 @@
+/*
+ * TV Sitter — parental control for Android TV / Google TV.
+ * Copyright (C) 2026 Tomasz Syc
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+package app.tvsitter.rules.contract
+
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+
+/**
+ * What the TV publishes on `<prefix>/state`, retained.
+ *
+ * `remainingTodaySeconds` is null for "no limit", which is a different thing from zero;
+ * anything reading it has to keep that distinction or an unlimited evening turns into an
+ * instant lock.
+ */
+@Serializable
+data class StateSnapshot(
+    val schema: Int = Contract.SCHEMA_VERSION,
+    /** Send time, epoch milliseconds. Lets a consumer recognise a stale retained payload. */
+    val ts: Long,
+    /** App version, so a misbehaving build can be identified from the payload alone. */
+    val fw: String,
+    @SerialName("screen_on") val screenOn: Boolean,
+    val locked: Boolean,
+    @SerialName("app_id") val appId: String? = null,
+    @SerialName("app_name") val appName: String? = null,
+    @SerialName("used_today_s") val usedTodaySeconds: Int = 0,
+    @SerialName("remaining_today_s") val remainingTodaySeconds: Int? = null,
+    @SerialName("bonus_today_s") val bonusTodaySeconds: Int = 0,
+    @SerialName("per_app") val perApp: Map<String, Int> = emptyMap(),
+    /** Identifier of the rule window in force, so "why did it block me now" is answerable. */
+    @SerialName("active_window") val activeWindow: String? = null,
+    @SerialName("rules_rev") val rulesRev: Int = 0,
+)
+
+/**
+ * What the TV publishes on `<prefix>/request` when a child asks for more time. Not retained:
+ * a retained request would be answered again after every broker restart.
+ */
+@Serializable
+data class TimeRequest(
+    val schema: Int = Contract.SCHEMA_VERSION,
+    /** Stable for one request. The app ignores a grant carrying an unknown or settled id. */
+    val id: String,
+    val kind: String = KIND_MORE_TIME,
+    @SerialName("app_id") val appId: String? = null,
+    @SerialName("asked_minutes") val askedMinutes: Int,
+    val ts: Long,
+) {
+    companion object {
+        const val KIND_MORE_TIME: String = "more_time"
+    }
+}
