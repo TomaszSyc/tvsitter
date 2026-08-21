@@ -16,4 +16,13 @@
     <string name="setup_yes">tak</string>
     <string name="setup_no">nie</string>
     <string name="setup_unknown">(brak danych)</string>
+
+    <string name="pair_heading">Połącz z Home Assistantem</string>
+    <string name="pair_instructions">W Home Assistancie ten telewizor pojawi się sam,
+        w Ustawieniach, w Urządzeniach i usługach. Wpisz poniższy kod, gdy o niego poprosi.</string>
+    <string name="pair_expires">Kod wygaśnie za %1$d s</string>
+    <string name="pair_start">Pokaż kod parowania</string>
+    <string name="pair_failed">Nie udało się rozpocząć parowania. Sprawdź, czy telewizor jest
+        w tej samej sieci, i spróbuj ponownie.</string>
+    <string name="pair_done">Połączono. Ten telewizor raportuje do Home Assistanta.</string>
 </resources>

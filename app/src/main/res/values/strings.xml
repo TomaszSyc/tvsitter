@@ -18,4 +18,13 @@
     <string name="setup_yes">yes</string>
     <string name="setup_no">no</string>
     <string name="setup_unknown">(no data yet)</string>
+
+    <string name="pair_heading">Pair with Home Assistant</string>
+    <string name="pair_instructions">In Home Assistant this television appears on its own
+        under Settings, Devices and services. Enter the code below when it asks.</string>
+    <string name="pair_expires">Code valid for another %1$d s</string>
+    <string name="pair_start">Show a pairing code</string>
+    <string name="pair_failed">Pairing could not start. Check that the TV is on the same
+        network, then try again.</string>
+    <string name="pair_done">Paired. This television is reporting to Home Assistant.</string>
 </resources>

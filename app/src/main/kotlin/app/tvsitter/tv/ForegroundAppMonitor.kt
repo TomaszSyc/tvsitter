@@ -9,6 +9,10 @@ import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 /**
  * Which app is in the foreground, from `UsageStatsManager`.
@@ -31,6 +35,26 @@ class ForegroundAppMonitor(context: Context, private val onChanged: (String) -> 
 
     /** True when the permission is missing, which is the usual reason for seeing nothing. */
     val isUsable: Boolean get() = usageStatsManager != null
+
+    /**
+     * Runs the polling loop until [scope] is cancelled. Owned here rather than in the service:
+     * the interval belongs with the thing being polled.
+     *
+     * [isScreenOn] is consulted rather than captured, so nothing is queried while the panel is
+     * off — there is no foreground app worth counting then.
+     */
+    fun start(scope: CoroutineScope, isScreenOn: () -> Boolean) {
+        if (!isUsable) {
+            Log.e(EnforcerService.TAG, "usage stats unavailable — nothing will be detected")
+            return
+        }
+        scope.launch {
+            while (scope.isActive) {
+                if (isScreenOn()) poll()
+                delay(POLL_INTERVAL_MS)
+            }
+        }
+    }
 
     fun poll() {
         val manager = usageStatsManager ?: return
@@ -66,6 +90,7 @@ class ForegroundAppMonitor(context: Context, private val onChanged: (String) -> 
     }
 
     private companion object {
+        const val POLL_INTERVAL_MS = 1_500L
         const val INITIAL_LOOKBACK_MS = 60_000L
         const val QUERY_OVERLAP_MS = 2_000L
     }

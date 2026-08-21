@@ -5,17 +5,14 @@
  */
 package app.tvsitter.tv
 
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
-import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import app.tvsitter.rules.contract.Command
 import app.tvsitter.rules.contract.StateSnapshot
+import app.tvsitter.rules.pairing.PairRequest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -44,26 +41,32 @@ class EnforcerService : Service() {
     private var screenState: ScreenState? = null
     private var appLabels: AppLabels? = null
     private var foregroundApps: ForegroundAppMonitor? = null
-    private var mqtt: MqttBridge? = null
+    private var telemetry: Telemetry? = null
+    private var pairing: PairingManager? = null
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    private var pendingPublish: Job? = null
 
     val foregroundPackage: String? get() = foregroundApps?.current
 
     val isLocked: Boolean get() = overlay?.isShowing == true
+
+    val pairingPin: String? get() = pairing?.pin
+
+    fun pairingSecondsRemaining(): Long = pairing?.secondsRemaining() ?: 0
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
         instance = this
-        startForegroundNotification()
+        EnforcerNotification.attach(this)
 
         overlay = LockOverlay(this)
         appLabels = AppLabels(this)
-        foregroundApps = ForegroundAppMonitor(this) { publishSoon() }
-        screenState = ScreenState(this) { publishSoon() }.also { it.start() }
+        telemetry = Telemetry(this, scope, ::currentState, ::handleCommand)
+        foregroundApps = ForegroundAppMonitor(this) { telemetry?.publishSoon() }
+            .also { it.start(scope) { screenState?.isScreenOn != false } }
+        screenState = ScreenState(this) { telemetry?.publishSoon() }.also { it.start() }
 
         Log.i(
             TAG,
@@ -71,9 +74,7 @@ class EnforcerService : Service() {
                 "model=${Build.MODEL} manufacturer=${Build.MANUFACTURER}",
         )
 
-        scope.launch { startMqtt() }
-        scope.launch { watchForeground() }
-        scope.launch { heartbeat() }
+        scope.launch { startTelemetryOrOfferPairing() }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -92,29 +93,61 @@ class EnforcerService : Service() {
             subtitle = reason,
             onAskForTime = { Log.i(TAG, "TODO M3: request for more time") },
         )
-        publishSoon()
+        telemetry?.publishSoon()
     }
 
     fun unlock() {
         overlay?.hide()
-        publishSoon()
+        telemetry?.publishSoon()
     }
 
-    private suspend fun startMqtt() {
-        val config = Settings(this).broker.first()
-        if (!config.isComplete) {
-            Log.w(TAG, "mqtt: not configured, nothing will be published (see tools/device.sh configure)")
-            return
-        }
-        mqtt = MqttBridge(config, ::handleCommand).also { it.connect() }
+    /**
+     * An unconfigured TV offers itself for pairing rather than sitting there doing nothing.
+     * That is the point of D14: a fresh install is discoverable with no setup at all, and
+     * Home Assistant finds it on its own.
+     */
+    private suspend fun startTelemetryOrOfferPairing() {
+        if (telemetry?.start() == true) return
+        Log.i(TAG, "no broker configured, offering pairing")
+        startPairing(Settings(this).deviceId())
     }
 
-    /** Drops any existing connection and reconnects with whatever is now stored. */
-    fun reconnectMqtt() {
+    /** Reconnects with whatever settings are now stored. Used by the debug configure hook. */
+    fun reloadTelemetry() {
+        telemetry?.restart()
+    }
+
+    /**
+     * Starts pairing without the caller having to resolve the device id first, which would
+     * otherwise mean a storage read on whatever thread pressed the button.
+     */
+    fun requestPairing() {
+        scope.launch { startPairing(Settings(this@EnforcerService).deviceId()) }
+    }
+
+    /** Opens a pairing window and returns the PIN to display, or null if it could not start. */
+    fun startPairing(deviceId: String): String? {
+        pairing?.stop()
+        val manager = PairingManager(this, deviceId, ::onPaired)
+        pairing = manager
+        return manager.start()
+    }
+
+    /** Runs on the pairing server's thread, so the storage write is handed to a coroutine. */
+    private fun onPaired(request: PairRequest) {
         scope.launch {
-            mqtt?.disconnect()
-            mqtt = null
-            startMqtt()
+            Settings(this@EnforcerService).updateBroker { current ->
+                current.copy(
+                    host = request.host,
+                    port = request.port,
+                    username = request.username,
+                    password = request.password,
+                    topicPrefix = request.topicPrefix,
+                    useTls = request.useTls,
+                )
+            }
+            Log.i(TAG, "paired with ${request.host}:${request.port}, prefix ${request.topicPrefix}")
+            telemetry?.restart()
         }
     }
 
@@ -122,96 +155,35 @@ class EnforcerService : Service() {
         when (command) {
             is Command.Lock -> lock(command.reason ?: getString(R.string.lock_title))
             is Command.Unlock -> unlock()
-            is Command.Ping -> publishSoon()
+            is Command.Ping -> telemetry?.publishSoon()
             is Command.StopApp -> Log.i(TAG, "TODO M2: stop ${command.pkg}")
             is Command.Grant, is Command.Deny -> Log.i(TAG, "TODO M3: $command")
             is Command.SetRules -> Log.i(TAG, "TODO M4: rules rev ${command.rev}")
         }
     }
 
-    /**
-     * Polling replaces the accessibility service's window events. The interval is a
-     * compromise: fast enough that it does not matter for counting, slow enough to be
-     * unremarkable on a mains-powered device. It does mean a newly opened app is visible for
-     * a moment before the lock lands, which D16 accepts knowingly.
-     */
-    private suspend fun watchForeground() {
-        val monitor = foregroundApps ?: return
-        if (!monitor.isUsable) {
-            Log.e(TAG, "usage stats unavailable — nothing will be detected")
-            return
-        }
-        while (scope.isActive) {
-            if (screenState?.isScreenOn != false) monitor.poll()
-            delay(FOREGROUND_POLL_MS)
-        }
-    }
-
-    private fun publishSoon() {
-        pendingPublish?.cancel()
-        pendingPublish = scope.launch {
-            delay(PUBLISH_DEBOUNCE_MS)
-            publishNow()
-        }
-    }
-
-    private suspend fun heartbeat() {
-        while (scope.isActive) {
-            delay(HEARTBEAT_MS)
-            publishNow()
-        }
-    }
-
-    private fun publishNow() {
-        val bridge = mqtt ?: return
+    /** The single place that says what the current state is; Telemetry decides when to send it. */
+    private fun currentState(): StateSnapshot {
         val pkg = foregroundApps?.current
-        bridge.publish(
-            StateSnapshot(
-                ts = System.currentTimeMillis(),
-                fw = BuildConfig.VERSION_NAME,
-                screenOn = screenState?.isScreenOn ?: false,
-                locked = isLocked,
-                appId = pkg,
-                appName = pkg?.let { appLabels?.labelOf(it) },
-                // Counters arrive with the rules engine in M2; publishing zeroes now would
-                // be a lie, so the fields keep their "nothing known yet" defaults.
-                remainingTodaySeconds = null,
-            ),
+        return StateSnapshot(
+            ts = System.currentTimeMillis(),
+            fw = BuildConfig.VERSION_NAME,
+            screenOn = screenState?.isScreenOn ?: false,
+            locked = isLocked,
+            appId = pkg,
+            appName = pkg?.let { appLabels?.labelOf(it) },
+            // Counters arrive with the rules engine in M2; publishing zeroes now would be a
+            // lie, so the fields keep their "nothing known yet" defaults.
+            remainingTodaySeconds = null,
         )
-    }
-
-    private fun startForegroundNotification() {
-        val manager = getSystemService(NotificationManager::class.java)
-        manager?.createNotificationChannel(
-            NotificationChannel(
-                CHANNEL_ID,
-                getString(R.string.notification_channel),
-                NotificationManager.IMPORTANCE_LOW,
-            ),
-        )
-        val notification = Notification.Builder(this, CHANNEL_ID)
-            .setContentTitle(getString(R.string.app_name))
-            .setContentText(getString(R.string.notification_running))
-            .setSmallIcon(R.drawable.banner)
-            .setOngoing(true)
-            .build()
-
-        // The typed overload exists from API 29 and specialUse from 34; minSdk is 26.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startForeground(
-                NOTIFICATION_ID,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
-            )
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
-        }
     }
 
     override fun onDestroy() {
         Log.w(TAG, "onDestroy(): the enforcer is going down")
-        mqtt?.disconnect()
-        mqtt = null
+        telemetry?.stop()
+        telemetry = null
+        pairing?.stop()
+        pairing = null
         screenState?.stop()
         screenState = null
         overlay?.hide()
@@ -229,12 +201,6 @@ class EnforcerService : Service() {
         const val ACTION_LOCK = "app.tvsitter.tv.action.LOCK"
         const val ACTION_UNLOCK = "app.tvsitter.tv.action.UNLOCK"
         const val EXTRA_REASON = "reason"
-
-        private const val CHANNEL_ID = "tvsitter_enforcer"
-        private const val NOTIFICATION_ID = 1
-        private const val PUBLISH_DEBOUNCE_MS = 400L
-        private const val HEARTBEAT_MS = 60_000L
-        private const val FOREGROUND_POLL_MS = 1_500L
 
         @Volatile
         var instance: EnforcerService? = null

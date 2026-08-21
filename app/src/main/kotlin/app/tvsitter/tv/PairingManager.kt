@@ -9,6 +9,8 @@ import android.content.Context
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import app.tvsitter.rules.pairing.PairRequest
@@ -36,6 +38,7 @@ class PairingManager(
 ) {
     private val nsdManager = context.getSystemService(NsdManager::class.java)
 
+    private val mainHandler = Handler(Looper.getMainLooper())
     private var session: PairingSession? = null
     private var server: PairingServer? = null
     private var registration: NsdManager.RegistrationListener? = null
@@ -73,6 +76,11 @@ class PairingManager(
         return fresh.pin
     }
 
+    /** Tears down on the main thread, so the server thread can finish replying first. */
+    private fun stopAfterResponding() {
+        mainHandler.post { stop() }
+    }
+
     fun stop() {
         session = null
         server?.stop()
@@ -95,7 +103,11 @@ class PairingManager(
             is PairingResult.Accepted -> {
                 Log.i(EnforcerService.TAG, "pairing: accepted, broker ${request.host}:${request.port}")
                 onPaired(request)
-                stop()
+                // Shut down *after* the reply has gone out. Calling stop() here would close
+                // the server socket and interrupt this very thread — the one still holding
+                // the client connection — so the caller would see a broken pipe instead of
+                // the acceptance it just earned.
+                stopAfterResponding()
                 PairResponse.accepted(deviceId, deviceName)
             }
             is PairingResult.WrongPin -> {

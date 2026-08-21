@@ -15,6 +15,7 @@
                 <action android:name="app.tvsitter.tv.UNLOCK" />
                 <action android:name="app.tvsitter.tv.STATUS" />
                 <action android:name="app.tvsitter.tv.CONFIGURE" />
+                <action android:name="app.tvsitter.tv.PAIR" />
             </intent-filter>
         </receiver>
     </application>

@@ -81,8 +81,9 @@ Home Assistant.
 | M2 | counter and lock | daily budget, day starting at 04:00, lock screen, PIN |
 | M3 | time requests | button on the TV → actionable notification → granted time |
 | M4 | rules | weekly schedule, allowed time windows, per-app budgets |
-| M5 | statistics and anti-tamper | dashboard, Settings lockout, alarm when the app dies |
-| M6 | going public | documentation, release, HACS submission |
+| M5 | statistics and anti-tamper | history, Settings lockout, alarm when the app dies |
+| M6 | interface and graphics | screens designed for a ten-foot view, real artwork, the words a child reads |
+| M7 | going public | documentation, release, HACS submission |
 
 ## License
 
