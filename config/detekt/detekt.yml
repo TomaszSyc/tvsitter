@@ -1,0 +1,20 @@
+# Only deviations from detekt's defaults live here; everything else is inherited via
+# buildUponDefaultConfig.
+build:
+  maxIssues: 0
+
+style:
+  MagicNumber:
+    # Colours, text sizes and paddings in the lock overlay are inherently literal. Naming
+    # every one of them would add indirection without adding meaning.
+    excludes: ["**/LockOverlay.kt", "**/SetupActivity.kt"]
+  ReturnCount:
+    active: false
+
+complexity:
+  LongMethod:
+    # LockOverlay.show builds a view tree; splitting it purely to satisfy a line count
+    # would scatter one readable layout across several functions.
+    threshold: 80
+  TooManyFunctions:
+    thresholdInClasses: 15

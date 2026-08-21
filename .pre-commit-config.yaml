@@ -1,0 +1,30 @@
+# Fast checks only. Kotlin formatting is deliberately absent: Spotless and detekt need a
+# Gradle daemon, which turns a commit into a multi-second wait. Those run in CI and in the
+# IDE instead — see the Android workflow.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        # Two trailing spaces are a line break in Markdown.
+        exclude_types: [markdown]
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=512]
+      - id: mixed-line-ending
+        args: [--fix=lf]
+        # gradlew.bat is a Windows batch file and keeps CRLF; .gitattributes says so too.
+        exclude: ^gradlew\.bat$
+      # The app stores broker credentials and a parent PIN; a stray key must not reach a
+      # commit in the first place.
+      - id: detect-private-key
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.4
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format

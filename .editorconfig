@@ -10,6 +10,10 @@ indent_size = 4
 
 [*.{kt,kts}]
 max_line_length = 120
+# ktlint's own "ktlint_official" style rewrites code rather than formatting it: it splits
+# two-parameter signatures across lines and wraps every when branch in braces. The
+# intellij_idea style is what the IDE produces anyway, so the CLI and the editor agree.
+ktlint_code_style = intellij_idea
 
 [*.{json,yml,yaml}]
 indent_size = 2

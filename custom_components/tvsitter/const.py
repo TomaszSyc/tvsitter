@@ -16,8 +16,8 @@ CONF_TOPIC_PREFIX: Final = "topic_prefix"
 DEFAULT_NAME: Final = "TV Sitter"
 DEFAULT_TOPIC_PREFIX: Final = "tvsitter/livingroom"
 
-# MQTT topic suffixes. The contract is described in docs/mqtt-contract.md — both halves of
-# the project have to agree on it, which is why they live in a single repository.
+# MQTT topic suffixes. The contract is described in docs/mqtt-contract.md — both
+# halves of the project have to agree on it, which is why they live in one repository.
 TOPIC_AVAILABILITY: Final = "availability"
 TOPIC_STATE: Final = "state"
 TOPIC_REQUEST: Final = "request"

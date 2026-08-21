@@ -1,4 +1,5 @@
 plugins {
+    alias(libs.plugins.detekt)
     // AGP 9+ ships built-in Kotlin support; the separate kotlin-android plugin is not
     // just redundant, it is actively rejected.
     alias(libs.plugins.android.application)
@@ -44,4 +45,9 @@ dependencies {
     implementation(project(":rules"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.annotation)
+}
+
+detekt {
+    buildUponDefaultConfig = true
+    config.setFrom(rootProject.file("config/detekt/detekt.yml"))
 }

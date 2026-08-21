@@ -3,11 +3,13 @@
   Debug builds only. The receiver is exported so the lock can be driven from ADB
   without reaching for the remote; release builds do not contain it at all.
 -->
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <application>
         <receiver
             android:name=".DebugCommandReceiver"
-            android:exported="true">
+            android:exported="true"
+            tools:ignore="ExportedReceiver">
             <intent-filter>
                 <action android:name="app.tvsitter.tv.LOCK" />
                 <action android:name="app.tvsitter.tv.UNLOCK" />

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">TV Sitter</string>
-    <string name="accessibility_service_label">TV Sitter</string>
+    <string name="app_name" translatable="false">TV Sitter</string>
+    <string name="accessibility_service_label" translatable="false">TV Sitter</string>
     <string name="accessibility_service_summary">Keeps an eye on TV screen time</string>
     <string name="accessibility_service_description">TV Sitter detects which app is in the
         foreground, counts screen time and shows a lock screen once the allowance runs out.
@@ -9,7 +9,6 @@
 
     <string name="lock_title">That is it for today</string>
     <string name="lock_ask_more">Ask a parent for more time</string>
-    <string name="lock_pin">Enter parent PIN</string>
 
     <string name="setup_open_accessibility">Open accessibility settings</string>
     <string name="setup_device">Device: %1$s %2$s, API %3$d</string>

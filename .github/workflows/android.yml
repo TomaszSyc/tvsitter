@@ -27,6 +27,17 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v6
 
+      # Formatting and static analysis share the Gradle daemon and cache with the build,
+      # so they belong in this job rather than a separate one.
+      - name: Formatting
+        run: ./gradlew spotlessCheck
+
+      - name: Static analysis
+        run: ./gradlew detekt
+
+      - name: Android Lint
+        run: ./gradlew :app:lintDebug
+
       - name: Unit tests for the rules engine
         run: ./gradlew :rules:test
 
@@ -42,5 +53,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
-          name: test-reports
-          path: rules/build/reports/tests/
+          name: reports
+          path: |
+            rules/build/reports/
+            app/build/reports/

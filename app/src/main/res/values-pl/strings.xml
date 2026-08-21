@@ -7,7 +7,6 @@
 
     <string name="lock_title">Koniec czasu na dziś</string>
     <string name="lock_ask_more">Poproś rodzica o więcej czasu</string>
-    <string name="lock_pin">Wpisz PIN rodzica</string>
 
     <string name="setup_open_accessibility">Otwórz ustawienia dostępności</string>
     <string name="setup_device">Urządzenie: %1$s %2$s, API %3$d</string>

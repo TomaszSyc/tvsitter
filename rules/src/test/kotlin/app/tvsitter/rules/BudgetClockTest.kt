@@ -5,23 +5,22 @@
  */
 package app.tvsitter.rules
 
-import java.time.Instant
-import java.time.LocalDate
-import java.time.LocalDateTime
-import java.time.ZoneId
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneId
 
 class BudgetClockTest {
 
     private val warsaw = ZoneId.of("Europe/Warsaw")
     private val clock = BudgetClock(warsaw, dayStartHour = 4)
 
-    private fun at(text: String): Instant =
-        LocalDateTime.parse(text).atZone(warsaw).toInstant()
+    private fun at(text: String): Instant = LocalDateTime.parse(text).atZone(warsaw).toInstant()
 
     @Test
     fun `watching past midnight stays within the same budget day`() {
