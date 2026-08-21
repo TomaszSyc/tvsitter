@@ -1,9 +1,12 @@
 # Installing on the TV
 
-> **Status: not yet verified on hardware.** The steps below follow from the Android
-> documentation, not from a successful run on the Philips TA5. The questions the first
-> run is meant to answer are listed in `architecture.md`. This note disappears once they
-> are answered.
+> **Verified end to end on a Philips Google TV TA5 (TPV, Android 14, API 34)** on
+> 2026-08-21. What the run established, including the traps, is in `architecture.md` as
+> decisions D9 through D13.
+>
+> `tools/device.sh` performs all of this and checks the result of each step. Prefer it to
+> running the commands by hand — two of them are easy to get wrong, and two more look like
+> success when they have done nothing.
 
 ## What you need
 
@@ -31,6 +34,15 @@ TV**. It has to be accepted with the remote, ticking "always allow from this com
 Until you do, `adb devices` reports `unauthorized` and nothing else will work. Home
 Assistant has its own ADB key — authorising Home Assistant does not authorise your
 computer.
+
+**If no dialog ever appears** — which is what happened here — the daemon has already
+recorded a refusal for your key and will not ask again. It keeps answering on port 5555 and
+refusing every key, so `adb connect` reports `failed to authenticate` with nothing on screen
+to accept. The fix, from the home screen rather than from inside a full-screen app:
+Developer options → **Revoke debugging authorisations**, then toggle network debugging off
+and on. Worth knowing: while the daemon was in that state, Home Assistant's own
+previously-working ADB connection also went unavailable, so a rejected key appears to wedge
+it for every client.
 
 ## 2. Install
 
@@ -75,6 +87,15 @@ adb shell settings put secure accessibility_enabled 1
 ```
 
 ## 5. Check that it works
+
+```bash
+tools/device.sh doctor
+```
+
+Reports the device, the install, both app-ops and whether the service is actually bound.
+The bound state comes from `dumpsys accessibility` rather than the log, because the log
+buffer rotates during boot and a log-based check reports a false negative exactly when you
+most want the answer.
 
 ```bash
 adb logcat -s TVSitter:*

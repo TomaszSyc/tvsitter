@@ -127,15 +127,145 @@ Two traps found along the way, both now handled in `tools/device.sh`:
   Without it `am broadcast` prints `Broadcast completed: result=0` and runs nothing, which
   reads exactly like success.
 
-## Open questions — still to be settled on real hardware
+## D10 — A full-screen overlay above playing video does work here (observed, 2026-08-21)
 
-1. Does `TYPE_ACCESSIBILITY_OVERLAY` draw on top of **full-screen** video? If not, the
-   fallback is a full-screen `Activity` of our own plus `GLOBAL_ACTION_HOME`.
-3. Does `onKeyEvent` receive `KEYCODE_HOME`, and can it swallow it? That is the one key an
-   ordinary window cannot stop.
-4. Does the service really come back after the TV reboots, and how quickly?
-5. Are HDMI inputs (a game console) visible as a foreground app? If they are a TV input
-   framework surface out of reach of accessibility, blocking HDMI will have to go through
-   `philips_js` / `androidtv_remote` rather than through the overlay.
+The reference app, TVCP, happens to be installed on the same TV, and inspecting the window
+stack while Netflix was playing settled a question we were about to test the hard way:
 
-Findings land in this file as decisions D9 onwards.
+```
+Window #2 io.middlepoint.tvcp   ty=APPLICATION_OVERLAY fmt=TRANSLUCENT
+                                Requested w=1920 h=1080  mBaseLayer=111000
+                                mHasSurface=true isReadyForDisplay()=true
+Window #5 com.netflix.ninja/MainActivity
+```
+
+So on this firmware a full-screen overlay can sit above a playing video app, permanently.
+Two things follow.
+
+**Our window type layers higher, not lower.** TVCP uses `TYPE_APPLICATION_OVERLAY` (2038,
+base layer 111000), which requires `SYSTEM_ALERT_WINDOW` — an app-op that on Google TV
+generally cannot be granted from the UI to a sideloaded app, which is precisely why
+`TYPE_ACCESSIBILITY_OVERLAY` (2032) was chosen in D2. That type sits above 2038 in the
+window layer order, so nothing about their approach can cover ours. Open question 1 below
+is now very likely a yes; it still gets tested rather than assumed.
+
+**TVCP does not use an accessibility service at all.** With our service enabled, the
+enabled list contains only ours. Its app-ops are `SYSTEM_ALERT_WINDOW` (allow, held for
+hours) and `GET_USAGE_STATS` (allow). So its foreground detection is `UsageStatsManager`,
+which is polled, where ours is event-driven off `TYPE_WINDOW_STATE_CHANGED`. That is a real
+difference in enforcement latency, in our favour, and it also explains how TVCP can promise
+setup with "no developer tools or special settings".
+
+**Consequence for testing:** two parental control apps enforcing on one TV will interfere.
+TVCP keeps a full-screen translucent overlay present at all times, so it must be stopped
+before the overlay and key-interception tests, or the results mean nothing.
+
+## D11 — The overlay covers video and swallows HOME, once two bugs are out of the way (spike, 2026-08-21)
+
+Answers open questions 1 and 2, both yes, on the Philips TA5.
+
+**The overlay draws above full-screen video.** Our window comes up as
+`ty=2032 fmt=TRANSLUCENT`, full-screen 1920×1080, and `dumpsys window windows` puts it
+above `com.netflix.ninja` in the z-order while Netflix is playing.
+
+**HOME is intercepted.** `dumpsys accessibility` reports `capabilities=9`, which is
+`RETRIEVE_WINDOW_CONTENT + FILTER_KEY_EVENTS`, so writing the service into
+`enabled_accessibility_services` over ADB does grant key filtering — it is not withheld for
+being enabled without the UI consent dialog. With the lock showing, HOME, BACK, ENTER and
+all four D-pad directions reach `onKeyEvent`, and during a run of HOME presses the overlay
+window kept the same id, meaning no window transition happened and the launcher never came
+forward.
+
+**Methodology, and a trap:** `adb shell input keyevent KEYCODE_HOME` does **not** reach the
+accessibility key filter. Injected events bypass it, so an ADB-driven key test reports a
+false negative. Key behaviour has to be tested with the physical remote.
+
+Two bugs found by testing on hardware, both fixed:
+
+- The overlay's root `FrameLayout` was focusable and won focus, then swallowed every D-pad
+  and ENTER event rather than letting them through to the button. The lock rendered fine
+  while its only control was dead — which would have taken the M3 "ask for more time"
+  feature with it. The container is now non-focusable with
+  `FOCUS_AFTER_DESCENDANTS`, and the button takes focus explicitly; the log line now
+  carries `button focused=true`, and a press produces the click within ~220 ms.
+- The backdrop was `0xF2` alpha, that is 95% opaque, which looked better and let a bright
+  picture show through on a large panel. Now fully opaque.
+
+**What the overlay does not do: stop playback.** With the screen entirely covered, the
+audio carried on. Tracked as #16 — covering pixels and ending a media session are separate
+jobs, and only the first is done.
+
+Incidental evidence for open question 3: the accessibility service came back on its own
+after each `adb install -r`, with no manual step. A reboot is still a different scenario and
+gets its own test.
+
+## D12 — HDMI inputs are ordinary activities, and the overlay covers them (spike, 2026-08-21)
+
+Answers the HDMI question, and the answer is the favourable one. Switching to the PS5 input
+with the remote produces:
+
+```
+topResumedActivity = org.droidtv.playtv/.PlayTvActivity
+SurfaceView[org.droidtv.playtv/org.droidtv.playtv.PlayTvActivity](BLAST)#761
+```
+
+Philips presents an external input as a normal Android activity drawing the feed into a
+`SurfaceView`, not as a separate hardware plane composited above the UI. Our overlay
+therefore covers it — confirmed by eye with the console on screen. The fallback of forcing
+a source change or powering the set off through `philips_js` is not needed, and M4 keeps its
+original shape.
+
+`reassert()` earned its place here: navigating the source switcher while locked produced
+three `overlay reasserted above a new window` lines, and the lock stayed on top throughout.
+
+Two caveats.
+
+**Detection is not instant.** Foreground events for the input do arrive
+(`org.droidtv.tvsystemui`, `org.droidtv.channels/.sources.SourcesActivity`,
+`org.droidtv.playtv/.PlayTvActivity`), but they arrive on window transitions, so a rule
+keyed on "which app" needs to treat `org.droidtv.playtv` as a distinct, blockable target
+rather than expecting a per-input package.
+
+**Audio from an external source is expected to be out of reach of #16 — not yet measured.**
+The audio-focus mechanism planned there acts on Android media sessions, and a console's
+sound is not one, so on reasoning alone "stop playback" has to mean something else for
+HDMI: changing source, muting, or powering the panel off. This was **not** confirmed on
+hardware — nothing was playing on the console at the time — so it stays a prediction to
+test rather than a finding. If it holds, a child keeps playing by ear behind a covered
+screen, which needs designing separately.
+
+## D13 — The service is back before boot completes (spike, 2026-08-21)
+
+Answers the last open question, and answers it well. After `adb reboot`:
+
+```
+BOOT_COMPLETED, service connected=true            (pid 3165)
+/proc/uptime 176s  ·  pid 3165 ETIME 02:29 (149s) ·  dumpsys: capabilities=9
+```
+
+The service was already connected when `BOOT_COMPLETED` arrived, and uptime minus process age
+puts its start about **27 seconds** after the kernel came up — one reboot, one measurement, so
+treat it as an order of magnitude rather than a constant. Either way it precedes
+`BOOT_COMPLETED` and therefore precedes the point where anyone can reach the launcher.
+Rebooting is not a way around the lock, and D2's premise — that an accessibility service is
+the right home for the counter because the system revives it — holds.
+
+(An earlier draft of this entry said eight seconds. That came from the `uptime` command, which
+rounds to whole minutes; `/proc/uptime` is the one to read.)
+
+Two notes for whoever runs this next.
+
+`adb reboot` brings the panel back **on**, at the home screen, not into standby. A reboot is
+therefore not usable as an enforcement action: it would turn the TV on rather than off.
+
+The first version of `tools/device.sh reboot-test` hung forever waiting for the device,
+because it matched on the output of `adb connect`, which answers `already connected` from a
+stale entry even while the device is down. Device state has to come from `adb devices`. For
+the same family of reason, `doctor` no longer decides whether the service is running by
+grepping the log — the buffer rotates during boot — and asks `dumpsys accessibility` instead.
+
+## No open hardware questions from the M0 spike
+
+Everything the spike set out to answer is answered, in D9 through D13. What it turned up
+along the way is tracked as #16: the lock covers the screen but does not end the media
+session, and for an external HDMI source it likely cannot.
