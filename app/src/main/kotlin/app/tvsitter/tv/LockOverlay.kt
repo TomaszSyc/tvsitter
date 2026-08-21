@@ -42,25 +42,28 @@ class LockOverlay(private val service: AccessibilityService) {
             return
         }
 
+        val askButton = Button(service).apply {
+            text = service.getString(R.string.lock_ask_more)
+            isFocusable = true
+            isFocusableInTouchMode = true
+            setOnClickListener { onAskForTime() }
+        }
+
         val column = LinearLayout(service).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
             addView(textView(title, sizeSp = 34f, color = Color.WHITE))
             addView(textView(subtitle, sizeSp = 18f, color = SUBTITLE_COLOR).also { subtitleView = it })
-            addView(
-                Button(service).apply {
-                    text = service.getString(R.string.lock_ask_more)
-                    isFocusable = true
-                    isFocusableInTouchMode = true
-                    setOnClickListener { onAskForTime() }
-                },
-            )
+            addView(askButton)
         }
 
         val container = FrameLayout(service).apply {
             setBackgroundColor(BACKDROP_COLOR)
-            isFocusable = true
-            isFocusableInTouchMode = true
+            // The container must not be focusable itself. Made focusable, it wins focus and
+            // then swallows every D-pad and ENTER event instead of letting them reach the
+            // button — which on a TV means the lock screen's own controls are dead.
+            isFocusable = false
+            descendantFocusability = FrameLayout.FOCUS_AFTER_DESCENDANTS
             addView(
                 column,
                 FrameLayout.LayoutParams(
@@ -77,8 +80,11 @@ class LockOverlay(private val service: AccessibilityService) {
             return
         }
         root = container
-        container.requestFocus()
-        Log.i(EnforcerService.TAG, "overlay shown: $title / $subtitle")
+        askButton.requestFocus()
+        Log.i(
+            EnforcerService.TAG,
+            "overlay shown: $title / $subtitle, button focused=${askButton.isFocused}",
+        )
     }
 
     /** Re-inserts the window when another app window has appeared above the lock. */
@@ -90,7 +96,8 @@ class LockOverlay(private val service: AccessibilityService) {
             Log.e(EnforcerService.TAG, "reassert() failed — the lock may be gone", readded.exceptionOrNull())
             root = null
         } else {
-            view.requestFocus()
+            view.findFocus() ?: view.requestFocus()
+            Log.i(EnforcerService.TAG, "overlay reasserted above a new window")
         }
     }
 
@@ -122,7 +129,9 @@ class LockOverlay(private val service: AccessibilityService) {
     }
 
     private companion object {
-        const val BACKDROP_COLOR = 0xF20B1017.toInt()
+        // Fully opaque, deliberately. An earlier 95% alpha looked nicer and let a bright
+        // picture show through on a large panel, which defeats the point of a lock.
+        const val BACKDROP_COLOR = 0xFF0B1017.toInt()
         const val SUBTITLE_COLOR = 0xFFB9C6D2.toInt()
         const val PADDING_PX = 24
     }

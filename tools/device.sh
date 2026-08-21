@@ -1,4 +1,4 @@
-commituj i #!/usr/bin/env bash
+#!/usr/bin/env bash
 #
 # Device bring-up and spike helpers for TV Sitter.
 #
@@ -96,11 +96,24 @@ cmd_doctor() {
         bad "master switch off ($master)"
     fi
 
-    if adb_ logcat -d -s TVSitter:I 2>/dev/null | grep -q onServiceConnected; then
-        ok "onServiceConnected() seen in the log"
+    # The authority is the bound-services list, not the log. After a reboot the log buffer
+    # rotates and a log-only check reports a false negative exactly when it matters most.
+    if adb_ shell dumpsys accessibility 2>/dev/null | grep -q "Service\[label=TV Sitter"; then
+        ok "bound and running (dumpsys accessibility)"
+        adb_ shell dumpsys accessibility 2>/dev/null |
+            grep -oE "label=TV Sitter.{0,60}capabilities=[0-9]+" | head -1 | sed 's/^/    /'
     else
-        bad "no onServiceConnected() in the current log buffer"
+        bad "not bound — the service is listed as enabled but is not running"
     fi
+
+    if adb_ logcat -d -s TVSitter:I 2>/dev/null | grep -q onServiceConnected; then
+        info "onServiceConnected() still in the log buffer"
+    fi
+
+    local uptime_s process_age
+    uptime_s="$(adb_ shell cat /proc/uptime | cut -d. -f1 | tr -d '\r')"
+    process_age="$(adb_ shell ps -A -o ETIME,NAME 2>/dev/null | awk '/app.tvsitter.tv/ {print $1; exit}' | tr -d '\r')"
+    [[ -n "$process_age" ]] && info "device up ${uptime_s}s, our process alive ${process_age}"
 }
 
 cmd_install() {
@@ -198,9 +211,13 @@ broadcast() {
     adb_ shell am broadcast -n "$RECEIVER" -a "$PKG.$1" "${@:2}" >/dev/null
 }
 
+# adb shell concatenates its arguments into one command line that the device shell splits
+# again, so anything containing spaces has to survive a second round of quoting.
+shell_quote() { printf "'%s'" "${1//\'/\'\\\'\'}"; }
+
 cmd_lock() {
     require_device
-    broadcast LOCK --es reason "${2:-spike lock test}"
+    broadcast LOCK --es reason "$(shell_quote "${2:-spike lock test}")"
     ok "lock broadcast sent"
 }
 
@@ -229,7 +246,19 @@ cmd_reboot_test() {
     local start
     start="$(date +%s)"
     info "rebooting; waiting for the device to answer again"
-    until adb connect "$DEVICE" 2>&1 | grep -q "^connected"; do sleep 5; done
+    # The device state has to come from `adb devices`, not from the output of `adb connect`.
+    # A stale entry makes connect answer "already connected" even while the device is down,
+    # so matching on its output loops forever — which it did the first time this ran.
+    local waited_boot=0
+    until [[ "$(adb devices | awk -v d="$DEVICE" '$1 == d {print $2}')" == "device" ]]; do
+        adb connect "$DEVICE" >/dev/null 2>&1 || true
+        sleep 5
+        waited_boot=$((waited_boot + 5))
+        if [[ $waited_boot -ge 300 ]]; then
+            bad "device did not come back within ${waited_boot}s"
+            return 1
+        fi
+    done
     ok "reachable after $(($(date +%s) - start))s"
 
     local waited=0
