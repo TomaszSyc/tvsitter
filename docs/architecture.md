@@ -292,6 +292,82 @@ reviewers and users.
 The manual route stays for development: `tools/device.sh configure` writes the same settings
 over ADB, which is how this was brought up in the first place.
 
+## D15 — An enabled accessibility service unmasks password fields (measured, 2026-08-21)
+
+A cost of D2 that was not anticipated, found by a user noticing it rather than by testing.
+
+With the service enabled, the Google account PIN entry on the TV **stops masking what is
+typed**. Confirmed by elimination: it persists after dropping `canRetrieveWindowContent`
+and after clearing the key-filter flag at runtime, leaving `capabilities=8`; and masking
+returns the moment the service is disabled. So the trigger is that *an accessibility service
+is enabled at all* — apps check `AccessibilityManager.isEnabled()` and unmask so that screen
+readers work — not anything about how narrow our capabilities are.
+
+This matters more here than it would elsewhere. A parent typing their account PIN in front of
+the child whose screen time they are limiting is a bad failure for a product whose entire
+value rests on being trustworthy.
+
+**TVCP does not have this problem**, because per D10 it uses no accessibility service at all:
+`SYSTEM_ALERT_WINDOW` plus `UsageStatsManager`. That is a genuine advantage of their
+architecture over ours, and it needs recording rather than glossing over.
+
+### What was done anyway, and was worth doing
+
+Both changes are right on their own merits even though neither fixed the masking:
+
+- `canRetrieveWindowContent` is now **false**. A grep across the app showed we only ever read
+  `packageName` and `className` off an event and never touch window content, so claiming the
+  right to read the screen — including what somebody types — was privilege we did not need.
+  On-device capabilities went from 9 to 8.
+- Key filtering is requested in the service config, so the user consents once and HOME stays
+  interceptable, but the flag is **cleared at runtime** and set only while the lock is
+  showing. A service receiving every keystroke is a keylogger by capability; it should be
+  live for the seconds it is needed.
+
+### The open question this raises
+
+Whether to keep accessibility as the foundation at all. An untested alternative exists:
+`SYSTEM_ALERT_WINDOW` for the overlay, granted over ADB, which setup already requires, plus
+polled `UsageStatsManager` for foreground detection.
+
+Against it: detection becomes polled rather than event-driven, and HOME can no longer be
+swallowed — nor `GLOBAL_ACTION_HOME` used to leave an HDMI input, which was the plan for the
+HDMI half of #16.
+
+For it: no unmasked passwords, less privilege overall, and — from D10 — a persistent
+full-screen overlay that never has to re-assert itself, which is arguably sturdier than our
+remove-and-re-add dance.
+
+### Measured on hardware, same evening
+
+The spike ran. `appops set SYSTEM_ALERT_WINDOW allow` **does** register once the permission is
+declared in the manifest — an app-op for an unrequested permission has no effect, which is why
+the first attempt looked like a refusal. With the accessibility service off (`Bound
+services:{}`, `Enabled services:{}`) and YouTube in the foreground, a `TYPE_APPLICATION_OVERLAY`
+window from our own app covered the screen: our window at `#3`, YouTube at `#5`, confirmed by
+eye. And with no accessibility service enabled, the Google account PIN entry masks again.
+
+So option 2 works. What it costs, all measured rather than assumed:
+
+| | Accessibility (today) | `SYSTEM_ALERT_WINDOW` |
+|---|---|---|
+| Covers full-screen video | yes | **yes** |
+| System-wide password masking | **broken** | intact |
+| HOME interceptable | yes | no |
+| Window layer | `#1`, above the TV's system UI | `#3`, below the TV's system bars |
+| Return after reboot | system revives it, ~27 s (D13) | must restart itself on `BOOT_COMPLETED` |
+| Foreground detection | event-driven, immediate | polled, one to two seconds behind |
+| Privilege asked for | read the screen *(since removed)* and every keystroke | draw on top |
+
+That last row is the stronger argument than the masking. "Draw on top" is a far narrower ask
+than "see everything on screen and every key pressed", and in an app whose whole value rests on
+a parent trusting it, that is not a technical detail.
+
+Two consequences to plan for rather than discover: without an accessibility service the process
+needs a **foreground service** to stay alive, which the system kills more readily than it kills
+an accessibility service; and our window would sit *below* `org.droidtv.tvsystemui`, so the TV's
+own volume and info bars would draw over the lock. Neither is an escape route, both are real.
+
 ## No open hardware questions from the M0 spike
 
 Everything the spike set out to answer is answered, in D9 through D13. What it turned up

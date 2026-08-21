@@ -1,4 +1,13 @@
-# Development tooling only; the Home Assistant integration itself declares no
-# requirements and gets its dependencies from Home Assistant.
+# Development and CI tooling only. The integration itself declares no requirements and
+# gets its dependencies from Home Assistant at runtime.
 ruff==0.16.4
 pytest==9.0.1
+
+# Home Assistant is here so CI can import the integration against the real thing. That is
+# what catches an API symbol disappearing under us — the failure mode that otherwise waits
+# until somebody's instance refuses to load the integration. Pinned deliberately; the pip
+# entry in dependabot.yml turns each new release into a pull request that asks "does this
+# still import?".
+homeassistant==2026.8.2
+# Required by homeassistant.components.mqtt, which core does not pull in by itself.
+paho-mqtt==2.1.0

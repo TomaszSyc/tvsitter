@@ -6,6 +6,14 @@
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!--
+      Declared so the app-op can be granted over ADB during setup. On Google TV there is
+      normally no UI to grant this to a sideloaded app, and an app-op for a permission the
+      app does not request has no effect at all — which is why an earlier attempt to measure
+      this looked like a refusal. Being evaluated in #20 as the route away from needing an
+      accessibility service, which unmasks password fields system-wide (D15).
+    -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Granted over ADB: appops set app.tvsitter.tv GET_USAGE_STATS allow -->
     <uses-permission
