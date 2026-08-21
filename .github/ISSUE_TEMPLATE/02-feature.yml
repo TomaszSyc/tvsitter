@@ -1,0 +1,42 @@
+name: Feature request
+description: Propose a capability that is missing
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The roadmap in the README lists what is already planned — worth a look first, the
+        idea may already be scheduled for a milestone.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve
+      description: Describe the household situation, not the implementation. Solutions are easier to judge against a real problem.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you have in mind
+    validations:
+      required: true
+
+  - type: dropdown
+    id: side
+    attributes:
+      label: Where would it live
+      options:
+        - App on the TV
+        - Home Assistant integration
+        - Both
+        - No idea
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Anything you already tried
+      description: Existing automations, other apps, workarounds — including why they fell short.

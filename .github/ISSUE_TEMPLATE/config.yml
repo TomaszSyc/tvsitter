@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Installation guide
+    url: https://github.com/TomaszSyc/tvsitter/blob/main/docs/setup.md
+    about: ADB commands, permissions and how to verify the service is running.
+  - name: Architecture and design decisions
+    url: https://github.com/TomaszSyc/tvsitter/blob/main/docs/architecture.md
+    about: Why enforcement lives on the TV, and which questions are still open.

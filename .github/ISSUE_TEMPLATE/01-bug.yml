@@ -1,0 +1,83 @@
+name: Bug report
+description: Something does not work the way it should
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Behaviour differs wildly between TV vendors and firmware builds, so the device
+        details below are the difference between a fixable report and a guess.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Which part is affected
+      options:
+        - App on the TV
+        - Home Assistant integration
+        - Both, or not sure
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: TV or streaming device
+      description: Manufacturer, model and Android version. The diagnostics screen in the app shows all three.
+      placeholder: Philips Google TV TA5 (TPV), Android 14, API 34
+    validations:
+      required: true
+
+  - type: input
+    id: versions
+    attributes:
+      label: TV Sitter and Home Assistant versions
+      placeholder: TV Sitter 0.3.1, Home Assistant 2026.8.2
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected, and what happened instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Set the daily limit to 1 minute
+        2. Start YouTube on the TV
+        3. …
+    validations:
+      required: true
+
+  - type: dropdown
+    id: permissions
+    attributes:
+      label: Does the diagnostics screen report the accessibility service as enabled and connected?
+      options:
+        - "Yes, both"
+        - "Enabled, but not connected"
+        - "Not enabled"
+        - "I have not checked"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs from the TV
+      description: "`adb logcat -s TVSitter:*` around the moment the problem occurred."
+      render: shell
+
+  - type: textarea
+    id: mqtt
+    attributes:
+      label: Last state payload
+      description: >
+        From Home Assistant: Developer tools → MQTT → listen to `tvsitter/#`. Redact your
+        broker credentials; the payload itself contains none.
+      render: json

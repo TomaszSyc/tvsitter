@@ -1,0 +1,71 @@
+name: Device compatibility report
+description: Tell us whether TV Sitter works on your hardware, good or bad
+labels: ["compatibility"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The whole design rests on behaviour that is not guaranteed across vendors: whether a
+        sideloaded accessibility service can be enabled at all, and whether an overlay draws
+        above full-screen video. Reports here become the compatibility table — successes are
+        as useful as failures.
+
+  - type: input
+    id: device
+    attributes:
+      label: Manufacturer, model, Android version
+      placeholder: Nvidia Shield TV Pro, Android 11, API 30
+    validations:
+      required: true
+
+  - type: dropdown
+    id: accessibility
+    attributes:
+      label: Could you enable the accessibility service
+      options:
+        - "Yes, from the TV settings"
+        - "Only after appops ACCESS_RESTRICTED_SETTINGS over ADB"
+        - "No, not at all"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: overlay
+    attributes:
+      label: Does the lock screen cover full-screen video
+      options:
+        - "Yes, everywhere I tried"
+        - "Yes, except in some apps"
+        - "No, video stays on top"
+        - "Not tested"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: home_key
+    attributes:
+      label: Is the HOME key swallowed while locked
+      options:
+        - "Yes"
+        - "No, HOME escapes the lock"
+        - "Not tested"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: reboot
+    attributes:
+      label: Does the service come back after a reboot
+      options:
+        - "Yes, on its own"
+        - "Only after opening the app"
+        - "No"
+        - "Not tested"
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else worth recording
+      description: Apps that break out of the lock, HDMI input behaviour, vendor quirks.
