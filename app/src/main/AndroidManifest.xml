@@ -16,8 +16,17 @@
         android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
 
+    <!--
+      Both backup attributes are set on purpose. allowBackup="false" covers Android 11 and
+      lower; on Android 12+ it does not reliably disable device-to-device transfer, which is
+      manufacturer-dependent, so dataExtractionRules excludes that explicitly. Lint asks for
+      fullBackupContent as well, but with backup switched off outright it would have no
+      effect, hence the suppression.
+    -->
     <application
         android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        tools:ignore="DataExtractionRules"
         android:banner="@drawable/banner"
         android:icon="@drawable/banner"
         android:label="@string/app_name"

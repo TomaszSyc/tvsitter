@@ -21,12 +21,9 @@ import java.time.ZonedDateTime
  * The whole class is plain Kotlin with no Android dependencies so it can be tested on the
  * JVM without an emulator.
  */
-class BudgetClock(
-    private val zone: ZoneId,
-    private val dayStartHour: Int = DEFAULT_DAY_START_HOUR,
-) {
+class BudgetClock(private val zone: ZoneId, private val dayStartHour: Int = DEFAULT_DAY_START_HOUR) {
     init {
-        require(dayStartHour in 0..23) { "dayStartHour must be within 0..23, was $dayStartHour" }
+        require(dayStartHour in HOURS_OF_DAY) { "dayStartHour must be within $HOURS_OF_DAY, was $dayStartHour" }
     }
 
     /** The budget day that [instant] belongs to. */
@@ -40,8 +37,7 @@ class BudgetClock(
     }
 
     /** Whether both moments fall in the same budget day, and therefore share one allowance. */
-    fun isSameBudgetDay(first: Instant, second: Instant): Boolean =
-        budgetDay(first) == budgetDay(second)
+    fun isSameBudgetDay(first: Instant, second: Instant): Boolean = budgetDay(first) == budgetDay(second)
 
     /**
      * The next moment the counter resets, always strictly after [instant].
@@ -49,15 +45,16 @@ class BudgetClock(
      * [ZonedDateTime.of] is used on purpose: across a daylight saving transition it resolves
      * a non-existent local time by shifting forward instead of throwing.
      */
-    fun nextReset(instant: Instant): Instant =
-        ZonedDateTime.of(
-            budgetDay(instant).plusDays(1),
-            LocalTime.of(dayStartHour, 0),
-            zone,
-        ).toInstant()
+    fun nextReset(instant: Instant): Instant = ZonedDateTime.of(
+        budgetDay(instant).plusDays(1),
+        LocalTime.of(dayStartHour, 0),
+        zone,
+    ).toInstant()
 
     companion object {
         /** 04:00 — "small hours" in human terms, and safely outside real viewing time. */
         const val DEFAULT_DAY_START_HOUR: Int = 4
+
+        private val HOURS_OF_DAY = 0..23
     }
 }

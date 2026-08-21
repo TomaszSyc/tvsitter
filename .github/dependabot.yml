@@ -25,5 +25,11 @@ updates:
       day: monday
     labels: ["dependencies"]
 
-# No pip entry on purpose: the Home Assistant integration declares no requirements,
-# and its Python dependencies come from Home Assistant itself.
+  # requirements-dev.txt only. The integration itself declares no requirements and gets
+  # its dependencies from Home Assistant.
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    labels: ["dependencies"]

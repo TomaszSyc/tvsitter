@@ -1,0 +1,28 @@
+# Config lives in ruff.toml rather than pyproject.toml: this repository is not a Python
+# package, and inventing package metadata to hold a linter setting would be misleading.
+
+line-length = 88
+target-version = "py313"
+
+[lint]
+select = [
+    "E",      # pycodestyle errors
+    "F",      # pyflakes
+    "W",      # pycodestyle warnings
+    "I",      # import sorting
+    "UP",     # pyupgrade
+    "B",      # bugbear
+    "SIM",    # simplifications
+    "ASYNC",  # blocking calls inside async functions
+    "RUF",    # ruff's own rules
+    "D",      # docstrings — Home Assistant requires them on every module and callable
+]
+
+[lint.pydocstyle]
+convention = "pep257"
+
+[lint.isort]
+# Home Assistant's own convention: its packages are a section of their own, after the
+# third-party block.
+known-first-party = ["homeassistant", "custom_components"]
+force-sort-within-sections = true

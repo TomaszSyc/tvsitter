@@ -24,6 +24,7 @@ DIAL = (242, 247, 245, 255)
 
 
 def draw_icon(size: int) -> Image.Image:
+    """Draw the icon at the given edge length, in pixels."""
     canvas = size * SCALE
     image = Image.new("RGBA", (canvas, canvas), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
@@ -72,6 +73,7 @@ def draw_icon(size: int) -> Image.Image:
 
 
 def main() -> None:
+    """Write every icon size into the brand directory."""
     target = pathlib.Path(__file__).resolve().parent.parent / "brand"
     target.mkdir(exist_ok=True)
     for size, name in ((256, "icon.png"), (512, "icon@2x.png")):

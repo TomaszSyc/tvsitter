@@ -20,6 +20,29 @@ that, you agree to your contribution being covered by the same terms.
 ./gradlew :app:assembleDebug   # APK for the TV
 ```
 
+## Tooling
+
+```bash
+pre-commit install                       # one-time; runs the fast checks on every commit
+./gradlew spotlessApply                  # format Kotlin, Gradle scripts, YAML, JSON, XML
+./gradlew spotlessCheck detekt :app:lintDebug   # what CI runs
+pip install -r requirements-dev.txt      # Ruff, for the integration
+ruff check . && ruff format .
+```
+
+Kotlin formatting is deliberately absent from the pre-commit hooks: Spotless and detekt
+need a Gradle daemon, which turns every commit into a multi-second wait. They run in CI and
+in the IDE instead. The hooks cover the fast things — whitespace, YAML and JSON validity,
+Ruff, and a private-key check.
+
+ktlint runs in its `intellij_idea` style rather than the default `ktlint_official`, which
+rewrites code instead of formatting it: it splits two-parameter signatures across lines and
+wraps every `when` branch in braces. The style is passed through Spotless because Spotless
+does not forward `.editorconfig` to ktlint.
+
+Spotless also enforces the AGPL header on every Kotlin file. That is a licence
+requirement, not a tidiness preference, so it is checked rather than trusted to reviewers.
+
 Decision logic ("should this be blocked, how much time is left") belongs in the `:rules`
 module and must come with unit tests. The `:app` module owns Android concerns only:
 accessibility events, the lock window, MQTT. Rule of thumb: if something cannot be tested

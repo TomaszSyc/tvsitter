@@ -17,6 +17,10 @@ import android.util.Log
  */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        // BOOT_COMPLETED is a protected broadcast, but an exported receiver can still be
+        // reached by a spoofed intent carrying a different action, or none at all.
+        if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
+
         Log.i(
             EnforcerService.TAG,
             "BOOT_COMPLETED, service connected=${EnforcerService.instance != null}",

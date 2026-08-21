@@ -118,16 +118,27 @@ class SetupActivity : Activity() {
         return enabled.split(':').any { it.equals(expected, ignoreCase = true) }
     }
 
-    // The attribution-aware overload is preferred on API 30+, but the three-argument one
-    // is the only variant available across the whole supported range (minSdk 26).
+    /**
+     * There is no single app-ops call that spans the supported range: `unsafeCheckOpNoThrow`
+     * only exists from API 29, and `checkOpNoThrow` is deprecated from that same release.
+     * Calling the former unconditionally would throw NoSuchMethodError on Android 8 and 9.
+     */
     @Suppress("DEPRECATION")
     private fun hasUsageStatsAccess(): Boolean {
         val appOps = getSystemService(AppOpsManager::class.java) ?: return false
-        val mode = appOps.unsafeCheckOpNoThrow(
-            AppOpsManager.OPSTR_GET_USAGE_STATS,
-            Process.myUid(),
-            packageName,
-        )
+        val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            appOps.unsafeCheckOpNoThrow(
+                AppOpsManager.OPSTR_GET_USAGE_STATS,
+                Process.myUid(),
+                packageName,
+            )
+        } else {
+            appOps.checkOpNoThrow(
+                AppOpsManager.OPSTR_GET_USAGE_STATS,
+                Process.myUid(),
+                packageName,
+            )
+        }
         return mode == AppOpsManager.MODE_ALLOWED
     }
 
