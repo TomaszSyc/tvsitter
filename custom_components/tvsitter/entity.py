@@ -1,0 +1,46 @@
+"""Shared entity behaviour for TV Sitter.
+
+TV Sitter — parental control for Android TV / Google TV.
+Copyright (C) 2026 Tomasz Syc
+SPDX-License-Identifier: AGPL-3.0-only
+"""
+
+from __future__ import annotations
+
+from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity import Entity
+
+from .const import DOMAIN
+from .coordinator import TvSitterClient
+
+
+class TvSitterEntity(Entity):
+    """Base for every entity fed by one TV's MQTT topics."""
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+
+    def __init__(self, client: TvSitterClient, key: str) -> None:
+        """Attach to a client and take an identity from its device id."""
+        self._client = client
+        self._attr_translation_key = key
+        self._attr_unique_id = f"{client.device_id}_{key}"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, client.device_id)},
+            name=client.name,
+            manufacturer="TV Sitter",
+            model="Android TV parental control",
+        )
+
+    @property
+    def available(self) -> bool:
+        """Follow the TV's own availability topic.
+
+        A crashed app must not look like a TV that simply has nothing to report,
+        which is why the Last Will exists on the other side.
+        """
+        return self._client.available and self._client.snapshot is not None
+
+    async def async_added_to_hass(self) -> None:
+        """Start listening for pushes from the client."""
+        self.async_on_remove(self._client.async_add_listener(self.async_write_ha_state))

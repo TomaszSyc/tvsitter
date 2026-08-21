@@ -11,6 +11,7 @@ from typing import Any
 
 import voluptuous as vol
 
+from homeassistant.components import mqtt
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_NAME
 
@@ -37,6 +38,11 @@ class TvSitterConfigFlow(ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Ask for the TV name and the MQTT topic prefix."""
+        # Without this the entry fails later with a generic dependency error that names
+        # nothing the user can act on. Saying "MQTT" out loud is the whole point.
+        if not await mqtt.async_wait_for_mqtt_client(self.hass):
+            return self.async_abort(reason="mqtt_unavailable")
+
         errors: dict[str, str] = {}
 
         if user_input is not None:

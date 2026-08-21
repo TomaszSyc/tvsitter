@@ -136,6 +136,19 @@ adb uninstall "$PKG"
 Uninstalling the app also drops its `appops` entries. Turning network debugging back off
 on the TV once you are done testing is a good idea.
 
+## The Home Assistant side
+
+Once TV Sitter is reporting, **do not also run the ADB-based `androidtv` integration against
+the same TV.** It becomes redundant — screen state and the active app now arrive over MQTT —
+and on at least one device it is actively harmful: on the Philips TA5 it logged 577
+`off`↔`idle` state changes in 48 hours, which is noise in the recorder database and useless
+as a signal. That measurement is what decision D1 rests on.
+
+Worth keeping, if your TV has an equivalent: a **second, independent** source of power state,
+such as `philips_js` for Philips sets. Not for control — TV Sitter needs nothing from it — but
+as a witness for the tamper alarm in M5. "TV Sitter has gone quiet while the TV is powered on"
+is only a meaningful alert if something other than TV Sitter can say the TV is on.
+
 ## Inventory of the child's apps
 
 Package names needed when writing rules:

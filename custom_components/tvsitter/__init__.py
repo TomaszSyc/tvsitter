@@ -2,7 +2,7 @@
 
 The Home Assistant side is deliberately thin: the app on the TV counts screen time and
 enforces the lock on its own, and this integration turns what arrives over MQTT into
-entities and actions. That way a Home Assistant outage cannot unlock the TV.
+entities and actions. A Home Assistant outage therefore cannot unlock the TV.
 
 TV Sitter — parental control for Android TV / Google TV.
 Copyright (C) 2026 Tomasz Syc
@@ -13,24 +13,42 @@ from __future__ import annotations
 
 import logging
 
+from homeassistant.components import mqtt
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform
+from homeassistant.const import CONF_NAME
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryNotReady
+
+from .const import CONF_TOPIC_PREFIX, DEFAULT_NAME, PLATFORMS
+from .coordinator import TvSitterClient
 
 _LOGGER = logging.getLogger(__name__)
 
-# M1 adds Platform.BINARY_SENSOR and Platform.SENSOR (screen state, active app),
-# M2 adds Platform.SWITCH and Platform.NUMBER, M3 adds Platform.EVENT.
-PLATFORMS: list[Platform] = []
+type TvSitterConfigEntry = ConfigEntry[TvSitterClient]
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up a config entry."""
-    _LOGGER.debug("Setting up TV Sitter for %s", entry.data)
+async def async_setup_entry(hass: HomeAssistant, entry: TvSitterConfigEntry) -> bool:
+    """Set up one TV."""
+    # Waiting rather than assuming: the manifest depends on mqtt, but the broker
+    # itself can be down while Home Assistant starts, and retrying beats failing.
+    if not await mqtt.async_wait_for_mqtt_client(hass):
+        raise ConfigEntryNotReady("MQTT is not available")
+
+    client = TvSitterClient(
+        hass,
+        name=entry.data.get(CONF_NAME, DEFAULT_NAME),
+        topic_prefix=entry.data[CONF_TOPIC_PREFIX],
+    )
+    await client.async_start()
+    entry.runtime_data = client
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Tear down a config entry."""
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+async def async_unload_entry(hass: HomeAssistant, entry: TvSitterConfigEntry) -> bool:
+    """Tear down one TV."""
+    unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if unloaded:
+        entry.runtime_data.async_stop()
+    return unloaded

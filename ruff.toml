@@ -26,3 +26,7 @@ convention = "pep257"
 # third-party block.
 known-first-party = ["homeassistant", "custom_components"]
 force-sort-within-sections = true
+
+[lint.per-file-ignores]
+# Test modules import the integration by path, so the imports cannot come first.
+"tests/*" = ["E402"]

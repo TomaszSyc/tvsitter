@@ -17,7 +17,19 @@
       "invalid_topic_prefix": "Prefiks nie może być pusty ani zawierać znaków + i #."
     },
     "abort": {
-      "already_configured": "Ten telewizor jest już skonfigurowany."
+      "already_configured": "Ten telewizor jest już skonfigurowany.",
+      "mqtt_unavailable": "TV Sitter rozmawia z telewizorem przez MQTT. Skonfiguruj najpierw integrację MQTT, potem dodaj tę."
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "screen": { "name": "Ekran" },
+      "locked": { "name": "Blokada" }
+    },
+    "sensor": {
+      "active_app": { "name": "Aktywna aplikacja" },
+      "used_today": { "name": "Wykorzystane dziś" },
+      "remaining_today": { "name": "Pozostało dziś" }
     }
   }
 }
