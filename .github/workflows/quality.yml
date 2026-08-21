@@ -39,8 +39,28 @@ jobs:
           fetch-depth: 0
 
       # GitHub's own secret scanning needs Advanced Security on private repositories, so
-      # this covers the gap. Note the action requires a licence key for repositories owned
-      # by an organisation; it is free for personal accounts.
-      - uses: gitleaks/gitleaks-action@v3
+      # this covers the gap.
+      #
+      # The gitleaks action is avoided deliberately: it calls the GitHub API to annotate
+      # pull requests, which needs pull-requests: read and fails outright on Dependabot
+      # pull requests, where the token is restricted. All we want is the scan.
+      #
+      # Dependabot cannot bump a version pinned in a shell variable, so this one needs
+      # bumping by hand.
+      - name: Scan history for secrets
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_VERSION: 8.30.1
+        run: |
+          curl -sSfL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz gitleaks
+
+          ./gitleaks git . --redact --no-banner --exit-code 1 2>&1 | tee scan.log
+
+          # gitleaks exits 0 when it cannot read the repository at all, so a broken scan
+          # is indistinguishable from a clean one unless we insist it saw something.
+          grep -qE "[1-9][0-9]* commits scanned" scan.log || {
+            echo "::error::gitleaks scanned no commits; treating this as a failed scan"
+            exit 1
+          }
