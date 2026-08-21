@@ -1,3 +1,4 @@
 # Development tooling only; the Home Assistant integration itself declares no
 # requirements and gets its dependencies from Home Assistant.
 ruff==0.16.4
+pytest==9.0.1

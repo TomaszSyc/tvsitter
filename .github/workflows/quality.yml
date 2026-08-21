@@ -29,6 +29,9 @@ jobs:
       - name: Formatting
         run: ruff format --check --diff .
 
+      - name: Tests
+        run: pytest tests/ -q
+
   secrets:
     name: Secret scan
     runs-on: ubuntu-latest

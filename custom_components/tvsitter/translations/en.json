@@ -17,7 +17,19 @@
       "invalid_topic_prefix": "The prefix must not be empty or contain + or # characters."
     },
     "abort": {
-      "already_configured": "This TV is already configured."
+      "already_configured": "This TV is already configured.",
+      "mqtt_unavailable": "TV Sitter talks to the TV over MQTT. Set up the MQTT integration first, then add this one."
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "screen": { "name": "Screen" },
+      "locked": { "name": "Locked" }
+    },
+    "sensor": {
+      "active_app": { "name": "Active app" },
+      "used_today": { "name": "Used today" },
+      "remaining_today": { "name": "Remaining today" }
     }
   }
 }
