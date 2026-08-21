@@ -13,6 +13,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import android.util.TypedValue
@@ -43,7 +44,16 @@ class SawSpikeService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startForeground(NOTIFICATION_ID, buildNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        // The typed overload only exists from API 29, and specialUse from 34; minSdk is 26.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(
+                NOTIFICATION_ID,
+                buildNotification(),
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, buildNotification())
+        }
         if (intent?.action == ACTION_HIDE) {
             hide()
             stopSelf()
@@ -61,6 +71,7 @@ class SawSpikeService : Service() {
             setBackgroundColor(BACKDROP)
             addView(
                 TextView(context).apply {
+                    @Suppress("SetTextI18n") // debug-only spike, never shipped
                     text = "SAW overlay — $reason"
                     setTextColor(Color.WHITE)
                     setTextSize(TypedValue.COMPLEX_UNIT_SP, 30f)
