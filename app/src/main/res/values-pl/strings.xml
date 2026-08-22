@@ -13,6 +13,7 @@
     <string name="setup_usage_access">Dostęp do statystyk użycia: %1$s</string>
     <string name="setup_foreground">Aplikacja na pierwszym planie: %1$s</string>
     <string name="setup_locked">Blokada aktywna: %1$s</string>
+    <string name="setup_reporting">Raportuje do Home Assistanta: %1$s</string>
     <string name="setup_yes">tak</string>
     <string name="setup_no">nie</string>
     <string name="setup_unknown">(brak danych)</string>
@@ -25,4 +26,8 @@
     <string name="pair_failed">Nie udało się rozpocząć parowania. Sprawdź, czy telewizor jest
         w tej samej sieci, i spróbuj ponownie.</string>
     <string name="pair_done">Połączono. Ten telewizor raportuje do Home Assistanta.</string>
+    <string name="pair_paired">Połączono</string>
+    <string name="pair_offline">Połączono, ale w tej chwili nie ma łączności z Home
+        Assistantem. Sprawdź, czy Home Assistant i jego broker MQTT działają.</string>
+    <string name="pair_again">Sparuj ponownie</string>
 </resources>

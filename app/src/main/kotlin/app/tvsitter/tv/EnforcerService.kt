@@ -52,6 +52,22 @@ class EnforcerService : Service() {
 
     val pairingPin: String? get() = pairing?.pin
 
+    /** Whether this TV has broker settings, which is the lasting result of pairing. */
+    val isPaired: Boolean get() = telemetry?.isConfigured == true
+
+    /** Whether it is actually reaching the broker, as opposed to merely being configured. */
+    val isReporting: Boolean get() = telemetry?.isConnected == true
+
+    /**
+     * Whether the last attempt to open a pairing window failed to get as far as advertising.
+     *
+     * Only worth reading when there is no PIN: a window that opened says so by itself. Without
+     * this the setup screen cannot distinguish "press the button" from "the button did not
+     * work", and both looked identical.
+     */
+    var lastPairingFailed: Boolean = false
+        private set
+
     fun pairingSecondsRemaining(): Long = pairing?.secondsRemaining() ?: 0
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -130,7 +146,9 @@ class EnforcerService : Service() {
         pairing?.stop()
         val manager = PairingManager(this, deviceId, ::onPaired)
         pairing = manager
-        return manager.start()
+        val pin = manager.start()
+        lastPairingFailed = pin == null
+        return pin
     }
 
     /** Runs on the pairing server's thread, so the storage write is handed to a coroutine. */

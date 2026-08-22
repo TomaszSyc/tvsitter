@@ -15,6 +15,7 @@
     <string name="setup_usage_access">Usage access granted: %1$s</string>
     <string name="setup_foreground">Foreground app: %1$s</string>
     <string name="setup_locked">Lock active: %1$s</string>
+    <string name="setup_reporting">Reporting to Home Assistant: %1$s</string>
     <string name="setup_yes">yes</string>
     <string name="setup_no">no</string>
     <string name="setup_unknown">(no data yet)</string>
@@ -27,4 +28,8 @@
     <string name="pair_failed">Pairing could not start. Check that the TV is on the same
         network, then try again.</string>
     <string name="pair_done">Paired. This television is reporting to Home Assistant.</string>
+    <string name="pair_paired">Paired</string>
+    <string name="pair_offline">Paired, but not reaching Home Assistant at the moment. Check
+        that Home Assistant and its MQTT broker are running.</string>
+    <string name="pair_again">Pair again</string>
 </resources>

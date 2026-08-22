@@ -86,27 +86,77 @@ class SetupActivity : Activity() {
     }
 
     private fun render() {
-        val service = EnforcerService.instance
-        val code = service?.pairingPin
+        val copy = pairingCopy(EnforcerService.instance)
 
-        if (code != null) {
-            heading.text = getString(R.string.pair_heading)
-            pin.text = code.chunked(PIN_GROUP).joinToString(separator = " ")
-            pin.visibility = View.VISIBLE
-            pinNote.text = buildString {
-                appendLine(getString(R.string.pair_instructions))
-                append(getString(R.string.pair_expires, service.pairingSecondsRemaining()))
-            }
-            pairButton.visibility = View.GONE
-        } else {
-            heading.text = getString(R.string.pair_heading)
-            pin.visibility = View.GONE
-            pinNote.text = getString(R.string.pair_instructions)
-            pairButton.visibility = View.VISIBLE
-        }
+        heading.text = copy.heading
+        pinNote.text = copy.note
+        pin.text = copy.pin.orEmpty()
+        pin.visibility = if (copy.pin != null) View.VISIBLE else View.GONE
+        pairButton.text = copy.buttonLabel.orEmpty()
+        pairButton.visibility = if (copy.buttonLabel != null) View.VISIBLE else View.GONE
 
         report.text = buildReport()
     }
+
+    /** What the screen says, as a table rather than as branches that each set four fields. */
+    private data class Copy(
+        val heading: String,
+        val note: String,
+        val pin: String? = null,
+        val buttonLabel: String? = null,
+    )
+
+    /**
+     * Four states, where there used to be two.
+     *
+     * A successful pairing used to drop straight back to "press the button to pair", because
+     * the only thing the screen looked at was whether a PIN existed — so the one screen anybody
+     * sees said nothing about having worked. A window that failed to open looked identical.
+     */
+    private fun pairingCopy(service: EnforcerService?): Copy {
+        val code = service?.pairingPin
+        return when {
+            service == null -> invitation()
+
+            code != null -> Copy(
+                heading = getString(R.string.pair_heading),
+                note = getString(R.string.pair_instructions) + "\n" +
+                    getString(R.string.pair_expires, service.pairingSecondsRemaining()),
+                pin = code.chunked(PIN_GROUP).joinToString(separator = " "),
+            )
+
+            // Ahead of the paired state on purpose. Somebody pressed a button and nothing
+            // happened, which is the worse of the two things to be silent about — but the
+            // heading still says "Paired" when it is, because that stayed true.
+            service.lastPairingFailed -> Copy(
+                heading = getString(
+                    if (service.isPaired) R.string.pair_paired else R.string.pair_heading,
+                ),
+                note = getString(R.string.pair_failed),
+                buttonLabel = getString(
+                    if (service.isPaired) R.string.pair_again else R.string.pair_start,
+                ),
+            )
+
+            // Offer to pair again regardless: a broker moves, and a paired TV is exactly the
+            // one that needs to be told about it.
+            service.isPaired -> Copy(
+                heading = getString(R.string.pair_paired),
+                note = getString(
+                    if (service.isReporting) R.string.pair_done else R.string.pair_offline,
+                ),
+                buttonLabel = getString(R.string.pair_again),
+            )
+
+            else -> invitation()
+        }
+    }
+
+    private fun invitation() = Copy(
+        heading = getString(R.string.pair_heading),
+        note = getString(R.string.pair_instructions),
+        buttonLabel = getString(R.string.pair_start),
+    )
 
     private fun buildReport(): String {
         val service = EnforcerService.instance
@@ -138,6 +188,9 @@ class SetupActivity : Activity() {
                 ),
             )
             appendLine(getString(R.string.setup_locked, if (service?.isLocked == true) yes else no))
+            appendLine(
+                getString(R.string.setup_reporting, if (service?.isReporting == true) yes else no),
+            )
         }
     }
 

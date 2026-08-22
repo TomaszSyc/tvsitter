@@ -33,7 +33,15 @@ class Telemetry(
     private var pendingPublish: Job? = null
     private var heartbeatJob: Job? = null
 
+    /** Whether there are broker settings to work with, which is what pairing produces. */
     val isConfigured: Boolean get() = bridge != null
+
+    /**
+     * Whether the broker is reachable right now. A different question from [isConfigured]:
+     * a paired TV with the broker down is configured and silent, and the setup screen has to
+     * be able to tell somebody which of the two they are looking at.
+     */
+    val isConnected: Boolean get() = bridge?.isConnected == true
 
     /** Connects if a broker is configured. Returns false when there is nothing to connect to. */
     suspend fun start(): Boolean {
