@@ -814,6 +814,63 @@ What this does not fix is the gap after a cold start. The intention lands when t
 the broker, and on a television that was fully off that is the reboot gap of D22 — most of
 which is not ours to close.
 
+## D25 — A second mode, without Home Assistant (2026-08-22)
+
+TVCP's shape is two apps and a cloud between them: one on the television, one on the parent's
+phone, paired with a QR code. This project deliberately does not have that — Home Assistant is
+the parent's side — but plenty of households do not run Home Assistant and never will. Not
+being built now. This records what already keeps the door open and what would quietly shut it.
+
+### What is already independent of Home Assistant
+
+The enforcing half, all of it. D3 put the rules and the counter on the television and enforced
+them offline so that a dead Home Assistant cannot unlock the set. The same choice means a
+household with no Home Assistant at all already has a working enforcer, and a second mode needs
+no second implementation of the part that matters. The parent PIN (D23) already locks and
+unlocks at the set with nothing else running anywhere.
+
+The boundary is thin and written down. `docs/mqtt-contract.md` is four topics of JSON with a
+schema version, and nothing in it mentions Home Assistant: anything that speaks MQTT can be the
+parent's side.
+
+`:rules` is plain Kotlin with no Android and no MQTT in it, so a phone app could reuse the
+budget arithmetic rather than reimplement it and disagree with the television.
+
+Pairing (D14) is local — zeroconf, an HTTP endpoint on the television, a six-digit PIN. It was
+built for Home Assistant and nothing about it is specific to Home Assistant. The television
+already runs an HTTP server while pairing, which is the obvious seat for a parent interface on
+the same network.
+
+### The four shapes it could take
+
+- **A page served by the television.** The server is already there; a parent on the same Wi-Fi
+  opens it. No accounts, no cloud, no store listing, nothing extra to run. What it cannot do is
+  reach a parent who is out — which is exactly where "the child is asking for more time" needs
+  to arrive.
+- **A broker without Home Assistant.** Mosquitto in a container, the contract unchanged, a
+  phone app or web page as the client. The cheapest shape that keeps every feature, and it asks
+  the household to run a broker, which is not much easier than running Home Assistant.
+- **Notifications through something already solved.** ntfy or similar for the request push,
+  with control staying local. Two moving parts instead of one, and answering from outside the
+  house still needs a way in.
+- **A hosted backend, as TVCP has.** The only shape that makes remote notifications reliable,
+  and the only one with accounts, a privacy policy and a bill. Under AGPL the server source
+  would be published too — which is this project's own choice to make, since the copyright is
+  in one pair of hands.
+
+### What would close the door
+
+One invariant, and it is already the rule: **Home Assistant configures and displays, the
+television decides.** Anything evaluated in Python rather than in `:rules` is a feature the
+second mode would not have.
+
+Three places where that will be tempting. M4's schedule has to be evaluated on the television
+rather than turned into "lock now" commands from an automation. M3's request flow has to be
+complete at the set on its own — the rate limit, the expiry, and telling the child that nobody
+answered — with the notification being the part Home Assistant adds rather than the part that
+makes it work. And M5's history lives only in the recorder, so a second mode either keeps a
+rolling window on the device or has no statistics at all.
+
 ## No open hardware questions from the M0 spike
 
 Everything the spike set out to answer is answered, in D9 through D13. What it turned up
