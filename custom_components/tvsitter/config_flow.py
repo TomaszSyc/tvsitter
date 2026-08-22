@@ -42,6 +42,7 @@ from .const import (
     TXT_DEVICE_ID,
     TXT_NAME,
     TXT_PAIRED,
+    TXT_PREFIX,
 )
 from .pairing import ERROR_WRONG_PIN, PairResult, async_pair
 
@@ -139,6 +140,7 @@ class TvSitterConfigFlow(ConfigFlow, domain=DOMAIN):
         self._port: int | None = None
         self._device_id: str | None = None
         self._tv_name: str = DEFAULT_NAME
+        self._advertised_prefix: str | None = None
         self._attempts_left: str = ""
 
     async def _async_require_mqtt(self) -> ConfigFlowResult | None:
@@ -205,6 +207,9 @@ class TvSitterConfigFlow(ConfigFlow, domain=DOMAIN):
         self._host = discovery_info.host
         self._port = discovery_info.port
         self._tv_name = str(properties.get(TXT_NAME) or "").strip() or DEFAULT_NAME
+        # Only a TV already using a prefix advertises one, so this is either the prefix
+        # in force or nothing. Cleaned rather than trusted: it ends up in a topic.
+        self._advertised_prefix = _clean_prefix(str(properties.get(TXT_PREFIX) or ""))
 
         self.context["title_placeholders"] = {"name": self._tv_name}
         return await self.async_step_pair()
@@ -318,7 +323,15 @@ class TvSitterConfigFlow(ConfigFlow, domain=DOMAIN):
         return outcome.error or "unknown"
 
     def _default_prefix(self) -> str:
-        """Derive a prefix from the TV's own name, which its owner will recognise."""
+        """Suggest the prefix the TV is already using, or one derived from its name.
+
+        Re-pairing a TV that is working used to suggest a prefix derived from its name,
+        which is rarely the one in force — and accepting it silently moved the TV to a
+        prefix Home Assistant had just invented, leaving the entities behind (#33).
+        """
+        if self._advertised_prefix:
+            return self._advertised_prefix
+
         slug = slugify(self._tv_name)
         if not slug or slug == slugify(DEFAULT_NAME):
             slug = self._device_id or "tv"

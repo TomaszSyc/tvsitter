@@ -175,7 +175,9 @@ class EnforcerService : Service() {
     private suspend fun startTelemetryOrOfferPairing() {
         if (telemetry?.start() == true) return
         Log.i(TAG, "no broker configured, offering pairing")
-        startPairing(Settings(this).deviceId())
+        // No prefix to advertise: reaching this means there is no broker configured, so
+        // whatever is in storage is the built-in default rather than a prefix in use.
+        startPairing(Settings(this).deviceId(), topicPrefix = null)
     }
 
     /** Reconnects with whatever settings are now stored. Used by the debug configure hook. */
@@ -188,13 +190,22 @@ class EnforcerService : Service() {
      * otherwise mean a storage read on whatever thread pressed the button.
      */
     fun requestPairing() {
-        scope.launch { startPairing(Settings(this@EnforcerService).deviceId()) }
+        scope.launch {
+            val settings = Settings(this@EnforcerService)
+            val broker = settings.brokerSnapshot()
+            // A television that is already reporting knows its own prefix, and re-pairing
+            // should not invite Home Assistant to invent a new one (#33).
+            startPairing(
+                settings.deviceId(),
+                topicPrefix = broker.topicPrefix.takeIf { broker.isComplete },
+            )
+        }
     }
 
     /** Opens a pairing window and returns the PIN to display, or null if it could not start. */
-    fun startPairing(deviceId: String): String? {
+    fun startPairing(deviceId: String, topicPrefix: String?): String? {
         pairing?.stop()
-        val manager = PairingManager(this, deviceId, ::onPaired)
+        val manager = PairingManager(this, deviceId, topicPrefix, ::onPaired)
         pairing = manager
         val pin = manager.start()
         lastPairingFailed = pin == null

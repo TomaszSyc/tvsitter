@@ -34,6 +34,8 @@ class PairingManager(
     private val context: Context,
     /** Resolved once by the caller through [Settings.deviceId]; see the note there. */
     val deviceId: String,
+    /** The prefix in force, or null on a television that has never been paired. */
+    private val topicPrefix: String?,
     private val onPaired: (PairRequest) -> Unit,
 ) {
     private val nsdManager = context.getSystemService(NsdManager::class.java)
@@ -136,6 +138,10 @@ class PairingManager(
             setAttribute(PairingProtocol.TXT_NAME, deviceName)
             setAttribute(PairingProtocol.TXT_VERSION, BuildConfig.VERSION_NAME)
             setAttribute(PairingProtocol.TXT_PAIRED, "false")
+            // Only when there is one in force. Advertising the built-in default from an
+            // unpaired television would have Home Assistant suggesting the same prefix for
+            // every set in the house.
+            topicPrefix?.let { setAttribute(PairingProtocol.TXT_PREFIX, it) }
         }
 
         val listener = object : NsdManager.RegistrationListener {

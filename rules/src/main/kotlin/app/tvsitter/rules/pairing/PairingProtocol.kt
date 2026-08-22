@@ -26,6 +26,15 @@ object PairingProtocol {
     const val TXT_VERSION: String = "version"
     const val TXT_PAIRED: String = "paired"
 
+    /**
+     * The topic prefix this television is using, advertised only when it is using one.
+     *
+     * Absent means "never paired", which is a different thing from "no opinion": Home
+     * Assistant falls back to deriving a prefix from the TV's name, and it should only do
+     * that when there is nothing better. A TV that has been paired knows the answer.
+     */
+    const val TXT_PREFIX: String = "prefix"
+
     /** Caps for the hand-rolled server. Small on purpose; the payload is tiny. */
     const val MAX_REQUEST_BYTES: Int = 4096
     const val SOCKET_TIMEOUT_MS: Int = 5000

@@ -109,6 +109,17 @@ async def start_zeroconf(hass: HomeAssistant, **properties: Any) -> dict[str, An
     )
 
 
+def suggested_prefix(result: dict[str, Any]) -> str | None:
+    """Read back the prefix the form is offering, however it was set."""
+    for key in result["data_schema"].schema:
+        if str(key) != "topic_prefix":
+            continue
+        if key.description and "suggested_value" in key.description:
+            return key.description["suggested_value"]
+        return key.default()
+    return None
+
+
 # --------------------------------------------------------------------------------------
 # Adding a TV by hand
 # --------------------------------------------------------------------------------------
@@ -193,18 +204,39 @@ async def test_discovery_offers_the_pairing_form(hass: HomeAssistant) -> None:
 async def test_discovery_defaults_the_prefix_from_the_tv_name(
     hass: HomeAssistant,
 ) -> None:
-    """The owner recognises the TV's name, so derive from it rather than from the id."""
+    """With nothing advertised, the owner recognises the name rather than the id."""
     add_mqtt_entry(hass)
     result = await start_zeroconf(hass, name="Salon telewizor")
 
-    suggested = {
-        str(key): key.description["suggested_value"]
-        if key.description and "suggested_value" in key.description
-        else key.default()
-        for key in result["data_schema"].schema
-        if str(key) == "topic_prefix"
-    }
-    assert suggested["topic_prefix"] == "tvsitter/salon_telewizor"
+    assert suggested_prefix(result) == "tvsitter/salon_telewizor"
+
+
+async def test_discovery_prefers_the_prefix_the_tv_is_already_using(
+    hass: HomeAssistant,
+) -> None:
+    """Re-pairing a working TV must not invite a new prefix (#33).
+
+    The derived value would be `tvsitter/salon_telewizor` here, and accepting it would
+    move the TV onto a prefix Home Assistant had just invented, leaving the entities
+    behind.
+    """
+    add_mqtt_entry(hass)
+    result = await start_zeroconf(
+        hass, name="Salon telewizor", prefix="tvsitter/parter/salon"
+    )
+
+    assert suggested_prefix(result) == "tvsitter/parter/salon"
+
+
+@pytest.mark.parametrize("advertised", ["tvsitter/+", "tvsitter/#", "", "   ", "/"])
+async def test_an_unusable_advertised_prefix_falls_back_to_the_name(
+    hass: HomeAssistant, advertised: str
+) -> None:
+    """A wildcard would subscribe to other TVs' topics, so it is not offered."""
+    add_mqtt_entry(hass)
+    result = await start_zeroconf(hass, name="Salon", prefix=advertised)
+
+    assert suggested_prefix(result) == "tvsitter/salon"
 
 
 async def test_discovery_ignores_a_tv_that_is_already_paired(

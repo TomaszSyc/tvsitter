@@ -40,6 +40,9 @@ TXT_DEVICE_ID: Final = "id"
 TXT_NAME: Final = "name"
 TXT_VERSION: Final = "version"
 TXT_PAIRED: Final = "paired"
+# Advertised only by a TV that is already using one, so its absence means "never paired"
+# rather than "no opinion". Kept in step with PairingProtocol on the Kotlin side.
+TXT_PREFIX: Final = "prefix"
 
 # Payload schema this build understands. A payload declaring a higher one is refused
 # rather than guessed at: past that point the meaning of existing fields cannot be
