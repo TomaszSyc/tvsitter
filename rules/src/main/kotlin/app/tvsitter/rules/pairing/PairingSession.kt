@@ -5,6 +5,7 @@
  */
 package app.tvsitter.rules.pairing
 
+import app.tvsitter.rules.constantTimeEquals
 import kotlin.random.Random
 
 /** What happened when someone presented a PIN. */
@@ -59,19 +60,6 @@ class PairingSession(val pin: String, private val expiresAtMs: Long, maxAttempts
             attemptsLeft -= 1
             PairingResult.WrongPin(attemptsLeft)
         }
-    }
-
-    /**
-     * Compares without leaking where the mismatch is through timing. The length is public
-     * anyway — it is printed on the screen — so only the digits get this treatment.
-     */
-    private fun constantTimeEquals(a: String, b: String): Boolean {
-        if (a.length != b.length) return false
-        var difference = 0
-        for (index in a.indices) {
-            difference = difference or (a[index].code xor b[index].code)
-        }
-        return difference == 0
     }
 
     companion object {
