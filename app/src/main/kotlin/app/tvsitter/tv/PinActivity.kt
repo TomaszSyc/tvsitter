@@ -13,6 +13,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.TextView
 import app.tvsitter.rules.ParentPin
@@ -49,6 +50,9 @@ class PinActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Three questions in a row, each with a couple of seconds of hashing between them, is
+        // long enough for a television to decide nobody is there.
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         pin = PinKeeper(this)
 
         if (!pin.isSet) {
@@ -76,6 +80,18 @@ class PinActivity : Activity() {
         pad.focusKeypad()
     }
 
+    /**
+     * Leaves rather than waits.
+     *
+     * Halfway through, this screen is holding a PIN that has already been proved. Coming back
+     * to it after the television has been off for an hour should not carry on from there, and
+     * the cost of starting again is four button presses.
+     */
+    override fun onPause() {
+        super.onPause()
+        if (!isFinishing) finish()
+    }
+
     private fun onTyped(typed: String) {
         when (step) {
             Step.CURRENT -> checkCurrent(typed)
@@ -89,20 +105,22 @@ class PinActivity : Activity() {
      * types a new one twice. It costs an attempt either way; this way it costs less patience.
      */
     private fun checkCurrent(typed: String) {
-        val outcome = pin.verify(typed)
-        if (outcome != PinOutcome.Accepted) {
-            keypad?.message(pinMessage(outcome).orEmpty())
-            return
+        keypad?.message(getString(R.string.pin_checking))
+        pin.verify(typed) { outcome ->
+            if (outcome != PinOutcome.Accepted) {
+                keypad?.message(pinMessage(outcome).orEmpty())
+                return@verify
+            }
+            currentPin = typed
+            ask(Step.NEW)
         }
-        currentPin = typed
-        ask(Step.NEW)
     }
 
     private fun takeNew(typed: String) {
-        // The keypad refuses anything shorter already, so this is a second pair of eyes rather
+        // The keypad cannot produce anything else, so this is a second pair of eyes rather
         // than the check that matters.
         if (!ParentPin.isPlausible(typed)) {
-            keypad?.message(getString(R.string.pin_length, ParentPin.MIN_LENGTH, ParentPin.MAX_LENGTH))
+            keypad?.message(getString(R.string.pin_length, ParentPin.LENGTH))
             return
         }
         proposed = typed
@@ -119,21 +137,25 @@ class PinActivity : Activity() {
             return
         }
 
-        val outcome = pin.change(currentPin, proposed)
-        currentPin = ""
-        proposed = ""
-        if (outcome == PinOutcome.Accepted) {
-            announceToHomeAssistant()
-            showNote(getString(R.string.pin_changed))
-            // Long enough to be read from a sofa, then out of the way without a button.
-            Handler(Looper.getMainLooper()).postDelayed({ finish() }, DONE_MS)
-            return
-        }
+        keypad?.message(getString(R.string.pin_checking))
+        // Two derivations here, one to check the current PIN and one to hash the new: about
+        // four seconds on this television, which is why none of it runs on the main thread.
+        pin.change(currentPin, proposed) { outcome ->
+            currentPin = ""
+            proposed = ""
+            if (outcome == PinOutcome.Accepted) {
+                announceToHomeAssistant()
+                showNote(getString(R.string.pin_changed))
+                // Long enough to be read from a sofa, then out of the way without a button.
+                Handler(Looper.getMainLooper()).postDelayed({ finish() }, DONE_MS)
+                return@change
+            }
 
-        // Reachable: the lockout can begin between the first step and this one, if somebody was
-        // guessing at the lock screen in between.
-        ask(Step.CURRENT)
-        keypad?.message(pinMessage(outcome).orEmpty())
+            // Reachable: the lockout can begin between the first step and this one, if
+            // somebody was guessing at the lock screen in between.
+            ask(Step.CURRENT)
+            keypad?.message(pinMessage(outcome).orEmpty())
+        }
     }
 
     /**

@@ -24,8 +24,10 @@ ITERATIONS: Final = 120_000
 SALT_BYTES: Final = 16
 KEY_BYTES: Final = 32
 
-MIN_LENGTH: Final = 4
-MAX_LENGTH: Final = 8
+# Exactly four, matching ParentPin.LENGTH on the TV. Entry there submits itself on the
+# last digit the way the platform's own PIN screens do, which is only possible when the
+# length is known — and on the screen that sets a PIN it never would be with a range.
+LENGTH: Final = 4
 
 
 def is_plausible(pin: str) -> bool:
@@ -35,7 +37,7 @@ def is_plausible(pin: str) -> bool:
     which no television remote produces and which would be a surprising thing to have
     silently accepted as a PIN.
     """
-    return MIN_LENGTH <= len(pin) <= MAX_LENGTH and pin.isascii() and pin.isdigit()
+    return len(pin) == LENGTH and pin.isascii() and pin.isdigit()
 
 
 def hash_pin(

@@ -776,12 +776,40 @@ answer there is uninstalling the app with the remote. Which is also why `binary_
 whether a PIN exists: "there isn't one" is a bad thing to discover at that point rather than
 before it.
 
-### Not yet exercised on the set
+### What the television changed about all of this (measured, 2026-08-22)
 
-The keypad has not been in front of the television: focus behaviour under the D-pad, how the
-grid looks at three metres, and how long 120 000 iterations take on this processor are all
-unknown. The last one is logged as a number on every entry, because the hash runs on the main
-thread and a keypad that stalls visibly would want moving off it.
+Three things, and the first two were wrong in the design rather than in the code.
+
+**The keypad leaked the PIN it was built to hide.** A grid of nine buttons masks the entry and
+then broadcasts every digit through the focus highlight, which follows the remote across a
+fifty-inch screen. Rebuilt in the shape the platform uses for its own PIN — up and down move
+between rows of three, and left, centre and right take one of the three — because there the
+screen shows which row is in play and never which of the three was taken. That leaves somebody
+watching a four-digit entry with eighty-one candidates instead of the code.
+
+**A PIN is now exactly four digits**, where it was four to eight. Entry can only submit itself
+when the length is known, and on the screen that *sets* a PIN it never is — so a range means a
+confirm button on every keypad for ever, and the platform's own screens have none. The cost is
+real and was paid for rather than ignored: ten thousand candidates at five tries per five
+minutes is about a week of solid guessing, so the lockout now grows — five minutes, then
+fifteen, then thirty — which puts it past a month.
+
+**The derivation is far too slow for the main thread.** Measured on this processor:
+
+```
+pin: wrong, 4 attempts left in 2159ms
+pin: accepted in 2037ms
+```
+
+Two seconds a time, and a change is two derivations. That is not a pause, it is a lock screen
+that looks broken, so it runs on a thread of its own with "Sprawdzam…" on screen while it does.
+The number is still logged on every entry, which is how it was found.
+
+Also learned, and filed rather than fixed: the television's own image-sticking protection draws
+a drifting logo above our windows after a few minutes of a static screen (#50), which answers
+D16's open question about whether our overlay outranks `tvsystemui` — it does not. And because
+that saver is not a `DreamService`, D20's exclusion does not see it, so time under it still
+counts as watching (#51).
 
 ## D24 — Availability is not permission (2026-08-22)
 

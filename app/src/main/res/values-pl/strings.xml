@@ -8,8 +8,8 @@
 
     <string name="pin_unlock">Odblokuj PIN-em</string>
     <string name="pin_enter">Wpisz PIN rodzica</string>
-    <string name="pin_ok">OK</string>
-    <string name="pin_length">PIN ma od %1$d do %2$d cyfr.</string>
+    <string name="pin_length">PIN ma %1$d cyfry.</string>
+    <string name="pin_checking">Sprawdzam…</string>
     <string name="pin_not_set">Na tym telewizorze nie ma PIN-u. Ustaw go w Home Assistancie.</string>
     <string name="pin_from_ha">Pierwszy PIN rodzica ustawia się w Home Assistancie. Gdy już
         jest, można go zmieniać także tutaj.</string>

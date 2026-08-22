@@ -29,7 +29,7 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.util import dt as dt_util
 
 PREFIX = "tvsitter/salon"
-PIN = "482913"
+PIN = "4829"
 SALT = "0f1e2d3c4b5a69788796a5b4c3d2e1f0"
 
 
@@ -59,10 +59,10 @@ def test_the_hash_agrees_with_what_the_tv_computes() -> None:
     typing the right PIN into a television that refuses it.
     """
     assert hash_pin(PIN, SALT, iterations=1000)["hash"] == (
-        "8de25825f30eff014f53eb11cb0ac52aceadce257d18fac740e3342a13e87ef3"
+        "25ec4a066c35e18ee2253fda4f061397ce0ec912aae8c7d78cec3ce950ecc7e4"
     )
     assert hash_pin(PIN, SALT, iterations=120_000)["hash"] == (
-        "9734df1754755f353cb4f019e4eaaf441b1cc2b826fd45f7f378469e791cb8d0"
+        "dc8b37495725de3a1bcc1e45f27738173d75eb3e114e3ace05d9fe38e87002d0"
     )
 
 
@@ -91,9 +91,8 @@ def test_each_pin_gets_its_own_salt() -> None:
     ("pin", "usable"),
     [
         ("1234", True),
-        ("12345678", True),
         ("123", False),
-        ("123456789", False),
+        ("12345", False),
         ("12a4", False),
         ("", False),
         # Digits by str.isdigit(), but no remote produces them and the TV keypad cannot.
@@ -101,7 +100,7 @@ def test_each_pin_gets_its_own_salt() -> None:
     ],
 )
 def test_only_a_pin_that_could_be_typed_is_accepted(pin: str, usable: bool) -> None:
-    """The same range the keypad on the TV enforces."""
+    """Exactly four digits, as the keypad on the TV produces."""
     assert is_plausible(pin) is usable
 
 
@@ -147,7 +146,7 @@ async def test_the_entity_holds_nothing(hass: HomeAssistant) -> None:
     assert entity.native_value is None
     assert entity.mode is TextMode.PASSWORD
     assert entity.min == 4
-    assert entity.max == 8
+    assert entity.max == 4
 
 
 async def test_a_pin_nobody_could_type_is_refused_before_it_is_hashed(

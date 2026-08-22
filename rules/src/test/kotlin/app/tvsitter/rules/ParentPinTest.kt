@@ -17,16 +17,16 @@ class ParentPinTest {
 
     @Test
     fun `the hash agrees with what Python computes`() {
-        // Generated with hashlib.pbkdf2_hmac("sha256", b"482913", salt, iterations). The two
+        // Generated with hashlib.pbkdf2_hmac("sha256", b"4829", salt, iterations). The two
         // halves of this product hash in different languages, so the vector is the contract:
         // a PIN set from Home Assistant has to verify on the TV, and nothing else checks that.
         assertEquals(
-            "8de25825f30eff014f53eb11cb0ac52aceadce257d18fac740e3342a13e87ef3",
-            ParentPin.hash("482913", salt, iterations = 1000),
+            "25ec4a066c35e18ee2253fda4f061397ce0ec912aae8c7d78cec3ce950ecc7e4",
+            ParentPin.hash("4829", salt, iterations = 1000),
         )
         assertEquals(
-            "9734df1754755f353cb4f019e4eaaf441b1cc2b826fd45f7f378469e791cb8d0",
-            ParentPin.hash("482913", salt, iterations = 120_000),
+            "dc8b37495725de3a1bcc1e45f27738173d75eb3e114e3ace05d9fe38e87002d0",
+            ParentPin.hash("4829", salt, iterations = 120_000),
         )
     }
 
@@ -35,12 +35,12 @@ class ParentPinTest {
         val stored = PinHash(
             iterations = 1000,
             saltHex = salt,
-            hashHex = ParentPin.hash("482913", salt, iterations = 1000),
+            hashHex = ParentPin.hash("4829", salt, iterations = 1000),
         )
 
-        assertTrue(ParentPin.matches("482913", stored))
-        assertFalse(ParentPin.matches("482914", stored))
-        assertFalse(ParentPin.matches("48291", stored))
+        assertTrue(ParentPin.matches("4829", stored))
+        assertFalse(ParentPin.matches("4828", stored))
+        assertFalse(ParentPin.matches("482", stored))
         assertFalse(ParentPin.matches("", stored))
     }
 
@@ -51,19 +51,29 @@ class ParentPinTest {
         val other = "ffffffffffffffffffffffffffffffff"
 
         assertFalse(
-            ParentPin.hash("482913", salt, 1000) == ParentPin.hash("482913", other, 1000),
+            ParentPin.hash("4829", salt, 1000) == ParentPin.hash("4829", other, 1000),
         )
     }
 
     @Test
     fun `the parameters travel with the hash so they can be raised later`() {
-        val old = PinHash(1000, salt, ParentPin.hash("482913", salt, 1000))
-        val new = PinHash(120_000, salt, ParentPin.hash("482913", salt, 120_000))
+        val old = PinHash(1000, salt, ParentPin.hash("4829", salt, 1000))
+        val new = PinHash(120_000, salt, ParentPin.hash("4829", salt, 120_000))
 
         // An old hash keeps verifying after the default goes up, rather than locking a parent
         // out of their own television on an upgrade.
-        assertTrue(ParentPin.matches("482913", old))
-        assertTrue(ParentPin.matches("482913", new))
+        assertTrue(ParentPin.matches("4829", old))
+        assertTrue(ParentPin.matches("4829", new))
+    }
+
+    @Test
+    fun `printing a stored hash does not print the digest`() {
+        // Found on the television: the command log prints its payload, so a PIN set from Home
+        // Assistant put the whole digest in logcat — and a logcat goes into bug reports.
+        val stored = ParentPin.create("1357", salt, iterations = 1000)
+
+        assertFalse(stored.toString().contains(stored.hashHex), stored.toString())
+        assertTrue(stored.toString().contains("1000"), "the parameters are worth keeping")
     }
 
     @Test
@@ -116,16 +126,17 @@ class ParentPinTest {
 
     @Test
     fun `comparing against a malformed hash says no instead of throwing`() {
-        assertFalse(ParentPin.matches("482913", PinHash(1000, "", "abcd")))
-        assertFalse(ParentPin.matches("482913", PinHash(1000, "0f1", "abcd")))
+        assertFalse(ParentPin.matches("4829", PinHash(1000, "", "abcd")))
+        assertFalse(ParentPin.matches("4829", PinHash(1000, "0f1", "abcd")))
     }
 
     @Test
-    fun `only plausible PINs are accepted for setting`() {
+    fun `a PIN is exactly four digits`() {
+        // Not a range. Entry can only submit itself when the length is known, and on the
+        // screen that sets a PIN it never is — so a range means a confirm button for ever.
         assertTrue(ParentPin.isPlausible("1234"))
-        assertTrue(ParentPin.isPlausible("12345678"))
-        assertFalse(ParentPin.isPlausible("123"), "too short to be worth having")
-        assertFalse(ParentPin.isPlausible("123456789"), "unkind on a D-pad")
+        assertFalse(ParentPin.isPlausible("123"), "too short")
+        assertFalse(ParentPin.isPlausible("12345"), "no longer accepted")
         assertFalse(ParentPin.isPlausible("12a4"), "a keypad only produces digits")
         assertFalse(ParentPin.isPlausible(""))
     }

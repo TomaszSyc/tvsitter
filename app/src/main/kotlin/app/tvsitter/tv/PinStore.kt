@@ -52,11 +52,15 @@ class PinStore(context: Context) {
         get() = PinLockout(
             failures = preferences.getInt(KEY_FAILURES, 0),
             lockedUntilMs = preferences.getLong(KEY_LOCKED_UNTIL, 0),
+            lockouts = preferences.getInt(KEY_LOCKOUTS, 0),
         )
         set(value) {
             preferences.edit()
                 .putInt(KEY_FAILURES, value.failures)
                 .putLong(KEY_LOCKED_UNTIL, value.lockedUntilMs)
+                // Kept with the rest, or force-stopping the app would put the wait back to
+                // five minutes — which is the whole point of it growing.
+                .putInt(KEY_LOCKOUTS, value.lockouts)
                 .apply()
         }
 
@@ -81,6 +85,7 @@ class PinStore(context: Context) {
         const val KEY_HASH = "hash"
         const val KEY_FAILURES = "failures"
         const val KEY_LOCKED_UNTIL = "locked_until"
+        const val KEY_LOCKOUTS = "lockouts"
         const val KEY_CHANGED_AT = "changed_at"
         const val KEY_CHANGED_BY = "changed_by"
     }

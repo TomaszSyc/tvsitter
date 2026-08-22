@@ -17,12 +17,12 @@ class PinCheckTest {
     private val salt = "0f1e2d3c4b5a69788796a5b4c3d2e1f0"
 
     /** Cheap on purpose: the iteration count is exercised in [ParentPinTest], not here. */
-    private val stored = ParentPin.create("482913", salt, iterations = 1000)
+    private val stored = ParentPin.create("4829", salt, iterations = 1000)
 
     @Test
     fun `the right PIN is accepted and forgives what came before`() {
-        val after = PinCheck.verify("999999", stored, PinLockout(), now)
-        val accepted = PinCheck.verify("482913", stored, after.lockout, now)
+        val after = PinCheck.verify("9999", stored, PinLockout(), now)
+        val accepted = PinCheck.verify("4829", stored, after.lockout, now)
 
         assertEquals(PinOutcome.Accepted, accepted.outcome)
         assertEquals(PinLockout(), accepted.lockout, "a failure was still counted against it")
@@ -30,7 +30,7 @@ class PinCheckTest {
 
     @Test
     fun `a wrong PIN counts down the attempts`() {
-        val first = PinCheck.verify("000000", stored, PinLockout(), now)
+        val first = PinCheck.verify("0000", stored, PinLockout(), now)
 
         assertEquals(PinOutcome.Wrong(PinGuard.MAX_FAILURES - 1), first.outcome)
         assertEquals(1, first.lockout.failures)
@@ -41,13 +41,13 @@ class PinCheckTest {
         var lockout = PinLockout()
         var outcome: PinOutcome = PinOutcome.NotSet
         repeat(PinGuard.MAX_FAILURES) {
-            val attempt = PinCheck.verify("000000", stored, lockout, now)
+            val attempt = PinCheck.verify("0000", stored, lockout, now)
             lockout = attempt.lockout
             outcome = attempt.outcome
         }
 
         // "No attempts left" followed by silence is what the first draft would have shown.
-        assertEquals(PinOutcome.LockedOut(PinGuard.LOCKOUT_MS / 1000), outcome)
+        assertEquals(PinOutcome.LockedOut(PinGuard.waitFor(1) / 1000), outcome)
     }
 
     @Test
@@ -57,12 +57,12 @@ class PinCheckTest {
         // use whichever door was still open.
         var lockout = PinLockout()
         repeat(PinGuard.MAX_FAILURES - 1) {
-            lockout = PinCheck.verify("000000", stored, lockout, now).lockout
+            lockout = PinCheck.verify("0000", stored, lockout, now).lockout
         }
 
-        val change = PinCheck.change("111111", "1357", stored, lockout, now)
+        val change = PinCheck.change("1111", "1357", stored, lockout, now)
 
-        assertEquals(PinOutcome.LockedOut(PinGuard.LOCKOUT_MS / 1000), change.outcome)
+        assertEquals(PinOutcome.LockedOut(PinGuard.waitFor(1) / 1000), change.outcome)
         assertNull(change.hash, "a locked-out attempt changed the PIN")
     }
 
@@ -71,12 +71,12 @@ class PinCheckTest {
         // The same property from the other side: attempts spent here are not available there.
         var lockout = PinLockout()
         repeat(PinGuard.MAX_FAILURES) {
-            lockout = PinCheck.change("000000", "1357", stored, lockout, now).lockout
+            lockout = PinCheck.change("0000", "1357", stored, lockout, now).lockout
         }
 
         assertEquals(
-            PinOutcome.LockedOut(PinGuard.LOCKOUT_MS / 1000),
-            PinCheck.verify("482913", stored, lockout, now).outcome,
+            PinOutcome.LockedOut(PinGuard.waitFor(1) / 1000),
+            PinCheck.verify("4829", stored, lockout, now).outcome,
             "the right PIN was accepted while the keypad was supposed to be shut",
         )
     }
@@ -84,20 +84,20 @@ class PinCheckTest {
     @Test
     fun `a change with the right PIN produces a hash for the new one`() {
         // Also that the new hash carries its own salt rather than the old PIN's.
-        val change = PinCheck.change("482913", "1357", stored, PinLockout(), now)
+        val change = PinCheck.change("4829", "1357", stored, PinLockout(), now)
         val updated = checkNotNull(change.hash)
 
         assertEquals(PinOutcome.Accepted, change.outcome)
         assertTrue(ParentPin.matches("1357", updated))
-        assertFalse(ParentPin.matches("482913", updated), "the old PIN still works")
+        assertFalse(ParentPin.matches("4829", updated), "the old PIN still works")
     }
 
     @Test
     fun `a change carries the current iteration count, not the stored one`() {
         // A PIN set years ago under a lower count should not keep that count for ever, or
         // raising the default would never reach the households that already have a PIN.
-        val old = ParentPin.create("482913", salt, iterations = 1000)
-        val change = PinCheck.change("482913", "1357", old, PinLockout(), now)
+        val old = ParentPin.create("4829", salt, iterations = 1000)
+        val change = PinCheck.change("4829", "1357", old, PinLockout(), now)
 
         assertEquals(ParentPin.ITERATIONS, checkNotNull(change.hash).iterations)
     }
@@ -121,7 +121,7 @@ class PinCheckTest {
         // something that could never succeed and then shut the keypad for five minutes.
         val broken = PinHash(iterations = 1000, saltHex = "", hashHex = "abcd")
 
-        val attempt = PinCheck.verify("482913", broken, PinLockout(), now)
+        val attempt = PinCheck.verify("4829", broken, PinLockout(), now)
 
         assertEquals(PinOutcome.NotSet, attempt.outcome)
         assertEquals(PinLockout(), attempt.lockout, "an attempt was spent on it")
@@ -129,7 +129,7 @@ class PinCheckTest {
 
     @Test
     fun `an unusable new PIN is refused without spending an attempt`() {
-        val change = PinCheck.change("482913", "12", stored, PinLockout(), now)
+        val change = PinCheck.change("4829", "12", stored, PinLockout(), now)
 
         assertEquals(PinOutcome.NewPinRejected, change.outcome)
         assertNull(change.hash)
@@ -140,13 +140,13 @@ class PinCheckTest {
     fun `a locked-out guess is not even compared`() {
         var lockout = PinLockout()
         repeat(PinGuard.MAX_FAILURES) {
-            lockout = PinCheck.verify("000000", stored, lockout, now).lockout
+            lockout = PinCheck.verify("0000", stored, lockout, now).lockout
         }
         val shut = lockout
 
-        val correct = PinCheck.verify("482913", stored, shut, now)
+        val correct = PinCheck.verify("4829", stored, shut, now)
 
-        assertEquals(PinOutcome.LockedOut(PinGuard.LOCKOUT_MS / 1000), correct.outcome)
+        assertEquals(PinOutcome.LockedOut(PinGuard.waitFor(1) / 1000), correct.outcome)
         assertEquals(shut, correct.lockout, "the deadline moved because of a guess")
     }
 
@@ -154,10 +154,10 @@ class PinCheckTest {
     fun `the wait runs out and the PIN works again`() {
         var lockout = PinLockout()
         repeat(PinGuard.MAX_FAILURES) {
-            lockout = PinCheck.verify("000000", stored, lockout, now).lockout
+            lockout = PinCheck.verify("0000", stored, lockout, now).lockout
         }
 
-        val later = now + PinGuard.LOCKOUT_MS
-        assertEquals(PinOutcome.Accepted, PinCheck.verify("482913", stored, lockout, later).outcome)
+        val later = now + PinGuard.waitFor(1)
+        assertEquals(PinOutcome.Accepted, PinCheck.verify("4829", stored, lockout, later).outcome)
     }
 }

@@ -10,8 +10,8 @@
 
     <string name="pin_unlock">Unlock with the PIN</string>
     <string name="pin_enter">Enter the parent PIN</string>
-    <string name="pin_ok">OK</string>
-    <string name="pin_length">A PIN is %1$d to %2$d digits.</string>
+    <string name="pin_length">A PIN is %1$d digits.</string>
+    <string name="pin_checking">Checking…</string>
     <string name="pin_not_set">There is no PIN on this television. Set one in Home Assistant.</string>
     <string name="pin_from_ha">The first parent PIN is set in Home Assistant. Once there is one,
         it can be changed here as well.</string>

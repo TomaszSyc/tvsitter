@@ -6,6 +6,8 @@
 package app.tvsitter.tv
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import app.tvsitter.rules.ParentPin
 import app.tvsitter.rules.PinCheck
@@ -37,8 +39,38 @@ class PinKeeper(context: Context) {
 
     val changedBy: String? get() = store.changedBy
 
+    /**
+     * Checks [pin] and answers on the main thread.
+     *
+     * Off-thread because the derivation is slow on purpose and this television is not fast:
+     * measured at 2078 ms for one verification, and a change is two of them. That is not a
+     * pause, it is a lock screen that looks broken, and it sits close enough to an ANR to be
+     * worth keeping away from the main thread even if it never quite got there.
+     */
+    fun verify(pin: String, onResult: (PinOutcome) -> Unit) {
+        answerOffThread({ verify(pin) }, onResult)
+    }
+
+    /** Replaces the PIN if [current] is right, and answers on the main thread. */
+    fun change(current: String, new: String, onResult: (PinOutcome) -> Unit) {
+        answerOffThread({ change(current, new) }, onResult)
+    }
+
+    /**
+     * A thread per entry, which sounds wasteful and is not: a PIN is typed a handful of times
+     * a day, and the alternative is an executor kept alive for the life of the app to do
+     * nothing at all.
+     */
+    private fun answerOffThread(work: () -> PinOutcome, onResult: (PinOutcome) -> Unit) {
+        val main = Handler(Looper.getMainLooper())
+        Thread({
+            val outcome = work()
+            main.post { onResult(outcome) }
+        }, "pin-check").start()
+    }
+
     /** Checks [pin] against the stored hash, spending an attempt if it is wrong. */
-    fun verify(pin: String): PinOutcome {
+    private fun verify(pin: String): PinOutcome {
         val startedAtMs = System.currentTimeMillis()
         val attempt = PinCheck.verify(pin, store.hash, store.lockout, startedAtMs)
         store.lockout = attempt.lockout
@@ -58,7 +90,7 @@ class PinKeeper(context: Context) {
      * This is the path that works with no Home Assistant at all. It cannot create a first PIN:
      * see [PinCheck.change] for why not.
      */
-    fun change(current: String, new: String): PinOutcome {
+    private fun change(current: String, new: String): PinOutcome {
         val nowMs = System.currentTimeMillis()
         val change = PinCheck.change(current, new, store.hash, store.lockout, nowMs)
         store.lockout = change.lockout

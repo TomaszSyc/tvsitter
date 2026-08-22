@@ -117,8 +117,9 @@ them and hoping the two copies agree, and it lets two controls on a dashboard qu
 clobber each other.
 
 `set_pin` carries a **hash**, never the PIN: Home Assistant derives it, so the PIN itself
-never reaches the broker. PBKDF2-HMAC-SHA256, and the parameters travel with the digest so
-that raising the iteration count later does not invalidate a PIN already in use. A `null`
+never reaches the broker. PBKDF2-HMAC-SHA256 over exactly four digits, and the parameters
+travel with the digest so that raising the iteration count later does not invalidate a PIN
+already in use. A `null`
 hash removes the PIN — the same convention as a null rule value — and the key has to be
 present, so a truncated command cannot quietly strip the PIN off a television.
 

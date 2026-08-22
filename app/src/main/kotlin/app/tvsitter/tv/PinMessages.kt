@@ -35,8 +35,7 @@ fun Context.pinMessage(outcome: PinOutcome): String? = when (outcome) {
 
     PinOutcome.NotSet -> getString(R.string.pin_not_set)
 
-    PinOutcome.NewPinRejected ->
-        getString(R.string.pin_length, ParentPin.MIN_LENGTH, ParentPin.MAX_LENGTH)
+    PinOutcome.NewPinRejected -> getString(R.string.pin_length, ParentPin.LENGTH)
 }
 
 private const val SECONDS_PER_MINUTE = 60.0

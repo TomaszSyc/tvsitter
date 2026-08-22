@@ -130,7 +130,9 @@ class SetupActivity : Activity() {
      * sees said nothing about having worked. A window that failed to open looked identical.
      */
     private fun pairingCopy(service: EnforcerService?): Copy {
-        val code = service?.pairingPin
+        // Only while there is time left on it. The window closes itself now, but a second of
+        // timer jitter should not put a dead code on a fifty-inch screen either.
+        val code = service?.pairingPin?.takeIf { service.pairingSecondsRemaining() > 0 }
         return when {
             service == null -> invitation()
 

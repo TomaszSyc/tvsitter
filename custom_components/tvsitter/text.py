@@ -16,7 +16,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from . import TvSitterConfigEntry
 from .coordinator import TvSitterClient
 from .entity import TvSitterEntity
-from .parent_pin import MAX_LENGTH, MIN_LENGTH, hash_pin, is_plausible
+from .parent_pin import LENGTH, hash_pin, is_plausible
 
 
 async def async_setup_entry(
@@ -42,11 +42,11 @@ class ParentPinText(TvSitterEntity, TextEntity):
 
     _attr_entity_category = EntityCategory.CONFIG
     _attr_mode = TextMode.PASSWORD
-    _attr_native_min = MIN_LENGTH
-    _attr_native_max = MAX_LENGTH
+    _attr_native_min = LENGTH
+    _attr_native_max = LENGTH
     # Anchored at the end as well: Home Assistant matches this with `re.match`, which on
     # its own would accept anything merely starting with digits.
-    _attr_pattern = rf"[0-9]{{{MIN_LENGTH},{MAX_LENGTH}}}$"
+    _attr_pattern = rf"[0-9]{{{LENGTH}}}$"
 
     def __init__(self, client: TvSitterClient) -> None:
         """Create the parent PIN."""
@@ -71,7 +71,5 @@ class ParentPinText(TvSitterEntity, TextEntity):
         if not is_plausible(value):
             # Reached only by a caller bypassing the pattern, but the alternative is
             # storing a hash of something nobody can type on a television.
-            raise ServiceValidationError(
-                f"a PIN is {MIN_LENGTH} to {MAX_LENGTH} digits"
-            )
+            raise ServiceValidationError(f"a PIN is {LENGTH} digits")
         await self._client.async_send({"op": "set_pin", "hash": hash_pin(value)})

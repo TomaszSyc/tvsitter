@@ -130,6 +130,11 @@ class LockOverlay(private val context: Context) {
         Log.i(EnforcerService.TAG, "overlay: keypad up")
     }
 
+    /** Says something on a keypad that is already up, for an answer that took a while. */
+    fun keypadMessage(text: String) {
+        keypad?.message(text)
+    }
+
     private fun hideKeypad() {
         val pad = keypad ?: return
         keypad = null

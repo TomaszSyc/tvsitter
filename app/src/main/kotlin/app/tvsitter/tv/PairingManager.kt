@@ -41,6 +41,13 @@ class PairingManager(
     private val nsdManager = context.getSystemService(NsdManager::class.java)
 
     private val mainHandler = Handler(Looper.getMainLooper())
+    private companion object {
+        const val MILLIS_PER_SECOND = 1000L
+
+        /** A moment past the deadline, so the countdown reaches zero before the code goes. */
+        const val TEARDOWN_MARGIN_MS = 500L
+    }
+
     private var session: PairingSession? = null
     private var server: PairingServer? = null
     private var registration: NsdManager.RegistrationListener? = null
@@ -74,8 +81,20 @@ class PairingManager(
         session = fresh
         server = listener
         advertise(port)
-        Log.i(EnforcerService.TAG, "pairing: open for ${fresh.secondsRemaining(System.currentTimeMillis())}s")
+
+        // Nothing else closes a window that nobody uses. Without this the session expired —
+        // so the code stopped working — while the server socket stayed open, the television
+        // went on advertising itself for pairing, and the setup screen went on showing a code
+        // beside "expires in 0 s". The screen was lying and the socket was pointless.
+        val remaining = fresh.secondsRemaining(System.currentTimeMillis())
+        mainHandler.postDelayed(closeOnExpiry, remaining * MILLIS_PER_SECOND + TEARDOWN_MARGIN_MS)
+        Log.i(EnforcerService.TAG, "pairing: open for ${remaining}s")
         return fresh.pin
+    }
+
+    private val closeOnExpiry = Runnable {
+        Log.i(EnforcerService.TAG, "pairing: window expired, closing it")
+        stop()
     }
 
     /** Tears down on the main thread, so the server thread can finish replying first. */
@@ -84,6 +103,7 @@ class PairingManager(
     }
 
     fun stop() {
+        mainHandler.removeCallbacks(closeOnExpiry)
         session = null
         server?.stop()
         server = null

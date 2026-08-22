@@ -131,11 +131,21 @@ class LockController(
         overlay.showKeypad(context.getString(R.string.pin_enter), ::onPinTyped)
     }
 
-    /** Returns what the keypad should say, or null when the PIN was right. */
+    /**
+     * Answers the keypad twice: once immediately, and once when the hash has been derived.
+     *
+     * The derivation takes about two seconds on this television, so the first answer is only
+     * "checking". Without it the keypad sits there having apparently swallowed the press.
+     */
     private fun onPinTyped(typed: String): String? {
-        val outcome = pin.verify(typed)
-        if (outcome == PinOutcome.Accepted) unlockUntilReset()
-        return context.pinMessage(outcome)
+        pin.verify(typed) { outcome ->
+            if (outcome == PinOutcome.Accepted) {
+                unlockUntilReset()
+            } else {
+                overlay.keypadMessage(context.pinMessage(outcome).orEmpty())
+            }
+        }
+        return context.getString(R.string.pin_checking)
     }
 
     /**

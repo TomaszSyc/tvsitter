@@ -5,8 +5,11 @@
  */
 package app.tvsitter.rules
 
-/** How many wrong guesses there have been, and until when the keypad is shut. */
-data class PinLockout(val failures: Int = 0, val lockedUntilMs: Long = 0)
+/**
+ * How many wrong guesses there have been, until when the keypad is shut, and how many times in
+ * a row it has come to that. The last one is what makes the wait grow.
+ */
+data class PinLockout(val failures: Int = 0, val lockedUntilMs: Long = 0, val lockouts: Int = 0)
 
 /** Whether the keypad will take a guess at all. */
 sealed interface PinVerdict {
@@ -34,10 +37,27 @@ object PinGuard {
 
     const val MAX_FAILURES: Int = 5
 
-    /** Long enough to be discouraging, short enough that a parent will wait it out. */
-    const val LOCKOUT_MS: Long = 5 * 60 * 1000
+    /**
+     * Five minutes, then fifteen, then half an hour, and no longer than that.
+     *
+     * A flat five minutes was enough when a PIN could be eight digits. At four it is not: ten
+     * thousand candidates at five tries per five minutes is about a week of solid guessing,
+     * which a determined teenager has. Growing the wait turns the same ten thousand into more
+     * than a month, and the ceiling is there so a parent who has forgotten their own PIN is
+     * never shut out for longer than they would wait.
+     */
+    val LOCKOUT_LADDER_MS: List<Long> =
+        listOf(FIRST_WAIT_MIN, SECOND_WAIT_MIN, LONGEST_WAIT_MIN).map { it * MILLIS_PER_MINUTE }
 
     private const val MILLIS_PER_SECOND = 1000L
+    private const val SECONDS_PER_MINUTE = 60L
+    private const val MILLIS_PER_MINUTE = SECONDS_PER_MINUTE * MILLIS_PER_SECOND
+
+    // Constants rather than a list, because a `val` declared below the property that reads it
+    // is still empty when that property initialises.
+    private const val FIRST_WAIT_MIN = 5L
+    private const val SECOND_WAIT_MIN = 15L
+    private const val LONGEST_WAIT_MIN = 30L
 
     fun verdict(state: PinLockout, nowMs: Long): PinVerdict {
         val remaining = state.lockedUntilMs - nowMs
@@ -54,18 +74,26 @@ object PinGuard {
 
     fun afterFailure(state: PinLockout, nowMs: Long): PinLockout {
         // Already shut, so this guess changes nothing. Counting it moved the deadline out by
-        // another five minutes per press, which let a child hammering the keypad keep it shut
+        // another wait per press, which let a child hammering the keypad keep it shut
         // indefinitely — and kept the parent out with them.
         if (state.lockedUntilMs > nowMs) return state
 
         val failures = state.failures + 1
-        return if (failures >= MAX_FAILURES) {
-            PinLockout(failures = 0, lockedUntilMs = nowMs + LOCKOUT_MS)
-        } else {
-            PinLockout(failures = failures, lockedUntilMs = 0)
+        if (failures < MAX_FAILURES) {
+            return state.copy(failures = failures, lockedUntilMs = 0)
         }
+
+        val lockouts = state.lockouts + 1
+        return PinLockout(
+            failures = 0,
+            lockedUntilMs = nowMs + waitFor(lockouts),
+            lockouts = lockouts,
+        )
     }
 
-    /** A correct PIN forgives everything before it. */
+    /** How long the [n]th consecutive lockout lasts. */
+    fun waitFor(n: Int): Long = LOCKOUT_LADDER_MS[(n - 1).coerceIn(0, LOCKOUT_LADDER_MS.lastIndex)]
+
+    /** A correct PIN forgives everything before it, the ladder included. */
     fun afterSuccess(): PinLockout = PinLockout()
 }

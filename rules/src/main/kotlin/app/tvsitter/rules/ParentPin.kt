@@ -29,7 +29,17 @@ data class PinHash(
     val iterations: Int,
     @SerialName("salt") val saltHex: String,
     @SerialName("hash") val hashHex: String,
-)
+) {
+    /**
+     * The digest is left out, because this reaches logcat.
+     *
+     * `mqtt: command $command` printed the whole thing when a PIN arrived from Home
+     * Assistant, and a logcat pasted into a bug report is then a hash somebody can attack
+     * offline at their leisure. The salt stays: on its own it is not worth attacking, and it
+     * is what tells two stored hashes apart when somebody asks why their PIN stopped working.
+     */
+    override fun toString(): String = "PinHash(iterations=$iterations, salt=$saltHex, hash=…)"
+}
 
 /**
  * Hashing and checking the PIN a parent types on the TV to lift a lock by hand.
@@ -51,11 +61,17 @@ data class PinHash(
 object ParentPin {
 
     /**
-     * Four is what people expect of a TV; more than eight is unkind on a D-pad, where every
-     * digit is several presses.
+     * Exactly four, which is what every television does and what makes the keypad work.
+     *
+     * A range would be more flexible and would cost the thing that matters more: entry can
+     * only submit itself when the length is known, and on the screen that *sets* a PIN it
+     * never is. So a range means a confirm button on every keypad for ever, and the platform's
+     * own PIN screens do not have one.
+     *
+     * Four digits is ten thousand candidates, which the lockout in [PinGuard] — five tries,
+     * then a wait that grows — turns into more than a month of relentless guessing.
      */
-    const val MIN_LENGTH: Int = 4
-    const val MAX_LENGTH: Int = 8
+    const val LENGTH: Int = 4
 
     const val ALGORITHM: String = "PBKDF2WithHmacSHA256"
 
@@ -80,7 +96,7 @@ object ParentPin {
     /** Sixteen bytes, which is the common recommendation and more than a PIN needs. */
     private const val SALT_BYTES = 16
 
-    fun isPlausible(pin: String): Boolean = pin.length in MIN_LENGTH..MAX_LENGTH && pin.all { it.isDigit() }
+    fun isPlausible(pin: String): Boolean = pin.length == LENGTH && pin.all { it.isDigit() }
 
     /**
      * Whether a stored hash is well formed enough to compare against.
@@ -111,7 +127,7 @@ object ParentPin {
         // Not an assertion about the keypad, which cannot produce anything else. It is about
         // the other caller: a PIN arriving from Home Assistant is hashed there, but one
         // arriving from anywhere else must not be stored unchecked.
-        require(isPlausible(pin)) { "a PIN is $MIN_LENGTH to $MAX_LENGTH digits" }
+        require(isPlausible(pin)) { "a PIN is $LENGTH digits" }
         return PinHash(iterations, saltHex, hash(pin, saltHex, iterations))
     }
 
