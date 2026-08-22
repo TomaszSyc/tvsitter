@@ -5,6 +5,7 @@
  */
 package app.tvsitter.rules.contract
 
+import app.tvsitter.rules.PinHash
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -45,6 +46,18 @@ sealed interface Command {
     @Serializable
     @SerialName("set_rules")
     data class SetRules(val rev: Int, val rules: JsonObject) : Command
+
+    /**
+     * Sets or removes the parent PIN, as a hash: Home Assistant does the hashing, so the PIN
+     * itself never reaches the broker. A null [hash] removes the PIN, the same convention as
+     * a null rule value in [SetRules].
+     *
+     * No default, so the key has to be present. Absent-means-remove would turn a truncated or
+     * mistyped command into a television with no PIN on it, and that failure would be silent.
+     */
+    @Serializable
+    @SerialName("set_pin")
+    data class SetPin(val hash: PinHash?) : Command
 
     @Serializable
     @SerialName("stop_app")

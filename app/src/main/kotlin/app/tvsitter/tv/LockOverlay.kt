@@ -34,26 +34,126 @@ import android.widget.TextView
 class LockOverlay(private val context: Context) {
 
     private val windowManager = context.getSystemService(WindowManager::class.java)
-    private var root: View? = null
+    private var root: FrameLayout? = null
+    private var face: LinearLayout? = null
     private var subtitleView: TextView? = null
+    private var askButton: Button? = null
+    private var pinButton: Button? = null
+    private var keypad: PinKeypad? = null
+
+    /** Held in a field so a later [show] can replace it without leaving a stale one wired up. */
+    private var onEnterPin: (() -> Unit)? = null
 
     val isShowing: Boolean
         get() = root != null
 
-    fun show(title: String, subtitle: String?, onAskForTime: () -> Unit) {
+    /**
+     * Puts the lock up, or updates what it says if it is already up.
+     *
+     * [onEnterPin] is null when this television has no parent PIN, and then there is no button
+     * for one. Offering a keypad with nothing behind it would be an invitation to guess at
+     * something that does not exist.
+     */
+    fun show(title: String, subtitle: String?, onAskForTime: () -> Unit, onEnterPin: (() -> Unit)?) {
+        this.onEnterPin = onEnterPin
         if (root != null) {
             subtitleView?.applySubtitle(subtitle)
+            // A PIN can arrive from Home Assistant while the lock is already up, and the way
+            // out of the lock should not have to wait for the next time it is raised.
+            pinButton?.visibility = if (onEnterPin != null) View.VISIBLE else View.GONE
             return
         }
 
-        val askButton = Button(context).apply {
+        val column = buildFace(title, subtitle, onAskForTime, onEnterPin != null)
+        val container = FrameLayout(context).apply {
+            setBackgroundColor(BACKDROP_COLOR)
+            // The container must not be focusable itself. Made focusable, it wins focus and
+            // then swallows every D-pad and ENTER event instead of letting them reach the
+            // button — which on a TV means the lock screen's own controls are dead.
+            isFocusable = false
+            descendantFocusability = FrameLayout.FOCUS_AFTER_DESCENDANTS
+            addView(column, centred())
+        }
+
+        val added = runCatching { windowManager.addView(container, layoutParams()) }
+        if (added.isFailure) {
+            Log.e(EnforcerService.TAG, "addView() failed for the overlay", added.exceptionOrNull())
+            return
+        }
+        root = container
+        face = column
+        askButton?.requestFocus()
+        Log.i(
+            EnforcerService.TAG,
+            "overlay shown: $title / $subtitle, pin=${onEnterPin != null}, " +
+                "button focused=${askButton?.isFocused}",
+        )
+    }
+
+    fun hide() {
+        val view = root ?: return
+        runCatching { windowManager.removeViewImmediate(view) }
+            .onFailure { Log.e(EnforcerService.TAG, "removeView() failed", it) }
+        root = null
+        face = null
+        subtitleView = null
+        askButton = null
+        pinButton = null
+        keypad = null
+        Log.i(EnforcerService.TAG, "overlay removed")
+    }
+
+    /**
+     * Swaps the lock face for a keypad, inside the same window.
+     *
+     * The window stays up throughout on purpose: taking it down to show a keypad would give
+     * whoever is in the room a few frames of unlocked television, and put it back if the PIN
+     * turned out to be wrong.
+     *
+     * [onSubmit] returns the message to show, or null when the PIN was right — in which case
+     * the lock is on its way down and there is nothing left to say.
+     */
+    fun showKeypad(prompt: String, onSubmit: (String) -> String?) {
+        val container = root ?: return
+        if (keypad != null) return
+
+        val pad = PinKeypad(
+            context,
+            onSubmit = { typed -> onSubmit(typed)?.let { message -> keypad?.message(message) } },
+            onCancel = { hideKeypad() },
+        )
+        keypad = pad
+        face?.visibility = View.GONE
+        container.addView(pad, centred())
+        pad.prompt(prompt)
+        pad.focusKeypad()
+        Log.i(EnforcerService.TAG, "overlay: keypad up")
+    }
+
+    private fun hideKeypad() {
+        val pad = keypad ?: return
+        keypad = null
+        root?.removeView(pad)
+        face?.visibility = View.VISIBLE
+        askButton?.requestFocus()
+        Log.i(EnforcerService.TAG, "overlay: keypad dismissed")
+    }
+
+    private fun buildFace(title: String, subtitle: String?, onAskForTime: () -> Unit, withPin: Boolean): LinearLayout {
+        askButton = Button(context).apply {
             text = context.getString(R.string.lock_ask_more)
             isFocusable = true
             isFocusableInTouchMode = true
             setOnClickListener { onAskForTime() }
         }
+        pinButton = Button(context).apply {
+            text = context.getString(R.string.pin_unlock)
+            isFocusable = true
+            setOnClickListener { this@LockOverlay.onEnterPin?.invoke() }
+            visibility = if (withPin) View.VISIBLE else View.GONE
+        }
 
-        val column = LinearLayout(context).apply {
+        return LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
             addView(textView(title, sizeSp = 34f, color = Color.WHITE))
@@ -64,46 +164,15 @@ class LockOverlay(private val context: Context) {
                 },
             )
             addView(askButton)
+            addView(pinButton)
         }
-
-        val container = FrameLayout(context).apply {
-            setBackgroundColor(BACKDROP_COLOR)
-            // The container must not be focusable itself. Made focusable, it wins focus and
-            // then swallows every D-pad and ENTER event instead of letting them reach the
-            // button — which on a TV means the lock screen's own controls are dead.
-            isFocusable = false
-            descendantFocusability = FrameLayout.FOCUS_AFTER_DESCENDANTS
-            addView(
-                column,
-                FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.WRAP_CONTENT,
-                    FrameLayout.LayoutParams.WRAP_CONTENT,
-                    Gravity.CENTER,
-                ),
-            )
-        }
-
-        val added = runCatching { windowManager.addView(container, layoutParams()) }
-        if (added.isFailure) {
-            Log.e(EnforcerService.TAG, "addView() failed for the overlay", added.exceptionOrNull())
-            return
-        }
-        root = container
-        askButton.requestFocus()
-        Log.i(
-            EnforcerService.TAG,
-            "overlay shown: $title / $subtitle, button focused=${askButton.isFocused}",
-        )
     }
 
-    fun hide() {
-        val view = root ?: return
-        runCatching { windowManager.removeViewImmediate(view) }
-            .onFailure { Log.e(EnforcerService.TAG, "removeView() failed", it) }
-        root = null
-        subtitleView = null
-        Log.i(EnforcerService.TAG, "overlay removed")
-    }
+    private fun centred() = FrameLayout.LayoutParams(
+        FrameLayout.LayoutParams.WRAP_CONTENT,
+        FrameLayout.LayoutParams.WRAP_CONTENT,
+        Gravity.CENTER,
+    )
 
     private fun layoutParams() = WindowManager.LayoutParams(
         WindowManager.LayoutParams.MATCH_PARENT,

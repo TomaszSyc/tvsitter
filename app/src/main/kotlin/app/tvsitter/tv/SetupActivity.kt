@@ -7,6 +7,7 @@ package app.tvsitter.tv
 
 import android.app.Activity
 import android.app.AppOpsManager
+import android.content.Intent
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
@@ -35,7 +36,14 @@ class SetupActivity : Activity() {
     private lateinit var pin: TextView
     private lateinit var pinNote: TextView
     private lateinit var pairButton: Button
+    private lateinit var pinButton: Button
     private lateinit var report: TextView
+
+    /**
+     * Reads device-encrypted storage, so it answers whether there is a PIN even before the
+     * service has started.
+     */
+    private val parentPin by lazy { PinKeeper(this) }
 
     private val refresh = Handler(Looper.getMainLooper())
     private val tick = object : Runnable {
@@ -57,6 +65,12 @@ class SetupActivity : Activity() {
             text = getString(R.string.pair_start)
             setOnClickListener { EnforcerService.instance?.requestPairing() }
         }
+        // Only ever offered when a PIN already exists: the change screen asks for the current
+        // one, and there is no first PIN to be had at the television.
+        pinButton = Button(this).apply {
+            text = getString(R.string.pin_change)
+            setOnClickListener { startActivity(Intent(this@SetupActivity, PinActivity::class.java)) }
+        }
 
         setContentView(
             LinearLayout(this).apply {
@@ -69,6 +83,7 @@ class SetupActivity : Activity() {
                 addView(pin)
                 addView(pinNote)
                 addView(pairButton)
+                addView(pinButton)
                 addView(report)
             },
         )
@@ -94,6 +109,7 @@ class SetupActivity : Activity() {
         pin.visibility = if (copy.pin != null) View.VISIBLE else View.GONE
         pairButton.text = copy.buttonLabel.orEmpty()
         pairButton.visibility = if (copy.buttonLabel != null) View.VISIBLE else View.GONE
+        pinButton.visibility = if (parentPin.isSet) View.VISIBLE else View.GONE
 
         report.text = buildReport()
     }
@@ -191,6 +207,9 @@ class SetupActivity : Activity() {
             appendLine(
                 getString(R.string.setup_reporting, if (service?.isReporting == true) yes else no),
             )
+            // Said out loud because the answer matters most on the evening Home Assistant is
+            // unreachable, and that is the worst moment to find out it is "no".
+            appendLine(getString(R.string.setup_pin, if (parentPin.isSet) yes else no))
         }
     }
 

@@ -32,8 +32,10 @@ MODULES = [
     f"{PACKAGE}.models",
     f"{PACKAGE}.number",
     f"{PACKAGE}.pairing",
+    f"{PACKAGE}.parent_pin",
     f"{PACKAGE}.sensor",
     f"{PACKAGE}.switch",
+    f"{PACKAGE}.text",
 ]
 
 

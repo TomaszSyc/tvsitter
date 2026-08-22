@@ -1,4 +1,4 @@
-"""Lifting the daily limit, which a number cannot express.
+"""Two things a parent does once: lifting the limit, and removing the PIN.
 
 TV Sitter — parental control for Android TV / Google TV.
 Copyright (C) 2026 Tomasz Syc
@@ -8,6 +8,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 from __future__ import annotations
 
 from homeassistant.components.button import ButtonEntity
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
@@ -22,7 +23,8 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up the buttons for one TV."""
-    async_add_entities([ClearLimitButton(entry.runtime_data)])
+    client = entry.runtime_data
+    async_add_entities([ClearLimitButton(client), ClearPinButton(client)])
 
 
 class ClearLimitButton(TvSitterEntity, ButtonEntity):
@@ -51,3 +53,30 @@ class ClearLimitButton(TvSitterEntity, ButtonEntity):
         await self._client.async_send(
             {"op": "set_rules", "rev": revision, "rules": {"daily_limit_s": None}}
         )
+
+
+class ClearPinButton(TvSitterEntity, ButtonEntity):
+    """Removes the parent PIN from the TV.
+
+    The other half of a control that can only set. Without it a PIN could be changed but
+    never taken off, and the only way back would be reinstalling the app on the TV.
+
+    Pressing it on a television that has no PIN changes nothing, which is why it is not
+    hidden when there is none: an automation that runs it should not start failing
+    depending on the state of the thing it is trying to bring about.
+    """
+
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(self, client: TvSitterClient) -> None:
+        """Create the clear-PIN button."""
+        super().__init__(client, "clear_pin")
+
+    async def async_press(self) -> None:
+        """Remove the PIN.
+
+        A null hash, spelled out rather than left implicit: the TV refuses a `set_pin`
+        with no `hash` key at all, so that a truncated command cannot quietly strip the
+        PIN off a television.
+        """
+        await self._client.async_send({"op": "set_pin", "hash": None})

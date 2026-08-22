@@ -67,6 +67,9 @@
     "binary_sensor": {
       "screen": {
         "name": "Screen"
+      },
+      "pin_set": {
+        "name": "Parent PIN set"
       }
     },
     "sensor": {
@@ -93,6 +96,14 @@
     "button": {
       "clear_limit": {
         "name": "Clear the limit"
+      },
+      "clear_pin": {
+        "name": "Clear the parent PIN"
+      }
+    },
+    "text": {
+      "parent_pin": {
+        "name": "Parent PIN"
       }
     }
   }

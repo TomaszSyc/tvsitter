@@ -6,6 +6,34 @@
     <string name="lock_title">Koniec czasu na dziś</string>
     <string name="lock_ask_more">Poproś rodzica o więcej czasu</string>
 
+    <string name="pin_unlock">Odblokuj PIN-em</string>
+    <string name="pin_enter">Wpisz PIN rodzica</string>
+    <string name="pin_ok">OK</string>
+    <string name="pin_length">PIN ma od %1$d do %2$d cyfr.</string>
+    <string name="pin_not_set">Na tym telewizorze nie ma PIN-u. Ustaw go w Home Assistancie.</string>
+    <string name="pin_from_ha">Pierwszy PIN rodzica ustawia się w Home Assistancie. Gdy już
+        jest, można go zmieniać także tutaj.</string>
+    <string name="pin_change">Zmień PIN rodzica</string>
+    <string name="pin_step_current">Wpisz PIN, którego używasz teraz</string>
+    <string name="pin_step_new">Wpisz nowy PIN</string>
+    <string name="pin_step_confirm">Powtórz nowy PIN</string>
+    <string name="pin_mismatch">PIN-y się nie zgadzają. Wpisz nowy PIN jeszcze raz.</string>
+    <string name="pin_changed">PIN został zmieniony.</string>
+
+    <plurals name="pin_wrong">
+        <item quantity="one">Zły PIN. Została %d próba.</item>
+        <item quantity="few">Zły PIN. Zostały %d próby.</item>
+        <item quantity="many">Zły PIN. Zostało %d prób.</item>
+        <item quantity="other">Zły PIN. Zostało %d próby.</item>
+    </plurals>
+
+    <plurals name="pin_locked_out">
+        <item quantity="one">Za dużo błędnych prób. Spróbuj za %d minutę.</item>
+        <item quantity="few">Za dużo błędnych prób. Spróbuj za %d minuty.</item>
+        <item quantity="many">Za dużo błędnych prób. Spróbuj za %d minut.</item>
+        <item quantity="other">Za dużo błędnych prób. Spróbuj za %d minuty.</item>
+    </plurals>
+
     <plurals name="warn_minutes_left">
         <item quantity="one">Została %d minuta telewizji</item>
         <item quantity="few">Zostały %d minuty telewizji</item>
@@ -21,6 +49,7 @@
     <string name="setup_foreground">Aplikacja na pierwszym planie: %1$s</string>
     <string name="setup_locked">Blokada aktywna: %1$s</string>
     <string name="setup_reporting">Raportuje do Home Assistanta: %1$s</string>
+    <string name="setup_pin">PIN rodzica ustawiony: %1$s</string>
     <string name="setup_yes">tak</string>
     <string name="setup_no">nie</string>
     <string name="setup_unknown">(brak danych)</string>

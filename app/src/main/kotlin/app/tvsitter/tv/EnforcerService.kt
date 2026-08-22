@@ -46,6 +46,7 @@ class EnforcerService : Service() {
     private var activeRules: ActiveRules? = null
     private var unlockGate: UnlockGate? = null
     private var pairing: PairingManager? = null
+    private var parentPin: PinKeeper? = null
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
@@ -80,9 +81,15 @@ class EnforcerService : Service() {
         instance = this
         EnforcerNotification.attach(this)
 
+        // Before the lock, which asks it whether there is a PIN to offer at all. Reads
+        // device-encrypted storage, so this works before the user has unlocked the device —
+        // which is exactly when a restored lock is on screen.
+        val pin = PinKeeper(this).also { parentPin = it }
         locks = LockController(
             this,
+            pin = pin,
             onAskForTime = { Log.i(TAG, "TODO M3: request for more time") },
+            onLimitStandDown = { screenTime?.suspendLimitUntilReset() },
             onChanged = { telemetry?.publishSoon() },
         )
         appLabels = AppLabels(this)
@@ -142,6 +149,10 @@ class EnforcerService : Service() {
         when (intent?.action) {
             ACTION_LOCK -> lock(intent.getStringExtra(EXTRA_REASON))
             ACTION_UNLOCK -> unlock()
+            // Sent by the PIN screen. Without it a PIN changed at the television would sit
+            // there until the next heartbeat, up to a minute later, and a change made while
+            // the broker was unreachable would look like it had not been noticed.
+            ACTION_PUBLISH -> telemetry?.publishSoon()
         }
         // Sticky because there is no longer anything else to bring this back: if the system
         // kills the process, restarting it is the only way the counter resumes.
@@ -221,6 +232,14 @@ class EnforcerService : Service() {
                 locks?.unlockManually()
                 telemetry?.publishSoon()
             }
+            // Hashed in Home Assistant, so the PIN itself never reaches the broker. No
+            // current PIN is asked for: reaching this means publishing to the broker this
+            // television is paired with, and that is the parent's own Home Assistant.
+            is Command.SetPin -> {
+                parentPin?.replace(command.hash)
+                telemetry?.publishSoon()
+            }
+
             is Command.Ping -> telemetry?.publishSoon()
             is Command.StopApp -> Log.i(TAG, "TODO M2: stop ${command.pkg}")
             is Command.Grant, is Command.Deny -> Log.i(TAG, "TODO M3: $command")
@@ -250,6 +269,12 @@ class EnforcerService : Service() {
             limitTodaySeconds = screenTime?.effectiveLimitSeconds(limitSeconds),
             remainingTodaySeconds = screenTime?.remainingSeconds(limitSeconds),
             rulesRev = activeRules?.revision ?: 0,
+            // Whether a PIN exists and when it last changed, never the PIN or its hash. A
+            // change made here rather than in Home Assistant reaches it the moment the broker
+            // is back, because this payload is retained and republished on every connect.
+            pinSet = parentPin?.isSet == true,
+            pinChangedAt = parentPin?.changedAtMs,
+            pinChangedBy = parentPin?.changedBy,
         )
     }
 
@@ -265,6 +290,7 @@ class EnforcerService : Service() {
         unlockGate = null
         locks?.stop()
         locks = null
+        parentPin = null
         appLabels = null
         foregroundApps = null
         instance = null
@@ -277,6 +303,7 @@ class EnforcerService : Service() {
 
         const val ACTION_LOCK = "app.tvsitter.tv.action.LOCK"
         const val ACTION_UNLOCK = "app.tvsitter.tv.action.UNLOCK"
+        const val ACTION_PUBLISH = "app.tvsitter.tv.action.PUBLISH"
         const val EXTRA_REASON = "reason"
 
         private const val SECONDS_PER_MINUTE = 60L

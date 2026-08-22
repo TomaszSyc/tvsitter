@@ -25,6 +25,14 @@ object Contract {
 
     const val PAYLOAD_ONLINE: String = "online"
     const val PAYLOAD_OFFLINE: String = "offline"
+
+    /**
+     * Values for `pin_changed_by`. Where a PIN was last changed is the only thing that makes
+     * the timestamp actionable: a change made in Home Assistant was made by somebody holding
+     * the parent's phone, and one made on the television by whoever was in the room.
+     */
+    const val PIN_SOURCE_TV: String = "tv"
+    const val PIN_SOURCE_HA: String = "ha"
 }
 
 /**

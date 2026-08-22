@@ -78,6 +78,15 @@
             </intent-filter>
         </activity>
 
+        <!--
+            Not exported: only this app starts it, and only from the setup screen. It asks for
+            the current PIN before it will take a new one, which is what stops a change screen
+            from being the way past the lock.
+        -->
+        <activity
+            android:name=".PinActivity"
+            android:exported="false" />
+
         <service
             android:name=".EnforcerService"
             android:directBootAware="true"

@@ -5,12 +5,14 @@
  */
 package app.tvsitter.rules.contract
 
+import app.tvsitter.rules.ParentPin
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -49,7 +51,7 @@ class ContractCodecTest {
             setOf(
                 "schema", "ts", "fw", "screen_on", "locked", "app_id", "app_name",
                 "used_today_s", "limit_today_s", "remaining_today_s", "bonus_today_s", "per_app",
-                "active_window", "rules_rev",
+                "active_window", "rules_rev", "pin_set", "pin_changed_at", "pin_changed_by",
             ),
             keys,
         )
@@ -98,6 +100,8 @@ class ContractCodecTest {
             Command.Grant(requestId = "8f14e45f", minutes = 15),
             Command.Deny(requestId = "8f14e45f"),
             Command.SetRules(rev = 8, rules = buildJsonObject { put("daily_limit_min", 60) }),
+            Command.SetPin(ParentPin.create("482913", "0f1e2d3c4b5a69788796a5b4c3d2e1f0", 1000)),
+            Command.SetPin(null),
             Command.StopApp("com.google.android.youtube.tv"),
             Command.Ping,
         )
@@ -115,6 +119,36 @@ class ContractCodecTest {
         assertTrue(
             ContractCodec.encode(Command.Grant("abc", 15)).contains("\"req_id\":\"abc\""),
         )
+    }
+
+    @Test
+    fun `the PIN hash uses the documented field names`() {
+        // Home Assistant hashes the PIN and sends the result, so these three keys are the only
+        // thing making the two languages agree on what was derived. A Kotlin rename here is a
+        // parent locked out of their own television.
+        val encoded = ContractCodec.encode(
+            Command.SetPin(ParentPin.create("482913", "0f1e2d3c4b5a69788796a5b4c3d2e1f0", 1000)),
+        )
+
+        assertTrue(encoded.contains("\"op\":\"set_pin\""), encoded)
+        assertTrue(encoded.contains("\"iterations\":1000"), encoded)
+        assertTrue(encoded.contains("\"salt\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\""), encoded)
+        assertTrue(encoded.contains("\"hash\":\"8de25825"), encoded)
+        assertFalse(encoded.contains("482913"), "the PIN itself is on the wire")
+    }
+
+    @Test
+    fun `removing the PIN says so, rather than leaving the key out`() {
+        assertEquals(
+            """{"op":"set_pin","hash":null}""",
+            ContractCodec.encode(Command.SetPin(null)),
+        )
+
+        // A truncated or hand-written command must not be read as "remove the PIN": that
+        // failure would be silent, and would leave the television with nothing on it.
+        assertThrows<SerializationException> {
+            ContractCodec.decodeCommand("""{"op":"set_pin"}""")
+        }
     }
 
     @Test

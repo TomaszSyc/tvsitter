@@ -46,6 +46,9 @@ class StateSnapshot:
     per_app: dict[str, int] = field(default_factory=dict)
     active_window: str | None = None
     rules_rev: int = 0
+    pin_set: bool = False
+    pin_changed_at: int | None = None
+    pin_changed_by: str | None = None
 
     @classmethod
     def from_payload(cls, payload: str) -> StateSnapshot:
@@ -73,4 +76,7 @@ class StateSnapshot:
             per_app=dict(data.get("per_app") or {}),
             active_window=data.get("active_window"),
             rules_rev=int(data.get("rules_rev") or 0),
+            pin_set=bool(data.get("pin_set", False)),
+            pin_changed_at=data.get("pin_changed_at"),
+            pin_changed_by=data.get("pin_changed_by"),
         )

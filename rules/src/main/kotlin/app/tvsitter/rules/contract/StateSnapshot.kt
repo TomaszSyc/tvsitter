@@ -35,6 +35,23 @@ data class StateSnapshot(
     /** Identifier of the rule window in force, so "why did it block me now" is answerable. */
     @SerialName("active_window") val activeWindow: String? = null,
     @SerialName("rules_rev") val rulesRev: Int = 0,
+    /**
+     * Whether a parent PIN exists. Not the PIN, and not its hash: nothing that could be
+     * attacked offline leaves the television. What this answers is whether the lock can be
+     * lifted at the set itself, which is worth knowing before the evening Home Assistant is
+     * unreachable rather than during it.
+     */
+    @SerialName("pin_set") val pinSet: Boolean = false,
+    /** When the PIN last changed, epoch milliseconds, or null if it never has. */
+    @SerialName("pin_changed_at") val pinChangedAt: Long? = null,
+    /**
+     * Where that change was made, `tv` or `ha`.
+     *
+     * The timestamp alone says something happened; this says whether it could have been you.
+     * A PIN changed from Home Assistant was changed by somebody holding the parent's phone or
+     * laptop — a PIN changed on the television was changed by whoever was in the room.
+     */
+    @SerialName("pin_changed_by") val pinChangedBy: String? = null,
 )
 
 /**

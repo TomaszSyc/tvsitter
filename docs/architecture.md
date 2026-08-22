@@ -710,6 +710,79 @@ was running by grepping for the process. A `directBootAware` receiver starts the
 starting the service, so the test reported success about fifteen seconds early. It now asks
 `dumpsys activity services`.
 
+## D23 — The television can change the PIN, but never create one (2026-08-22)
+
+The PIN is what lifts a lock at the set itself, so it has to be changeable without Home
+Assistant: a dead SD card should not mean that a PIN a child watched being typed stays in force
+indefinitely. Changing it on the television requires the current PIN, and that requirement is
+what keeps the change screen from being the way past the lock — without it, a child sets a PIN
+of their own and unlocks with it.
+
+There is deliberately no way to set a *first* PIN at the television. Nothing there tells a
+parent apart from a child except knowing the PIN, so a screen that could create one would hand
+the lock to whoever reached it first, and the parent would find out on the evening Home
+Assistant was unreachable. The first PIN comes from Home Assistant; either side can change it
+afterwards.
+
+### Where the work happens
+
+Home Assistant hashes the PIN and sends the digest, so the PIN itself never reaches the broker:
+PBKDF2-HMAC-SHA256, 120 000 iterations, a 16-byte salt per PIN, parameters stored alongside the
+digest so the count can be raised later without invalidating a PIN in use. Two languages derive
+those bytes — `SecretKeyFactory` on the TV, `hashlib` in the integration — and nothing but a
+pinned test vector on both sides checks that they agree. A drift there would look like a parent
+typing the right PIN into a television that refuses it.
+
+What hashing buys is narrow and worth stating plainly. It stops the PIN being read out of a file
+by somebody poking around with ADB, and it means a stolen file does not hand over a PIN the
+parent may have used elsewhere. It does not make a four-digit secret safe against an offline
+attack. The control that actually protects the PIN is the lockout: five wrong guesses shut the
+keypad for five minutes, which turns ten thousand candidates into nineteen years.
+
+Both places a PIN can be typed — the lock screen and the change screen — spend the same five
+attempts. Two counters would be two doors with one lock between them, and a child would use the
+other one.
+
+### Where it is stored
+
+The hash and the counter live in device-encrypted storage, alongside the lock memory of D22 and
+away from everything else. A lock can be back on screen before the user has unlocked the device,
+and a keypad that could not read the hash then would have to tell a parent standing in front of
+a locked television to unlock the television first. For a hash this costs nothing: neither
+storage area is readable by another app, and both are readable with root.
+
+Persisting the counter is not tidiness. Held in memory it resets when the process dies, and
+force-stopping an app is something a child can do from Settings.
+
+### What Home Assistant is told
+
+`pin_set`, `pin_changed_at` and `pin_changed_by`, and not the hash. Publishing the hash would
+put something worth attacking offline onto the broker and into the recorder, and nothing in Home
+Assistant has any use for it. Because `state` is retained and republished on every connect, a
+change made at the television while Home Assistant was down arrives as soon as the broker is
+back: late rather than lost.
+
+`pin_changed_by` is there so the timestamp is actionable. A change made in Home Assistant was
+made by somebody holding the parent's phone; a change made on the television was made by
+whoever was in the room. If it says the television and nobody in the house did it, that is the
+only warning there will be.
+
+### The two ways out
+
+A forgotten PIN is answered from Home Assistant, which can set or remove it without knowing the
+old one — reaching that command means publishing to the broker the television is paired with. A
+household with no PIN and no Home Assistant has no way to lift a lock at all, and the honest
+answer there is uninstalling the app with the remote. Which is also why `binary_sensor` reports
+whether a PIN exists: "there isn't one" is a bad thing to discover at that point rather than
+before it.
+
+### Not yet exercised on the set
+
+The keypad has not been in front of the television: focus behaviour under the D-pad, how the
+grid looks at three metres, and how long 120 000 iterations take on this processor are all
+unknown. The last one is logged as a number on every entry, because the hash runs on the main
+thread and a keypad that stalls visibly would want moving off it.
+
 ## No open hardware questions from the M0 spike
 
 Everything the spike set out to answer is answered, in D9 through D13. What it turned up

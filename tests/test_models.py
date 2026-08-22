@@ -95,6 +95,10 @@ def test_missing_counters_default_to_zero_not_to_none() -> None:
     assert snapshot.bonus_seconds == 0
     assert snapshot.per_app == {}
     assert snapshot.rules_rev == 0
+    # A payload from a TV that predates the PIN reads as having none, not as unknown.
+    assert snapshot.pin_set is False
+    assert snapshot.pin_changed_at is None
+    assert snapshot.pin_changed_by is None
 
 
 def test_explicit_nulls_in_counters_are_tolerated() -> None:
@@ -106,6 +110,24 @@ def test_explicit_nulls_in_counters_are_tolerated() -> None:
 
     assert snapshot.used_seconds == 0
     assert snapshot.per_app == {}
+
+
+def test_the_pin_fields_are_read_without_the_pin_itself() -> None:
+    """What crosses is that a PIN exists, when it changed and where — never the hash."""
+    payload = json.dumps(
+        {
+            "ts": 1,
+            "fw": "x",
+            "pin_set": True,
+            "pin_changed_at": 1787400000000,
+            "pin_changed_by": "tv",
+        }
+    )
+    snapshot = StateSnapshot.from_payload(payload)
+
+    assert snapshot.pin_set is True
+    assert snapshot.pin_changed_at == 1787400000000
+    assert snapshot.pin_changed_by == "tv"
 
 
 def test_rubbish_is_rejected_loudly() -> None:

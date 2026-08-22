@@ -8,6 +8,7 @@ package app.tvsitter.tv
 import android.content.Context
 import android.util.Log
 import app.tvsitter.rules.BudgetVerdict
+import app.tvsitter.rules.PinOutcome
 import kotlin.math.ceil
 
 /**
@@ -21,7 +22,9 @@ import kotlin.math.ceil
  */
 class LockController(
     private val context: Context,
+    private val pin: PinKeeper,
     private val onAskForTime: () -> Unit,
+    private val onLimitStandDown: () -> Unit,
     private val onChanged: () -> Unit,
 ) {
     private val overlay = LockOverlay(context)
@@ -118,6 +121,37 @@ class LockController(
         }
     }
 
+    /**
+     * Offers the keypad, which is the way out of the lock with no Home Assistant in reach.
+     *
+     * Only ever reached from a button that exists when there is a PIN, so an entry here is a
+     * parent's attempt rather than a way of finding out whether a PIN exists at all.
+     */
+    private fun promptForPin() {
+        overlay.showKeypad(context.getString(R.string.pin_enter), ::onPinTyped)
+    }
+
+    /** Returns what the keypad should say, or null when the PIN was right. */
+    private fun onPinTyped(typed: String): String? {
+        val outcome = pin.verify(typed)
+        if (outcome == PinOutcome.Accepted) pinAccepted()
+        return context.pinMessage(outcome)
+    }
+
+    /**
+     * The PIN was right, so whatever is on the screen comes off.
+     *
+     * The limit is set aside only when the limit is what is holding the lock up. Doing it
+     * either way would mean that lifting a bedtime lock also handed over the rest of the day's
+     * budget, which is not what the person typing the PIN asked for. Hiding a budget lock
+     * without setting the limit aside does not work either: the next sample would put it
+     * straight back, ten seconds later, for no reason a child could be told.
+     */
+    private fun pinAccepted() {
+        if (lockedByBudget) onLimitStandDown()
+        unlockManually()
+    }
+
     fun stop() {
         banner.hide()
         overlay.hide()
@@ -143,6 +177,7 @@ class LockController(
             title = context.getString(R.string.lock_title),
             subtitle = reason,
             onAskForTime = onAskForTime,
+            onEnterPin = if (pin.isSet) ::promptForPin else null,
         )
         if (!wasShowing) onChanged()
     }

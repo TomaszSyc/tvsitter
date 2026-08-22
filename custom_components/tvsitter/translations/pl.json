@@ -67,6 +67,9 @@
     "binary_sensor": {
       "screen": {
         "name": "Ekran"
+      },
+      "pin_set": {
+        "name": "PIN rodzica ustawiony"
       }
     },
     "sensor": {
@@ -93,6 +96,14 @@
     "button": {
       "clear_limit": {
         "name": "Zdejmij limit"
+      },
+      "clear_pin": {
+        "name": "Usuń PIN rodzica"
+      }
+    },
+    "text": {
+      "parent_pin": {
+        "name": "PIN rodzica"
       }
     }
   }

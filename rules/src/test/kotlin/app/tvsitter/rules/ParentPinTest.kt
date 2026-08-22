@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 
 class ParentPinTest {
 
@@ -63,6 +64,60 @@ class ParentPinTest {
         // out of their own television on an upgrade.
         assertTrue(ParentPin.matches("482913", old))
         assertTrue(ParentPin.matches("482913", new))
+    }
+
+    @Test
+    fun `a created hash verifies its own PIN at the current cost`() {
+        val created = ParentPin.create("1357", salt)
+
+        assertEquals(ParentPin.ITERATIONS, created.iterations)
+        assertEquals(salt, created.saltHex)
+        assertTrue(ParentPin.matches("1357", created))
+        assertFalse(ParentPin.matches("1358", created))
+    }
+
+    @Test
+    fun `a PIN that could not be typed is not stored either`() {
+        assertThrows<IllegalArgumentException> { ParentPin.create("12", salt) }
+        assertThrows<IllegalArgumentException> { ParentPin.create("12a4", salt) }
+    }
+
+    @Test
+    fun `a fresh salt is full length and not the same twice`() {
+        val first = ParentPin.randomSaltHex()
+        val second = ParentPin.randomSaltHex()
+
+        // Sixteen bytes as hex. A short salt would still be a salt, and would still be wrong.
+        assertEquals(32, first.length)
+        assertFalse(first == second, "two salts came out identical")
+    }
+
+    @Test
+    fun `a hash that cannot be compared against is refused rather than thrown at`() {
+        // These arrive over MQTT, where anything can be hand-written. An empty or odd-length
+        // salt throws inside PBEKeySpec, and that throw would happen on the main thread of the
+        // service holding the lock up.
+        assertFalse(ParentPin.isUsable(PinHash(1000, "", "abcd")))
+        assertFalse(ParentPin.isUsable(PinHash(1000, "0f1", "abcd")), "odd number of characters")
+        assertFalse(ParentPin.isUsable(PinHash(1000, "zzzz", "abcd")), "not hex")
+        assertFalse(ParentPin.isUsable(PinHash(1000, salt, "")))
+        assertFalse(ParentPin.isUsable(PinHash(0, salt, "abcd")))
+        assertFalse(ParentPin.isUsable(PinHash(-1, salt, "abcd")))
+        assertTrue(ParentPin.isUsable(PinHash(1000, salt, "abcd")))
+    }
+
+    @Test
+    fun `an iteration count nobody could wait for is not obeyed`() {
+        // Not a stronger PIN, a keypad that stops answering: the derivation runs on the main
+        // thread of the app drawing the lock.
+        assertFalse(ParentPin.isUsable(PinHash(ParentPin.MAX_ITERATIONS + 1, salt, "abcd")))
+        assertTrue(ParentPin.isUsable(PinHash(ParentPin.MAX_ITERATIONS, salt, "abcd")))
+    }
+
+    @Test
+    fun `comparing against a malformed hash says no instead of throwing`() {
+        assertFalse(ParentPin.matches("482913", PinHash(1000, "", "abcd")))
+        assertFalse(ParentPin.matches("482913", PinHash(1000, "0f1", "abcd")))
     }
 
     @Test

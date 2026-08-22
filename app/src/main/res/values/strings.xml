@@ -8,6 +8,30 @@
     <string name="lock_title">That is it for today</string>
     <string name="lock_ask_more">Ask a parent for more time</string>
 
+    <string name="pin_unlock">Unlock with the PIN</string>
+    <string name="pin_enter">Enter the parent PIN</string>
+    <string name="pin_ok">OK</string>
+    <string name="pin_length">A PIN is %1$d to %2$d digits.</string>
+    <string name="pin_not_set">There is no PIN on this television. Set one in Home Assistant.</string>
+    <string name="pin_from_ha">The first parent PIN is set in Home Assistant. Once there is one,
+        it can be changed here as well.</string>
+    <string name="pin_change">Change the parent PIN</string>
+    <string name="pin_step_current">Type the PIN you use now</string>
+    <string name="pin_step_new">Type the new PIN</string>
+    <string name="pin_step_confirm">Type the new PIN again</string>
+    <string name="pin_mismatch">Those two did not match. Type the new PIN again.</string>
+    <string name="pin_changed">The PIN has been changed.</string>
+
+    <plurals name="pin_wrong">
+        <item quantity="one">Wrong PIN. %d attempt left.</item>
+        <item quantity="other">Wrong PIN. %d attempts left.</item>
+    </plurals>
+
+    <plurals name="pin_locked_out">
+        <item quantity="one">Too many wrong attempts. Try again in %d minute.</item>
+        <item quantity="other">Too many wrong attempts. Try again in %d minutes.</item>
+    </plurals>
+
     <plurals name="warn_minutes_left">
         <item quantity="one">%d minute of TV left</item>
         <item quantity="other">%d minutes of TV left</item>
@@ -21,6 +45,7 @@
     <string name="setup_foreground">Foreground app: %1$s</string>
     <string name="setup_locked">Lock active: %1$s</string>
     <string name="setup_reporting">Reporting to Home Assistant: %1$s</string>
+    <string name="setup_pin">Parent PIN set: %1$s</string>
     <string name="setup_yes">yes</string>
     <string name="setup_no">no</string>
     <string name="setup_unknown">(no data yet)</string>

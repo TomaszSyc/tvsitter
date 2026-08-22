@@ -45,7 +45,10 @@ Three rules the correctness of the whole thing rests on:
   "bonus_today_s": 900,
   "per_app": { "com.google.android.youtube.tv": 3600, "com.netflix.ninja": 610 },
   "active_window": "weekday_afternoon",
-  "rules_rev": 7
+  "rules_rev": 7,
+  "pin_set": true,
+  "pin_changed_at": 1787400000000,
+  "pin_changed_by": "tv"
 }
 ```
 
@@ -60,6 +63,15 @@ Three rules the correctness of the whole thing rests on:
 - `remaining_today_s` — `null` means "no limit", not zero.
 - `active_window` — identifier of the rule window in force, so that "why did it block me
   right now" is answerable.
+- `pin_set` — whether a parent PIN exists on the TV. Not the PIN and not its hash: nothing
+  that could be attacked offline leaves the television. What it answers is whether the lock
+  can be lifted at the set itself, which is worth knowing before the evening Home Assistant
+  is unreachable rather than during it.
+- `pin_changed_at` — when the PIN last changed, epoch milliseconds, or `null` if it never
+  has. `pin_changed_by` is `tv` or `ha`, and is what makes the timestamp actionable: a change
+  made in Home Assistant was made by somebody holding the parent's phone, one made on the
+  television by whoever was in the room. Because `state` is retained, a change made while
+  Home Assistant was down arrives on the next connect.
 
 ## `<p>/request`
 
@@ -79,6 +91,8 @@ grants the time twice.
 { "op": "grant",     "req_id": "8f14e45f", "minutes": 15 }
 { "op": "deny",      "req_id": "8f14e45f" }
 { "op": "set_rules", "rev": 8, "rules": { } }
+{ "op": "set_pin",   "hash": { "iterations": 120000, "salt": "0f1e…", "hash": "9734…" } }
+{ "op": "set_pin",   "hash": null }
 { "op": "stop_app",  "pkg": "com.google.android.youtube.tv" }
 { "op": "ping" }
 ```
@@ -94,6 +108,18 @@ opposite. The alternative, replacing the whole object, would force whoever is ed
 know every rule in force; since the TV keeps the rules (D3) that means publishing all of
 them and hoping the two copies agree, and it lets two controls on a dashboard quietly
 clobber each other.
+
+`set_pin` carries a **hash**, never the PIN: Home Assistant derives it, so the PIN itself
+never reaches the broker. PBKDF2-HMAC-SHA256, and the parameters travel with the digest so
+that raising the iteration count later does not invalidate a PIN already in use. A `null`
+hash removes the PIN — the same convention as a null rule value — and the key has to be
+present, so a truncated command cannot quietly strip the PIN off a television.
+
+No current PIN is required for this, because reaching it means publishing to the broker the
+TV is paired with. Changing the PIN *at the television* does require the current one, and
+cannot create a first PIN at all; D23 explains why. `set_pin` must never be retained: a
+retained one would be replayed after every broker restart and put the old PIN back over a
+PIN changed at the set.
 
 `stop_app` is **not implemented and cannot be**, as D21 records: an ordinary Android app
 cannot stop another one. It stays here as a name because the operation is still the right

@@ -160,6 +160,24 @@ such as `philips_js` for Philips sets. Not for control — TV Sitter needs nothi
 as a witness for the tamper alarm in M5. "TV Sitter has gone quiet while the TV is powered on"
 is only a meaningful alert if something other than TV Sitter can say the TV is on.
 
+## Setting the parent PIN
+
+The PIN is what lifts a lock at the television itself, with the remote and nothing else. Set
+the first one from Home Assistant: the `Parent PIN` text control on the TV's device page, four
+to eight digits. It is hashed in Home Assistant and only the hash is sent, so the PIN never
+reaches the broker; the control itself holds nothing and stays `unknown` however many times it
+is used.
+
+Afterwards it can be changed at the television as well — open TV Sitter, choose **Change the
+parent PIN**, and type the current one first. That path is there for the evening Home Assistant
+is not reachable. A *first* PIN cannot be set at the television, because nothing there tells a
+parent apart from a child except knowing the PIN (D23).
+
+`binary_sensor.…_parent_pin_set` says whether there is one, and carries `changed_at` and
+`changed_by` attributes. A PIN forgotten entirely is answered by setting a new one from Home
+Assistant, which does not need the old one. Five wrong guesses shut the keypad for five
+minutes, on the television and in the change screen alike.
+
 ## Inventory of the child's apps
 
 Package names needed when writing rules:

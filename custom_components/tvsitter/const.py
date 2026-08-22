@@ -19,6 +19,7 @@ PLATFORMS: Final[list[Platform]] = [
     Platform.NUMBER,
     Platform.SENSOR,
     Platform.SWITCH,
+    Platform.TEXT,
 ]
 
 CONF_TOPIC_PREFIX: Final = "topic_prefix"
