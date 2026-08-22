@@ -816,11 +816,35 @@ packages and this is a window rather than an activity. Worse, nothing else can s
 this television emits no `USER_INTERACTION` usage events, so "somebody is pressing buttons" is
 not a question that can be asked here.
 
-The one free signal is `AudioManager.isMusicActive()`, and it carries a trap worth writing down
-before somebody reaches for it: an HDMI source does not play through Android's mixer, so
-"nothing is playing" would quietly stop counting a console session — the opposite of what a
-parent wants, and D12 put HDMI in scope. #51 has the measurement and what a correct rule would
-have to combine.
+The one free signal is `AudioManager.isMusicActive()`, and the obvious objection to it turned
+out not to apply here. Measured with a PS5 running on HDMI: the console's sound reaches Android
+as a started player, `USAGE_MEDIA`, `CONTENT_TYPE_MOVIE`, 5.1 at 48 kHz, owned by
+`com.mediatek.tis` — the TV firmware's own input service. So "nothing is playing" does not
+quietly cover a console session, and HDMI time is counted correctly today
+(`org.droidtv.playtv` shows up in the per-app breakdown). #51 has what a correct rule still
+has to combine, including a grace period so that browsing menus keeps counting.
+
+### D21 corrected: the HDMI source takes the focus back (measured, 2026-08-22)
+
+D21 said an app that ignores focus loss keeps playing, and put HDMI out of reach. With a
+console actually running, what happens is more specific than "ignores":
+
+```
+21:29:37.088  audio: focus held, playback should stop
+21:29:37.169  overlay shown
+21:29:37.174  audio: focus taken back (-1), something is playing
+```
+
+Eighty-six milliseconds. `com.mediatek.tis` runs as `system` and owns the input hardware, so it
+does not merely decline to pause — it re-acquires focus. Confirmed from the room at the same
+moment: the screen was covered and the sound carried on.
+
+That narrows #40 rather than adding to it. For an HDMI source there is no audio lever at all,
+and a full-screen Activity would hide the picture without touching the sound. What actually
+stops a console is changing the input or cutting the power, and neither is ours to do from
+inside an app: they are `philips_js` or `androidtv_remote` calls from Home Assistant. Which
+also means the enforcement story for HDMI is a Home Assistant story, and the second mode of
+D25 would not have it.
 
 ## D24 — Availability is not permission (2026-08-22)
 
