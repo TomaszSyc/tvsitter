@@ -1,3 +1,13 @@
+// One version for the whole product (D6), read from version.txt rather than written here
+// twice. The two halves had already drifted — the app said 0.1.0-m0 while the integration
+// said 0.1.0 — and nothing noticed, which also meant the `fw` field in every state payload
+// could not identify a build, though that is the only reason it exists.
+val productVersion: String = providers
+    .fileContents(rootProject.layout.projectDirectory.file("version.txt"))
+    .asText
+    .get()
+    .trim()
+
 plugins {
     alias(libs.plugins.detekt)
     // AGP 9+ ships built-in Kotlin support; the separate kotlin-android plugin is not
@@ -15,8 +25,13 @@ android {
         // Google TV / Android TV device is older anyway.
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.1.0-m0"
+        // Derived, so releasing does not depend on remembering to bump a second number.
+        // Monotonic while minor and patch stay under a hundred, which for this project they
+        // will.
+        versionCode = productVersion.split(".").let { (major, minor, patch) ->
+            major.toInt() * 10_000 + minor.toInt() * 100 + patch.toInt()
+        }
+        versionName = productVersion
     }
 
     buildFeatures {
