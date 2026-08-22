@@ -75,6 +75,14 @@ class Telemetry(
      * opening one app can produce several transitions within a few hundred milliseconds — and
      * a message per transition would be noise on the broker and in the recorder.
      */
+    fun publishSoon() {
+        pendingPublish?.cancel()
+        pendingPublish = scope.launch {
+            delay(PUBLISH_DEBOUNCE_MS)
+            publishNow()
+        }
+    }
+
     /**
      * Sends a request from the child straight out, with no debouncing.
      *
@@ -88,14 +96,6 @@ class Telemetry(
             return
         }
         out.publish(request)
-    }
-
-    fun publishSoon() {
-        pendingPublish?.cancel()
-        pendingPublish = scope.launch {
-            delay(PUBLISH_DEBOUNCE_MS)
-            publishNow()
-        }
     }
 
     fun stop() {
