@@ -85,6 +85,21 @@ Three rules the correctness of the whole thing rests on:
 unknown or already-settled `req_id` — otherwise a parent tapping the notification twice
 grants the time twice.
 
+The TV decides whether the child may ask at all, and does so on its own so that the feature
+still works with no Home Assistant in reach:
+
+- **three an hour.** A button a child can press forty times teaches a parent to swipe the
+  notification away without reading it, and after that the feature is worse than not having it
+- **fifteen minutes after a refusal.** No should mean no for a while, not until the next press
+- **ten minutes to answer.** After that the child is told nobody answered rather than being
+  left in front of a screen that claims to be waiting. A `grant` arriving later is still
+  honoured: the duplicate protection exists so that two taps are not thirty minutes, not to
+  enforce punctuality on the person being generous
+- `asked_minutes` is always 15. The child asks; the parent decides the number
+
+All of it survives a restart, because force-stopping the app is something a child can do from
+Settings.
+
 ## `<p>/cmd`
 
 ```json

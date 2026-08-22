@@ -188,7 +188,10 @@ the same attempts.
 ## Answering a request from your phone
 
 When the child presses "ask a parent for more time", the TV publishes on `<prefix>/request`
-and the integration fires `event.…_time_request`. Answering it is one action:
+and the integration fires `event.…_time_request`. The lock screen then says what happened —
+asked, already asked, not yet, too many, granted, refused, or nobody answered — because a
+button that swallows a press is a button pressed again. The limits behind those answers are in
+`docs/mqtt-contract.md`; they live on the TV, so they hold with Home Assistant switched off. Answering it is one action:
 `tvsitter.grant_time` with `minutes`, or `tvsitter.deny_time`. Both take an optional `req_id`
 and answer the most recent request without one.
 
