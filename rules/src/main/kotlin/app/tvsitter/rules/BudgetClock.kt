@@ -40,6 +40,19 @@ class BudgetClock(private val zone: ZoneId, private val dayStartHour: Int = DEFA
     fun isSameBudgetDay(first: Instant, second: Instant): Boolean = budgetDay(first) == budgetDay(second)
 
     /**
+     * The moment the budget day containing [instant] began, at or before it.
+     *
+     * Needed to attribute an interval that spans a reset: the part after the boundary belongs
+     * to the new day, and the part before it to a day whose total is already closed. Correct
+     * for any number of elapsed days, which matters after a TV has been off for a week.
+     */
+    fun dayStart(instant: Instant): Instant = ZonedDateTime.of(
+        budgetDay(instant),
+        LocalTime.of(dayStartHour, 0),
+        zone,
+    ).toInstant()
+
+    /**
      * The next moment the counter resets, always strictly after [instant].
      *
      * [ZonedDateTime.of] is used on purpose: across a daylight saving transition it resolves
