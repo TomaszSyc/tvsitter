@@ -842,6 +842,32 @@ What this does not fix is the gap after a cold start. The intention lands when t
 the broker, and on a television that was fully off that is the reboot gap of D22 — most of
 which is not ours to close.
 
+### Measured, 2026-08-22
+
+Armed while the set was off, then switched on. Standby rather than a cold boot — same process
+id throughout, so nothing had to start:
+
+```
+20:42:22  screen off
+20:44:43  availability goes offline        (2m21s of network after the screen went dark)
+20:45     lock armed in Home Assistant     (pending: on, nothing published)
+21:11:42.313  screen on
+21:11:43.295  mqtt: connected
+21:11:43.355  mqtt: subscribed
+21:11:43.406  mqtt: command Lock            (51 ms after the subscription)
+21:11:43.594  overlay shown
+```
+
+**1.28 seconds from the screen coming on to the lock being up**, and the reboot gap does not
+apply because standby never killed the process. Also worth keeping: the network survives the
+screen going off by well over a minute — 141 seconds here, about 90 earlier the same evening —
+so a lock sent in that window arrives immediately and never becomes an intention at all.
+
+That 51 ms is the margin the race in #57 was decided by. The app announced itself online
+before subscribing to commands, so Home Assistant answered an announcement from a client that
+was not yet listening; the subscription happened to land first. Fixed by swapping the order,
+which is the correct one anyway: never advertise availability before you can act.
+
 ## D25 — A second mode, without Home Assistant (2026-08-22)
 
 TVCP's shape is two apps and a cloud between them: one on the television, one on the parent's

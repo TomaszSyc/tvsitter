@@ -120,8 +120,12 @@ class MqttBridge(
 
     private fun onConnectionUp() {
         Log.i(EnforcerService.TAG, "mqtt: connected to ${config.host}, prefix ${topics.prefix}")
-        announceOnline()
+        // Subscribe *before* announcing. Announcing first told Home Assistant the television
+        // was back while it still could not receive anything, and Home Assistant answers that
+        // announcement — with a lock somebody armed while the TV was off, for one. A command
+        // published before the subscription lands is not queued anywhere; it is simply gone.
         subscribeToCommands()
+        announceOnline()
         // Without this the retained snapshot stays stale until the next heartbeat, which is a
         // minute of Home Assistant showing what the TV was doing before it dropped off.
         onConnected()
@@ -136,11 +140,21 @@ class MqttBridge(
      * is the state worth noticing.
      */
     private fun onConnectionDown(context: MqttClientDisconnectedContext) {
+        // The stack goes in the log once per outage, not once per attempt. A television off
+        // overnight retries every minute, and each retry used to print a full netty stack —
+        // several hundred of them, which rotated everything else out of logcat. The app was
+        // destroying its own evidence while doing nothing at all. A compact line every tenth
+        // attempt keeps a persistent problem visible, such as credentials that stopped
+        // working, without burying the history.
+        val attempt = context.reconnector.attempts
+        val loudly = attempt == 0
+        if (!loudly && attempt % QUIET_ATTEMPTS != 0) return
+
         Log.w(
             EnforcerService.TAG,
-            "mqtt: disconnected by ${context.source}, attempt ${context.reconnector.attempts}, " +
+            "mqtt: disconnected by ${context.source}, attempt $attempt, " +
                 "reconnect=${context.reconnector.isReconnect}",
-            context.cause,
+            context.cause.takeIf { loudly },
         )
         // Left to itself the reconnector sends a default CONNECT, without our credentials or
         // will. Handing it the same message the first attempt used is the whole fix.
@@ -240,5 +254,8 @@ class MqttBridge(
     private companion object {
         const val KEEP_ALIVE_S = 30
         const val RECONNECT_MAX_DELAY_S = 60L
+
+        /** How many silent reconnect attempts pass between compact log lines. */
+        const val QUIET_ATTEMPTS = 10
     }
 }

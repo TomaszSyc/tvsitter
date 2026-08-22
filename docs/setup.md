@@ -164,7 +164,7 @@ is only a meaningful alert if something other than TV Sitter can say the TV is o
 
 The PIN is what lifts a lock at the television itself, with the remote and nothing else. Set
 the first one from Home Assistant: the `Parent PIN` text control on the TV's device page, four
-to eight digits. It is hashed in Home Assistant and only the hash is sent, so the PIN never
+digits. It is hashed in Home Assistant and only the hash is sent, so the PIN never
 reaches the broker; the control itself holds nothing and stays `unknown` however many times it
 is used.
 
@@ -173,10 +173,17 @@ parent PIN**, and type the current one first. That path is there for the evening
 is not reachable. A *first* PIN cannot be set at the television, because nothing there tells a
 parent apart from a child except knowing the PIN (D23).
 
+On the television the keypad is the shape the platform uses for its own PIN: up and down
+move between rows of three digits, and left, centre and right take one of the three. The
+fourth digit submits by itself and the back button deletes, so there is nothing to confirm
+and nothing to reach for. Which is also why a PIN is four digits and not a range — see D23.
+
 `binary_sensor.…_parent_pin_set` says whether there is one, and carries `changed_at` and
-`changed_by` attributes. A PIN forgotten entirely is answered by setting a new one from Home
-Assistant, which does not need the old one. Five wrong guesses shut the keypad for five
-minutes, on the television and in the change screen alike.
+`changed_by` attributes, so a PIN changed at the set is visible here as soon as the broker is
+reachable. A PIN forgotten entirely is answered by setting a new one from Home Assistant,
+which does not need the old one. Five wrong guesses shut the keypad for five minutes, then
+fifteen, then thirty — on the television and in the change screen alike, because both spend
+the same attempts.
 
 ## Answering a request from your phone
 
