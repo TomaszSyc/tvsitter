@@ -27,6 +27,8 @@ data class StateSnapshot(
     @SerialName("app_id") val appId: String? = null,
     @SerialName("app_name") val appName: String? = null,
     @SerialName("used_today_s") val usedTodaySeconds: Int = 0,
+    /** The limit in force, or null when none is. Not the same question as what is left. */
+    @SerialName("limit_today_s") val limitTodaySeconds: Int? = null,
     @SerialName("remaining_today_s") val remainingTodaySeconds: Int? = null,
     @SerialName("bonus_today_s") val bonusTodaySeconds: Int = 0,
     @SerialName("per_app") val perApp: Map<String, Int> = emptyMap(),

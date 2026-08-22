@@ -84,6 +84,11 @@
       "lock": {
         "name": "Lock"
       }
+    },
+    "number": {
+      "daily_limit": {
+        "name": "Daily limit"
+      }
     }
   }
 }

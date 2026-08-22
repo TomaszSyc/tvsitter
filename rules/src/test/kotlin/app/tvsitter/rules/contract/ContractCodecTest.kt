@@ -48,7 +48,7 @@ class ContractCodecTest {
         assertEquals(
             setOf(
                 "schema", "ts", "fw", "screen_on", "locked", "app_id", "app_name",
-                "used_today_s", "remaining_today_s", "bonus_today_s", "per_app",
+                "used_today_s", "limit_today_s", "remaining_today_s", "bonus_today_s", "per_app",
                 "active_window", "rules_rev",
             ),
             keys,

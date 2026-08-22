@@ -43,6 +43,7 @@ class EnforcerService : Service() {
     private var foregroundApps: ForegroundAppMonitor? = null
     private var telemetry: Telemetry? = null
     private var screenTime: ScreenTimeTracker? = null
+    private var activeRules: ActiveRules? = null
     private var pairing: PairingManager? = null
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -81,6 +82,7 @@ class EnforcerService : Service() {
         overlay = LockOverlay(this)
         appLabels = AppLabels(this)
         screenTime = ScreenTimeTracker(this, onDayRolled = { telemetry?.publishSoon() })
+        activeRules = ActiveRules(this).also { rules -> scope.launch { rules.load() } }
         // Commands arrive on an RxJava thread owned by the MQTT client, and acting on one
         // touches the window manager, where addView from any thread but the main one throws.
         // That is why locking from Home Assistant failed every time while the same lock
@@ -197,13 +199,17 @@ class EnforcerService : Service() {
             is Command.Ping -> telemetry?.publishSoon()
             is Command.StopApp -> Log.i(TAG, "TODO M2: stop ${command.pkg}")
             is Command.Grant, is Command.Deny -> Log.i(TAG, "TODO M3: $command")
-            is Command.SetRules -> Log.i(TAG, "TODO M4: rules rev ${command.rev}")
+            is Command.SetRules -> scope.launch {
+                activeRules?.apply(command.rules, command.rev)
+                telemetry?.publishSoon()
+            }
         }
     }
 
     /** The single place that says what the current state is; Telemetry decides when to send it. */
     private fun currentState(): StateSnapshot {
         val pkg = foregroundApps?.current
+        val limitSeconds = activeRules?.dailyLimitSeconds
         return StateSnapshot(
             ts = System.currentTimeMillis(),
             fw = BuildConfig.VERSION_NAME,
@@ -214,9 +220,11 @@ class EnforcerService : Service() {
             usedTodaySeconds = screenTime?.usedSeconds ?: 0,
             bonusTodaySeconds = screenTime?.bonusSeconds ?: 0,
             perApp = screenTime?.perAppSeconds ?: emptyMap(),
-            // Still null, and still on purpose: there is no limit to be left over from until
-            // #37 lets one be set. Zero would read as "time is up" everywhere.
-            remainingTodaySeconds = screenTime?.remainingSeconds(null),
+            // Published rather than assumed: this TV keeps its own rules and enforces them
+            // offline (D3), so it is the only thing that knows what is actually in force.
+            limitTodaySeconds = limitSeconds?.toInt(),
+            remainingTodaySeconds = screenTime?.remainingSeconds(limitSeconds),
+            rulesRev = activeRules?.revision ?: 0,
         )
     }
 

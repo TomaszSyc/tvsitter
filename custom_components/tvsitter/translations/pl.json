@@ -84,6 +84,11 @@
       "lock": {
         "name": "Blokada"
       }
+    },
+    "number": {
+      "daily_limit": {
+        "name": "Limit dzienny"
+      }
     }
   }
 }

@@ -16,12 +16,17 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import app.tvsitter.rules.BudgetState
+import app.tvsitter.rules.Rules
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 import java.time.Clock
 import java.time.LocalDate
+
+/** Rules and the revision they came with, which travel together or not at all. */
+data class StoredRules(val rules: Rules, val revision: Int)
 
 /** Where to reach the broker, and under which prefix to talk. */
 data class BrokerConfig(
@@ -70,6 +75,29 @@ class Settings(private val context: Context) {
         val generated = java.util.UUID.randomUUID().toString().take(DEVICE_ID_LENGTH)
         context.dataStore.edit { prefs -> prefs[KEY_DEVICE_ID] = generated }
         return generated
+    }
+
+    /** Rules as last written, with the revision they arrived under. */
+    suspend fun rules(): StoredRules {
+        val prefs = context.dataStore.data.first()
+        val json = prefs[KEY_RULES_JSON]
+        val parsed = json?.let {
+            runCatching { Rules.fromJson(Json.parseToJsonElement(it).jsonObject) }
+                .getOrElse { error ->
+                    // Unreadable rules mean enforcing none, which is the safe direction: a TV
+                    // that stops limiting is a complaint, a TV that locks on garbage is not.
+                    Log.w(EnforcerService.TAG, "unreadable rules, enforcing none", error)
+                    null
+                }
+        }
+        return StoredRules(parsed ?: Rules.NONE, prefs[KEY_RULES_REV] ?: 0)
+    }
+
+    suspend fun saveRules(json: String, revision: Int) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_RULES_JSON] = json
+            prefs[KEY_RULES_REV] = revision
+        }
     }
 
     /**
@@ -143,6 +171,9 @@ class Settings(private val context: Context) {
         val KEY_BUDGET_BONUS_MS = longPreferencesKey("budget_bonus_ms")
         val KEY_BUDGET_PER_APP = stringPreferencesKey("budget_per_app")
         val KEY_BUDGET_LAST_SAMPLE_MS = longPreferencesKey("budget_last_sample_ms")
+
+        val KEY_RULES_JSON = stringPreferencesKey("rules_json")
+        val KEY_RULES_REV = intPreferencesKey("rules_rev")
 
         const val DEVICE_ID_LENGTH = 8
         const val DEFAULT_PORT = 1883

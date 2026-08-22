@@ -40,6 +40,7 @@ class StateSnapshot:
     app_id: str | None = None
     app_name: str | None = None
     used_seconds: int = 0
+    limit_seconds: int | None = None
     remaining_seconds: int | None = None
     bonus_seconds: int = 0
     per_app: dict[str, int] = field(default_factory=dict)
@@ -66,6 +67,7 @@ class StateSnapshot:
             app_id=data.get("app_id"),
             app_name=data.get("app_name"),
             used_seconds=int(data.get("used_today_s") or 0),
+            limit_seconds=data.get("limit_today_s"),
             remaining_seconds=data.get("remaining_today_s"),
             bonus_seconds=int(data.get("bonus_today_s") or 0),
             per_app=dict(data.get("per_app") or {}),

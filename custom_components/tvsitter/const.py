@@ -15,6 +15,7 @@ DOMAIN: Final = "tvsitter"
 
 PLATFORMS: Final[list[Platform]] = [
     Platform.BINARY_SENSOR,
+    Platform.NUMBER,
     Platform.SENSOR,
     Platform.SWITCH,
 ]

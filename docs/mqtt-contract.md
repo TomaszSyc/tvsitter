@@ -40,6 +40,7 @@ Three rules the correctness of the whole thing rests on:
   "app_id": "com.google.android.youtube.tv",
   "app_name": "YouTube",
   "used_today_s": 4210,
+  "limit_today_s": 5400,
   "remaining_today_s": 1190,
   "bonus_today_s": 900,
   "per_app": { "com.google.android.youtube.tv": 3600, "com.netflix.ninja": 610 },
@@ -51,6 +52,11 @@ Three rules the correctness of the whole thing rests on:
 - `schema` — contract version. A receiver rejects a payload with an unknown, higher
   version instead of guessing what the fields mean.
 - `ts` — send time in epoch milliseconds. Lets a consumer recognise a stale retained payload.
+- `limit_today_s` — the limit the TV is enforcing right now, or `null` when it is enforcing
+  none. Published rather than assumed: the TV keeps the rules and enforces them offline
+  (D3), so it is the only thing that knows what is actually in force. Without it Home
+  Assistant would have to remember what it last sent and hope, which is how a dashboard ends
+  up disagreeing with the television.
 - `remaining_today_s` — `null` means "no limit", not zero.
 - `active_window` — identifier of the rule window in force, so that "why did it block me
   right now" is answerable.
