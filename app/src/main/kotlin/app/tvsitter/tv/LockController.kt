@@ -26,6 +26,7 @@ class LockController(
 ) {
     private val overlay = LockOverlay(context)
     private val banner = WarningBanner(context)
+    private val audio = AudioFocusHold(context)
 
     private var lockedManually = false
     private var lockedByBudget = false
@@ -91,6 +92,7 @@ class LockController(
     fun stop() {
         banner.hide()
         overlay.hide()
+        audio.release()
     }
 
     private fun warningFor(remainingSeconds: Int?): String {
@@ -105,6 +107,9 @@ class LockController(
 
     private fun show(reason: String?) {
         val wasShowing = overlay.isShowing
+        // Before the overlay, not after: the point is that the sound stops when the screen is
+        // covered, not a moment later.
+        audio.claim()
         overlay.show(
             title = context.getString(R.string.lock_title),
             subtitle = reason,
@@ -116,6 +121,9 @@ class LockController(
     private fun hide() {
         if (!overlay.isShowing) return
         overlay.hide()
+        // Given back, so the television is exactly as usable as it was. Nothing resumes by
+        // itself, which is deliberate — see AudioFocusHold.
+        audio.release()
         onChanged()
     }
 
