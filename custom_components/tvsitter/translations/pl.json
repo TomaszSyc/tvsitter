@@ -105,6 +105,37 @@
       "parent_pin": {
         "name": "PIN rodzica"
       }
+    },
+    "event": {
+      "time_request": {
+        "name": "Prośba o czas"
+      }
+    }
+  },
+  "services": {
+    "grant_time": {
+      "name": "Przyznaj czas",
+      "description": "Dodaje dziecku czas, o który poprosiło.",
+      "fields": {
+        "minutes": {
+          "name": "Minuty",
+          "description": "Ile czasu dodać do dzisiejszego budżetu."
+        },
+        "req_id": {
+          "name": "Prośba",
+          "description": "Której prośby dotyczy odpowiedź. Puste znaczy: tej ostatniej."
+        }
+      }
+    },
+    "deny_time": {
+      "name": "Odmów",
+      "description": "Odmawia, a telewizor pokazuje to na ekranie.",
+      "fields": {
+        "req_id": {
+          "name": "Prośba",
+          "description": "Której prośby dotyczy odpowiedź. Puste znaczy: tej ostatniej."
+        }
+      }
     }
   }
 }

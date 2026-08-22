@@ -10,6 +10,14 @@ repos:
         exclude_types: [markdown]
       - id: end-of-file-fixer
       - id: check-yaml
+        # Blueprints are Home Assistant YAML, where `!input` is a tag this loader has
+        # never heard of. Checked below instead, for syntax only.
+        exclude: ^blueprints/
+      - id: check-yaml
+        name: check-yaml (Home Assistant tags)
+        alias: check-yaml-ha
+        files: ^blueprints/
+        args: [--unsafe]
       - id: check-json
       - id: check-merge-conflict
       - id: check-added-large-files

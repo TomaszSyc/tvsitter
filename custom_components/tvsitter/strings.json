@@ -105,6 +105,37 @@
       "parent_pin": {
         "name": "Parent PIN"
       }
+    },
+    "event": {
+      "time_request": {
+        "name": "Time request"
+      }
+    }
+  },
+  "services": {
+    "grant_time": {
+      "name": "Grant time",
+      "description": "Gives the child the time they asked for.",
+      "fields": {
+        "minutes": {
+          "name": "Minutes",
+          "description": "How much time to add to today's budget."
+        },
+        "req_id": {
+          "name": "Request",
+          "description": "Which request is being answered. Leave empty to answer the most recent one."
+        }
+      }
+    },
+    "deny_time": {
+      "name": "Deny time",
+      "description": "Refuses, which the TV shows on screen.",
+      "fields": {
+        "req_id": {
+          "name": "Request",
+          "description": "Which request is being answered. Leave empty to answer the most recent one."
+        }
+      }
     }
   }
 }

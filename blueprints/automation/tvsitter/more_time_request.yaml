@@ -1,0 +1,158 @@
+# TV Sitter — parental control for Android TV / Google TV.
+# Copyright (C) 2026 Tomasz Syc
+# SPDX-License-Identifier: AGPL-3.0-only
+blueprint:
+  name: TV Sitter — a child asks for more time
+  description: >-
+    Turns a request from the TV into a notification on your phone with buttons, and turns a
+    tap on one of those buttons back into an answer the TV acts on.
+
+    The request id travels inside the action name, so an answer settles the request it was
+    asked about rather than whichever one is newest. The notification is tagged with the
+    same id, so a second request replaces its own notification instead of stacking, and
+    answering clears it from the phone.
+  domain: automation
+  author: Tomasz Syc
+  input:
+    request_event:
+      name: The TV
+      description: The time-request event of the television being asked about.
+      selector:
+        entity:
+          filter:
+            - integration: tvsitter
+              domain: event
+    notify_action:
+      name: Notification action
+      description: >-
+        The old-style notify action for the parent's phone, such as
+        notify.mobile_app_pixel_9_pro. It has to be that rather than a notify entity:
+        action buttons only work through the old service, and a watch mirrors them.
+      default: ""
+      selector:
+        text:
+    first_offer:
+      name: First offer
+      description: Minutes on the first button.
+      default: 15
+      selector:
+        number:
+          min: 1
+          max: 120
+          unit_of_measurement: min
+    second_offer:
+      name: Second offer
+      description: Minutes on the second button.
+      default: 30
+      selector:
+        number:
+          min: 1
+          max: 240
+          unit_of_measurement: min
+    expiry_seconds:
+      name: How long the question stands
+      description: >-
+        After this the notification disappears from the phone. Keep it in step with the
+        expiry on the TV, or the phone will offer an answer the television has stopped
+        waiting for.
+      default: 600
+      selector:
+        number:
+          min: 60
+          max: 3600
+          unit_of_measurement: s
+
+# Parallel because the two halves are unrelated: a second child asking must not queue
+# behind a parent who has not answered the first one yet.
+mode: parallel
+max_exceeded: silent
+
+triggers:
+  - trigger: state
+    entity_id: !input request_event
+    not_to:
+      - unavailable
+      - unknown
+    id: asked
+  - trigger: event
+    event_type: mobile_app_notification_action
+    id: answered
+
+conditions: []
+
+actions:
+  - choose:
+      - alias: The child asked
+        conditions:
+          - condition: trigger
+            id: asked
+          # An event entity's state is the moment it last fired, so anything that is not a
+          # timestamp is the entity appearing or disappearing rather than a request.
+          - condition: template
+            value_template: >-
+              {{ trigger.to_state.attributes.get('id') is not none }}
+        sequence:
+          # The offers are assigned to variables because a blueprint input cannot be
+          # read from inside a template: `!input` is substituted into the YAML, and
+          # `{{ first_offer }}` would render as nothing at all.
+          - variables:
+              first: !input first_offer
+              second: !input second_offer
+              req_id: "{{ trigger.to_state.attributes.id }}"
+              minutes: "{{ trigger.to_state.attributes.asked_minutes | int(15) }}"
+              what: >-
+                {{ trigger.to_state.attributes.app_name
+                   or trigger.to_state.attributes.app_id
+                   or 'the TV' }}
+          - action: !input notify_action
+            data:
+              title: More TV?
+              message: >-
+                {{ what }} — asking for {{ minutes }} more minutes.
+              data:
+                tag: "tvsitter-{{ req_id }}"
+                importance: high
+                timeout: !input expiry_seconds
+                actions:
+                  - action: "TVSITTER-GRANT-{{ first }}-{{ req_id }}"
+                    title: "+{{ first }} min"
+                  - action: "TVSITTER-GRANT-{{ second }}-{{ req_id }}"
+                    title: "+{{ second }} min"
+                  - action: "TVSITTER-DENY-0-{{ req_id }}"
+                    title: Not now
+
+      - alias: A parent answered
+        conditions:
+          - condition: trigger
+            id: answered
+          - condition: template
+            value_template: >-
+              {{ (trigger.event.data.action | default('', true)).startswith('TVSITTER-') }}
+        sequence:
+          # action is TVSITTER-<verb>-<minutes>-<req_id>. The id is carried in the button
+          # rather than looked up, so answering an old notification still answers the
+          # request it was about. Rejoined from the fourth part on, so an id that ever
+          # contains a dash is not quietly truncated.
+          - variables:
+              parts: "{{ trigger.event.data.action.split('-') }}"
+              answered_id: "{{ parts[3:] | join('-') }}"
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ parts[1] == 'GRANT' }}"
+                sequence:
+                  - action: tvsitter.grant_time
+                    target:
+                      entity_id: !input request_event
+                    data:
+                      minutes: "{{ parts[2] | int }}"
+                      req_id: "{{ answered_id }}"
+              - conditions:
+                  - condition: template
+                    value_template: "{{ parts[1] == 'DENY' }}"
+                sequence:
+                  - action: tvsitter.deny_time
+                    target:
+                      entity_id: !input request_event
+                    data:
+                      req_id: "{{ answered_id }}"

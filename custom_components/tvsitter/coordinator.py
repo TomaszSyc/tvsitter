@@ -20,9 +20,10 @@ from .const import (
     SCHEMA_VERSION,
     TOPIC_AVAILABILITY,
     TOPIC_COMMAND,
+    TOPIC_REQUEST,
     TOPIC_STATE,
 )
-from .models import StateSnapshot, UnsupportedSchemaError
+from .models import StateSnapshot, TimeRequest, UnsupportedSchemaError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -42,8 +43,13 @@ class TvSitterClient:
         self.name = name
         self.snapshot: StateSnapshot | None = None
         self.available = False
+        # The last request the TV made, so an answer can be addressed without the caller
+        # having to carry the id around. A blueprint answering a notification does carry
+        # it; a person pressing a button in the interface does not.
+        self.last_request: TimeRequest | None = None
 
         self._listeners: list[Callable[[], None]] = []
+        self._request_listeners: list[Callable[[TimeRequest], None]] = []
         self._unsubscribers: list[Callable[[], None]] = []
         self._warned_about_schema = False
 
@@ -71,6 +77,16 @@ class TvSitterClient:
                 qos=1,
             )
         )
+        # QoS 1, to match the TV: a request that goes missing is a child staring at a
+        # screen that says nothing happened.
+        self._unsubscribers.append(
+            await mqtt.async_subscribe(
+                self._hass,
+                f"{self._prefix}/{TOPIC_REQUEST}",
+                self._handle_request,
+                qos=1,
+            )
+        )
         _LOGGER.debug("Subscribed to %s/#", self._prefix)
 
     async def async_send(self, command: dict[str, Any]) -> None:
@@ -94,6 +110,24 @@ class TvSitterClient:
         """Drop every subscription."""
         while self._unsubscribers:
             self._unsubscribers.pop()()
+
+    @callback
+    def async_add_request_listener(
+        self, handle: Callable[[TimeRequest], None]
+    ) -> Callable[[], None]:
+        """Register for requests from the TV and hand back the removal callback.
+
+        Separate from the state listeners because a request is a moment rather than a
+        value: two identical requests are two events, where two identical state payloads
+        are one state.
+        """
+        self._request_listeners.append(handle)
+
+        @callback
+        def remove() -> None:
+            self._request_listeners.remove(handle)
+
+        return remove
 
     @callback
     def async_add_listener(self, update: Callable[[], None]) -> Callable[[], None]:
@@ -128,6 +162,29 @@ class TvSitterClient:
             return
 
         self._notify()
+
+    @callback
+    def _handle_request(self, message: mqtt.ReceiveMessage) -> None:
+        try:
+            request = TimeRequest.from_payload(message.payload)
+        except UnsupportedSchemaError as err:
+            _LOGGER.warning(
+                "%s asked for time with payload schema %s; this build understands %s. "
+                "Update TV Sitter in Home Assistant",
+                self.name,
+                err.found,
+                SCHEMA_VERSION,
+            )
+            return
+        except ValueError, TypeError:
+            # Not warned once and then swallowed, unlike the state topic: a request is
+            # a child waiting for an answer, and every one of them is worth a line.
+            _LOGGER.warning("Undecodable request payload on %s", message.topic)
+            return
+
+        self.last_request = request
+        for handle in list(self._request_listeners):
+            handle(request)
 
     @callback
     def _handle_availability(self, message: mqtt.ReceiveMessage) -> None:

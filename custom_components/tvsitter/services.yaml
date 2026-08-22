@@ -1,0 +1,33 @@
+# Answering a request the child made on the TV. The TV ignores an answer carrying an
+# unknown or already-settled req_id, so a parent tapping a notification twice grants once.
+grant_time:
+  target:
+    entity:
+      integration: tvsitter
+      domain: event
+  fields:
+    minutes:
+      required: true
+      example: 15
+      selector:
+        number:
+          min: 1
+          max: 240
+          unit_of_measurement: min
+    req_id:
+      required: false
+      example: 8f14e45f
+      selector:
+        text:
+
+deny_time:
+  target:
+    entity:
+      integration: tvsitter
+      domain: event
+  fields:
+    req_id:
+      required: false
+      example: 8f14e45f
+      selector:
+        text:

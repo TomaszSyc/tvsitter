@@ -29,6 +29,7 @@ MODULES = [
     f"{PACKAGE}.const",
     f"{PACKAGE}.coordinator",
     f"{PACKAGE}.entity",
+    f"{PACKAGE}.event",
     f"{PACKAGE}.models",
     f"{PACKAGE}.number",
     f"{PACKAGE}.pairing",

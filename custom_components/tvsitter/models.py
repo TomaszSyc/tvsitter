@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 import json
 from typing import Any
 
-from .const import SCHEMA_VERSION
+from .const import KIND_MORE_TIME, SCHEMA_VERSION
 
 
 class UnsupportedSchemaError(ValueError):
@@ -79,4 +79,44 @@ class StateSnapshot:
             pin_set=bool(data.get("pin_set", False)),
             pin_changed_at=data.get("pin_changed_at"),
             pin_changed_by=data.get("pin_changed_by"),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class TimeRequest:
+    """One `<prefix>/request` payload: a child asking for more time.
+
+    Not retained on the wire, so one that arrives while Home Assistant is restarting is
+    simply gone. That is the right trade — a retained request would be asked again after
+    every broker restart, and a parent would be answering a question from last week.
+    """
+
+    id: str
+    asked_minutes: int
+    kind: str = KIND_MORE_TIME
+    app_id: str | None = None
+    ts: int = 0
+
+    @classmethod
+    def from_payload(cls, payload: str) -> TimeRequest:
+        """Parse a request, refusing anything from a newer schema.
+
+        An empty `id` is refused rather than tolerated: the id is what an answer is
+        addressed to, so a request without one could be granted twice or not at all.
+        """
+        data: dict[str, Any] = json.loads(payload)
+        schema = data.get("schema", SCHEMA_VERSION)
+        if isinstance(schema, int) and schema > SCHEMA_VERSION:
+            raise UnsupportedSchemaError(schema)
+
+        request_id = str(data.get("id") or "").strip()
+        if not request_id:
+            raise ValueError("a request without an id cannot be answered")
+
+        return cls(
+            id=request_id,
+            asked_minutes=int(data.get("asked_minutes") or 0),
+            kind=str(data.get("kind") or KIND_MORE_TIME),
+            app_id=data.get("app_id"),
+            ts=int(data.get("ts") or 0),
         )

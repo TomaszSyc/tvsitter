@@ -178,6 +178,31 @@ parent apart from a child except knowing the PIN (D23).
 Assistant, which does not need the old one. Five wrong guesses shut the keypad for five
 minutes, on the television and in the change screen alike.
 
+## Answering a request from your phone
+
+When the child presses "ask a parent for more time", the TV publishes on `<prefix>/request`
+and the integration fires `event.…_time_request`. Answering it is one action:
+`tvsitter.grant_time` with `minutes`, or `tvsitter.deny_time`. Both take an optional `req_id`
+and answer the most recent request without one.
+
+The notification with buttons is a blueprint, in
+[`blueprints/automation/tvsitter/more_time_request.yaml`](../blueprints/automation/tvsitter/more_time_request.yaml).
+Until this repository is public and the blueprint can be imported by URL, copy it into
+`config/blueprints/automation/tvsitter/` and reload automations. It asks for two things: the
+TV's time-request event, and the notify action for the parent's phone.
+
+That action has to be the old-style `notify.mobile_app_…` service rather than a notify
+entity. Only the old service carries `actions`, and those buttons are the whole point — a
+watch mirrors them, so the answer is one tap without unlocking a phone.
+
+The request id travels inside the button's action name, so a tap answers the request it was
+asked about rather than whichever is newest, and answering an old notification still works.
+The notification is tagged with the same id, so a second request replaces its own
+notification instead of stacking up.
+
+The wording in the blueprint is English, like the rest of the repository. It is the one piece
+of text a parent reads every day, so it is worth editing to taste after importing.
+
 ## Inventory of the child's apps
 
 Package names needed when writing rules:

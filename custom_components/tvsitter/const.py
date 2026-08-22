@@ -16,6 +16,7 @@ DOMAIN: Final = "tvsitter"
 PLATFORMS: Final[list[Platform]] = [
     Platform.BINARY_SENSOR,
     Platform.BUTTON,
+    Platform.EVENT,
     Platform.NUMBER,
     Platform.SENSOR,
     Platform.SWITCH,
@@ -58,3 +59,12 @@ TOPIC_COMMAND: Final = "cmd"
 
 PAYLOAD_ONLINE: Final = "online"
 PAYLOAD_OFFLINE: Final = "offline"
+
+# The only kind of request there is so far. Named rather than assumed, because the field
+# exists precisely so that a second kind can be added without a schema bump.
+KIND_MORE_TIME: Final = "more_time"
+
+SERVICE_GRANT_TIME: Final = "grant_time"
+SERVICE_DENY_TIME: Final = "deny_time"
+ATTR_MINUTES: Final = "minutes"
+ATTR_REQUEST_ID: Final = "req_id"
