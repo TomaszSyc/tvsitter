@@ -87,10 +87,18 @@
                 android:value="Enforces parental screen-time limits on this television" />
         </service>
 
+        <!--
+            directBootAware so LOCKED_BOOT_COMPLETED is delivered at all: a receiver that is
+            not gets nothing until the user is unlocked, which is the delay being measured.
+            It brings an obligation with it — code running before unlock must not touch
+            credential-encrypted storage, which is where everything this app persists lives.
+        -->
         <receiver
             android:name=".BootReceiver"
+            android:directBootAware="true"
             android:exported="true">
             <intent-filter>
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>

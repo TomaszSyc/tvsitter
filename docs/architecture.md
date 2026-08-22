@@ -630,6 +630,55 @@ An external HDMI source is not an Android media session (D12), so none of this t
 Muting, changing source, or powering the panel off through `philips_js` are the only levers, and
 they belong to Home Assistant rather than to the app.
 
+## D22 — The reboot gap is mostly not ours to close (measured, 2026-08-22)
+
+D17 recorded a 67-second gap after a reboot and suggested `ACTION_LOCKED_BOOT_COMPLETED` as the
+fix. Before building for it, the question was how far ahead of `BOOT_COMPLETED` it actually
+lands on this hardware — a television has no credential lock to wait on, so the two could be
+moments apart. Measured with a `directBootAware` receiver that only logs:
+
+```
+LOCKED_BOOT_COMPLETED  uptime 40s
+BOOT_COMPLETED         uptime 55s      (+15s)
+onCreate()             +4.7s after BOOT_COMPLETED
+```
+
+So about 15 seconds is recoverable out of roughly 60. The first 40 seconds are unreachable:
+nothing of ours runs before the earliest broadcast the system will deliver to us.
+
+Also worth correcting from D17: `onCreate()` arrived 4.7 seconds after the broadcast, not the
+373 milliseconds measured then. The service does more now — a package-manager query for screen
+savers, rules and counter reads from storage — and it starts under boot-time load. Our own code
+is no longer a rounding error in this figure, though it is still the smaller part.
+
+### What starting early would cost
+
+Code running before the user is unlocked cannot read credential-encrypted storage, which is
+where everything this app persists lives: broker settings, rules, the counter. So an early start
+buys nothing unless something moves to device-encrypted storage.
+
+The minimum that would help is one boolean: whether the lock was up when the TV went down. If
+the budget was spent then the lock was up, so that flag covers the case that matters — a child
+who reboots to get a head start. Everything else can wait for the unlock and reconcile.
+
+That also means `EnforcerService` would have to become `directBootAware` and defer every
+storage-dependent step until `ACTION_USER_UNLOCKED`, rather than doing it in `onCreate` as it
+does now.
+
+### Decision
+
+Worth doing, and worth doing as its own change rather than folded into something else: fifteen
+seconds of free television per reboot is exactly the hole #23 describes, and a child who works
+out that switching off and on again buys time has found a real one. But it is a 25% improvement
+bought with a storage split, not the fix D17 implied, and recording that ratio matters more than
+the change itself — the remaining 40 seconds are not a bug to be fixed but a property of the
+platform.
+
+Incidentally caught by the same measurement: `tools/device.sh reboot-test` decided the enforcer
+was running by grepping for the process. A `directBootAware` receiver starts the process without
+starting the service, so the test reported success about fifteen seconds early. It now asks
+`dumpsys activity services`.
+
 ## No open hardware questions from the M0 spike
 
 Everything the spike set out to answer is answered, in D9 through D13. What it turned up

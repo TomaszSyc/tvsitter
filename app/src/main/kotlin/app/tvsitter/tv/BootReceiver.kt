@@ -8,6 +8,7 @@ package app.tvsitter.tv
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.os.SystemClock
 import android.util.Log
 
 /**
@@ -20,11 +21,40 @@ import android.util.Log
  */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        // BOOT_COMPLETED is a protected broadcast, but an exported receiver can still be
-        // reached by a spoofed intent carrying a different action, or none at all.
-        if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
+        // Both are protected broadcasts, but an exported receiver can still be reached by a
+        // spoofed intent carrying a different action, or none at all.
+        val action = intent.action ?: return
 
-        Log.i(EnforcerService.TAG, "BOOT_COMPLETED, starting the enforcer")
-        EnforcerService.start(context)
+        // Uptime, not wall-clock time: the question is how far into the boot each broadcast
+        // arrives, and the wall clock is still being corrected at this point.
+        val uptimeSeconds = SystemClock.elapsedRealtime() / MILLIS_PER_SECOND
+
+        when (action) {
+            // Measured, not acted on. Whether starting here is worth building depends on how
+            // far ahead of BOOT_COMPLETED it lands, and on this hardware that is unknown — a
+            // television has no credential lock to wait on, so the two may be moments apart.
+            // Starting the enforcer from here would mean everything it persists moving to
+            // device-encrypted storage, which is a real change to make on evidence rather
+            // than on a hunch. See #23.
+            LOCKED_BOOT_COMPLETED -> Log.i(
+                EnforcerService.TAG,
+                "LOCKED_BOOT_COMPLETED at uptime ${uptimeSeconds}s",
+            )
+
+            Intent.ACTION_BOOT_COMPLETED -> {
+                Log.i(
+                    EnforcerService.TAG,
+                    "BOOT_COMPLETED at uptime ${uptimeSeconds}s, starting the enforcer",
+                )
+                EnforcerService.start(context)
+            }
+        }
+    }
+
+    private companion object {
+        // Intent.ACTION_LOCKED_BOOT_COMPLETED is API 24 and available, but naming the string
+        // keeps this readable next to the manifest entry it has to match.
+        const val LOCKED_BOOT_COMPLETED = "android.intent.action.LOCKED_BOOT_COMPLETED"
+        const val MILLIS_PER_SECOND = 1000L
     }
 }

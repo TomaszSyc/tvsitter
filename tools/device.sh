@@ -329,7 +329,10 @@ cmd_reboot_test() {
     ok "reachable after ${reachable_at}s"
 
     local waited=0
-    until adb_ shell ps -A -o NAME 2>/dev/null | grep -q "app.tvsitter.tv"; do
+    # The service, not the process. Since the boot receiver became directBootAware it runs
+    # before the user is unlocked, which starts the process without starting the enforcer —
+    # so grepping for the process reported success about fifteen seconds early.
+    until adb_ shell dumpsys activity services app.tvsitter.tv 2>/dev/null | grep -q "EnforcerService"; do
         sleep 5
         waited=$((waited + 5))
         if [[ $waited -ge 180 ]]; then
@@ -341,6 +344,12 @@ cmd_reboot_test() {
         fi
     done
     ok "enforcer running ${waited}s after the device answered (~$((reachable_at + waited))s from reboot)"
+
+    say "How far into the boot each broadcast arrived"
+    # LOCKED_BOOT_COMPLETED lands earlier than BOOT_COMPLETED, and the difference is the most
+    # that starting from it could ever recover. Measured rather than assumed: see D22.
+    adb_ logcat -d -s TVSitter:V | grep -E "BOOT_COMPLETED at uptime" | tail -2 |
+        sed 's/^/    /' || true
 
     say "What the log says"
     # `|| true` because grep exits non-zero when nothing matches, and under `set -o pipefail`
