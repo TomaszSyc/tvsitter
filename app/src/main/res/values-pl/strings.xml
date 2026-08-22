@@ -6,6 +6,13 @@
     <string name="lock_title">Koniec czasu na dziś</string>
     <string name="lock_ask_more">Poproś rodzica o więcej czasu</string>
 
+    <plurals name="warn_minutes_left">
+        <item quantity="one">Została %d minuta telewizji</item>
+        <item quantity="few">Zostały %d minuty telewizji</item>
+        <item quantity="many">Zostało %d minut telewizji</item>
+        <item quantity="other">Zostało %d minuty telewizji</item>
+    </plurals>
+
     <string name="setup_device">Urządzenie: %1$s %2$s, API %3$d</string>
     <string name="setup_version">Wersja aplikacji: %1$s</string>
     <string name="setup_service_running">Usługa działa: %1$s</string>

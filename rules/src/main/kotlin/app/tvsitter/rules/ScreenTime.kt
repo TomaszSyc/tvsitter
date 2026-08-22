@@ -29,6 +29,15 @@ data class BudgetState(
      * session.
      */
     val lastSampleAtMs: Long? = null,
+    /**
+     * Whether the limit is set aside for the rest of this budget day.
+     *
+     * What `unlock` with no minutes means in the contract: not "add some time" but "not
+     * tonight". Held in the day's state so it clears itself at the next reset, which is the
+     * behaviour somebody lifting a limit for one evening expects without having to remember
+     * to put it back.
+     */
+    val limitSuspended: Boolean = false,
 ) {
     val usedSeconds: Long get() = usedMillis / MILLIS_PER_SECOND
     val bonusSeconds: Long get() = bonusMillis / MILLIS_PER_SECOND
@@ -131,9 +140,19 @@ class ScreenTimeCounter(
      * an instant lock.
      */
     fun remainingSeconds(state: BudgetState, limitSeconds: Long?): Long? {
-        if (limitSeconds == null) return null
-        return maxOf(0, limitSeconds + state.bonusSeconds - state.usedSeconds)
+        val limit = effectiveLimitSeconds(state, limitSeconds) ?: return null
+        return maxOf(0, limit + state.bonusSeconds - state.usedSeconds)
     }
+
+    /**
+     * The limit actually being enforced, which is not always the one configured.
+     *
+     * A limit set aside for tonight is not in force, and the payload says so by publishing
+     * null — the field means "what this TV is enforcing right now", so claiming a limit while
+     * ignoring it would be the one thing worse than having no field at all.
+     */
+    fun effectiveLimitSeconds(state: BudgetState, limitSeconds: Long?): Long? =
+        if (state.limitSuspended) null else limitSeconds
 
     /** Whether the day's allowance is spent. False whenever there is no limit at all. */
     fun isSpent(state: BudgetState, limitSeconds: Long?): Boolean = remainingSeconds(state, limitSeconds) == 0L

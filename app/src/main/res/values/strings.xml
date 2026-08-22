@@ -8,6 +8,11 @@
     <string name="lock_title">That is it for today</string>
     <string name="lock_ask_more">Ask a parent for more time</string>
 
+    <plurals name="warn_minutes_left">
+        <item quantity="one">%d minute of TV left</item>
+        <item quantity="other">%d minutes of TV left</item>
+    </plurals>
+
     <string name="setup_device">Device: %1$s %2$s, API %3$d</string>
     <string name="setup_version">App version: %1$s</string>
     <string name="setup_service_running">Enforcer running: %1$s</string>

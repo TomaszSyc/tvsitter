@@ -8,7 +8,9 @@ package app.tvsitter.tv
 import android.content.Context
 import android.util.Log
 import app.tvsitter.rules.BudgetClock
+import app.tvsitter.rules.BudgetEnforcement
 import app.tvsitter.rules.BudgetState
+import app.tvsitter.rules.BudgetVerdict
 import app.tvsitter.rules.ScreenTimeCounter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -26,7 +28,9 @@ import java.time.ZoneId
  */
 class ScreenTimeTracker(
     private val context: Context,
+    private val limitSeconds: () -> Long? = { null },
     private val onDayRolled: () -> Unit = {},
+    private val onVerdict: (BudgetVerdict, Int?) -> Unit = { _, _ -> },
     private val clock: BudgetClock = BudgetClock(ZoneId.systemDefault()),
 ) {
     private val counter = ScreenTimeCounter(clock)
@@ -56,7 +60,36 @@ class ScreenTimeTracker(
     val perAppSeconds: Map<String, Int> get() = state.perAppSeconds.mapValues { it.value.toInt() }
 
     /** Null when no limit applies, which is a different answer from zero. */
-    fun remainingSeconds(limitSeconds: Long?): Int? = counter.remainingSeconds(state, limitSeconds)?.toInt()
+    fun remainingSeconds(limit: Long?): Int? = counter.remainingSeconds(state, limit)?.toInt()
+
+    /** The limit actually in force, which is null while one is set aside for tonight. */
+    fun effectiveLimitSeconds(limit: Long?): Int? = counter.effectiveLimitSeconds(state, limit)?.toInt()
+
+    /**
+     * Adds granted time to the day.
+     *
+     * A bonus rather than a reduction of what was used: the statistics still say what was
+     * actually watched, which is the whole point of keeping them.
+     */
+    fun addBonus(seconds: Long) {
+        state = state.copy(bonusMillis = state.bonusMillis + seconds * MILLIS_PER_SECOND)
+        Log.i(EnforcerService.TAG, "counter: granted ${seconds}s, bonus now ${state.bonusSeconds}s")
+        persistNow()
+        announceVerdict()
+    }
+
+    /**
+     * Sets the limit aside for the rest of this budget day.
+     *
+     * What `unlock` with no minutes means: not "some more time" but "not tonight". It clears
+     * itself at the next reset, because it lives in the day's state.
+     */
+    fun suspendLimitUntilReset() {
+        state = state.copy(limitSuspended = true)
+        Log.i(EnforcerService.TAG, "counter: limit set aside until ${state.day.plusDays(1)}")
+        persistNow()
+        announceVerdict()
+    }
 
     /**
      * Restores the counter and starts sampling.
@@ -125,6 +158,22 @@ class ScreenTimeTracker(
         val stoppedWatching = watching && !stillWatching
         if (result.addedMillis > 0 || rolled || stoppedWatching) {
             persist(nowMs, force = rolled || stoppedWatching)
+        }
+
+        announceVerdict()
+    }
+
+    private fun announceVerdict() {
+        val remaining = remainingSeconds(limitSeconds())
+        onVerdict(BudgetEnforcement.verdictFor(remaining?.toLong()), remaining)
+    }
+
+    private fun persistNow() {
+        lastSavedAtMs = System.currentTimeMillis()
+        val snapshot = state
+        scope?.launch {
+            runCatching { Settings(context).saveBudget(snapshot) }
+                .onFailure { Log.w(EnforcerService.TAG, "counter: could not persist", it) }
         }
     }
 

@@ -37,7 +37,7 @@ import kotlinx.coroutines.launch
  */
 class EnforcerService : Service() {
 
-    private var overlay: LockOverlay? = null
+    private var locks: LockController? = null
     private var screenState: ScreenState? = null
     private var appLabels: AppLabels? = null
     private var foregroundApps: ForegroundAppMonitor? = null
@@ -50,7 +50,7 @@ class EnforcerService : Service() {
 
     val foregroundPackage: String? get() = foregroundApps?.current
 
-    val isLocked: Boolean get() = overlay?.isShowing == true
+    val isLocked: Boolean get() = locks?.isLocked == true
 
     val pairingPin: String? get() = pairing?.pin
 
@@ -79,10 +79,19 @@ class EnforcerService : Service() {
         instance = this
         EnforcerNotification.attach(this)
 
-        overlay = LockOverlay(this)
+        locks = LockController(
+            this,
+            onAskForTime = { Log.i(TAG, "TODO M3: request for more time") },
+            onChanged = { telemetry?.publishSoon() },
+        )
         appLabels = AppLabels(this)
-        screenTime = ScreenTimeTracker(this, onDayRolled = { telemetry?.publishSoon() })
         activeRules = ActiveRules(this).also { rules -> scope.launch { rules.load() } }
+        screenTime = ScreenTimeTracker(
+            this,
+            limitSeconds = { activeRules?.dailyLimitSeconds },
+            onDayRolled = { telemetry?.publishSoon() },
+            onVerdict = { verdict, remaining -> locks?.applyVerdict(verdict, remaining) },
+        )
         // Commands arrive on an RxJava thread owned by the MQTT client, and acting on one
         // touches the window manager, where addView from any thread but the main one throws.
         // That is why locking from Home Assistant failed every time while the same lock
@@ -125,20 +134,12 @@ class EnforcerService : Service() {
     }
 
     fun lock(reason: String?) {
-        overlay?.show(
-            title = getString(R.string.lock_title),
-            // A reason that only repeats the title would print the same sentence twice on a
-            // fifty-inch screen. A plain `lock` with no reason gets no second line.
-            subtitle = reason?.takeIf { it.isNotBlank() && it != getString(R.string.lock_title) },
-            onAskForTime = { Log.i(TAG, "TODO M3: request for more time") },
-        )
-        telemetry?.publishSoon()
+        // A reason that only repeats the title would print the same sentence twice on a
+        // fifty-inch screen, so a plain `lock` with no reason gets no second line.
+        locks?.lockManually(reason?.takeIf { it.isNotBlank() && it != getString(R.string.lock_title) })
     }
 
-    fun unlock() {
-        overlay?.hide()
-        telemetry?.publishSoon()
-    }
+    fun unlock() = locks?.unlockManually() ?: Unit
 
     /**
      * An unconfigured TV offers itself for pairing rather than sitting there doing nothing.
@@ -195,7 +196,16 @@ class EnforcerService : Service() {
     private fun handleCommand(command: Command) {
         when (command) {
             is Command.Lock -> lock(command.reason)
-            is Command.Unlock -> unlock()
+            // Minutes buy time against today's budget; no minutes means "not tonight". The
+            // lock then lifts because there is time again, not because it was hidden — hiding
+            // it while the budget is spent would bring it straight back on the next sample.
+            is Command.Unlock -> scope.launch {
+                command.minutes
+                    ?.let { screenTime?.addBonus(it * SECONDS_PER_MINUTE) }
+                    ?: screenTime?.suspendLimitUntilReset()
+                locks?.unlockManually()
+                telemetry?.publishSoon()
+            }
             is Command.Ping -> telemetry?.publishSoon()
             is Command.StopApp -> Log.i(TAG, "TODO M2: stop ${command.pkg}")
             is Command.Grant, is Command.Deny -> Log.i(TAG, "TODO M3: $command")
@@ -222,7 +232,7 @@ class EnforcerService : Service() {
             perApp = screenTime?.perAppSeconds ?: emptyMap(),
             // Published rather than assumed: this TV keeps its own rules and enforces them
             // offline (D3), so it is the only thing that knows what is actually in force.
-            limitTodaySeconds = limitSeconds?.toInt(),
+            limitTodaySeconds = screenTime?.effectiveLimitSeconds(limitSeconds),
             remainingTodaySeconds = screenTime?.remainingSeconds(limitSeconds),
             rulesRev = activeRules?.revision ?: 0,
         )
@@ -236,8 +246,8 @@ class EnforcerService : Service() {
         pairing = null
         screenState?.stop()
         screenState = null
-        overlay?.hide()
-        overlay = null
+        locks?.stop()
+        locks = null
         appLabels = null
         foregroundApps = null
         instance = null
@@ -251,6 +261,8 @@ class EnforcerService : Service() {
         const val ACTION_LOCK = "app.tvsitter.tv.action.LOCK"
         const val ACTION_UNLOCK = "app.tvsitter.tv.action.UNLOCK"
         const val EXTRA_REASON = "reason"
+
+        private const val SECONDS_PER_MINUTE = 60L
 
         @Volatile
         var instance: EnforcerService? = null
