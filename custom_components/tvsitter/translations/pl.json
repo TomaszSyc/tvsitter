@@ -59,7 +59,8 @@
       "already_paired": "Ten telewizor jest już sparowany.",
       "not_tvsitter": "To urządzenie nie ma TV Sittera.",
       "no_broker": "Home Assistant nie ustalił adresu brokera dla telewizora. Wpisz ustawienia brokera ręcznie.",
-      "mqtt_unavailable": "TV Sitter rozmawia z telewizorem przez MQTT. Skonfiguruj najpierw integrację MQTT, potem dodaj tę."
+      "mqtt_unavailable": "TV Sitter rozmawia z telewizorem przez MQTT. Skonfiguruj najpierw integrację MQTT, potem dodaj tę.",
+      "updated_existing": "Ten telewizor był już skonfigurowany. Wpis został zaktualizowany i telewizor jest sparowany."
     }
   },
   "entity": {

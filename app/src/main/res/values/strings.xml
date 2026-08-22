@@ -27,7 +27,7 @@
     <string name="pair_start">Show a pairing code</string>
     <string name="pair_failed">Pairing could not start. Check that the TV is on the same
         network, then try again.</string>
-    <string name="pair_done">Paired. This television is reporting to Home Assistant.</string>
+    <string name="pair_done">This television is reporting to Home Assistant.</string>
     <string name="pair_paired">Paired</string>
     <string name="pair_offline">Paired, but not reaching Home Assistant at the moment. Check
         that Home Assistant and its MQTT broker are running.</string>

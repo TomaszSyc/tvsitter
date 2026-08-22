@@ -25,7 +25,7 @@
     <string name="pair_start">Pokaż kod parowania</string>
     <string name="pair_failed">Nie udało się rozpocząć parowania. Sprawdź, czy telewizor jest
         w tej samej sieci, i spróbuj ponownie.</string>
-    <string name="pair_done">Połączono. Ten telewizor raportuje do Home Assistanta.</string>
+    <string name="pair_done">Ten telewizor raportuje do Home Assistanta.</string>
     <string name="pair_paired">Połączono</string>
     <string name="pair_offline">Połączono, ale w tej chwili nie ma łączności z Home
         Assistantem. Sprawdź, czy Home Assistant i jego broker MQTT działają.</string>

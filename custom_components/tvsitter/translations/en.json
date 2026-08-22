@@ -59,7 +59,8 @@
       "already_paired": "This TV is already paired.",
       "not_tvsitter": "That device is not running TV Sitter.",
       "no_broker": "Home Assistant could not work out a broker address to give the TV. Enter the broker settings by hand.",
-      "mqtt_unavailable": "TV Sitter talks to the TV over MQTT. Set up the MQTT integration first, then add this one."
+      "mqtt_unavailable": "TV Sitter talks to the TV over MQTT. Set up the MQTT integration first, then add this one.",
+      "updated_existing": "The TV was already configured. Its entry has been updated and it is now paired."
     }
   },
   "entity": {

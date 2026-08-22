@@ -17,7 +17,7 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.components import mqtt
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult
 from homeassistant.const import (
     CONF_HOST,
     CONF_NAME,
@@ -268,17 +268,45 @@ class TvSitterConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
         if outcome.ok:
+            device_id = outcome.device_id or self._device_id
+            name = outcome.name or self._tv_name
+
+            # A TV added by hand keys its entry on the topic prefix; a paired one keys
+            # on the device id, which mDNS cannot tell us beforehand. Adopting the entry
+            # that already addresses this prefix is what stops one television becoming
+            # two entries, with the first one's entities going quiet for good.
+            adopted = self._existing_entry_for(prefix)
+            if adopted is not None:
+                return self.async_update_reload_and_abort(
+                    adopted,
+                    unique_id=device_id,
+                    title=name,
+                    data_updates={CONF_NAME: name, CONF_DEVICE_ID: device_id},
+                    reason="updated_existing",
+                )
+
             return self.async_create_entry(
-                title=outcome.name or self._tv_name,
+                title=name,
                 data={
-                    CONF_NAME: outcome.name or self._tv_name,
+                    CONF_NAME: name,
                     CONF_TOPIC_PREFIX: prefix,
-                    CONF_DEVICE_ID: outcome.device_id or self._device_id,
+                    CONF_DEVICE_ID: device_id,
                 },
             )
 
         errors[CONF_PIN] = self._error_key(outcome)
         return None
+
+    def _existing_entry_for(self, prefix: str) -> ConfigEntry | None:
+        """Find an entry already addressing this prefix, whatever its unique id."""
+        return next(
+            (
+                entry
+                for entry in self._async_current_entries()
+                if entry.data.get(CONF_TOPIC_PREFIX) == prefix
+            ),
+            None,
+        )
 
     def _error_key(self, outcome: PairResult) -> str:
         """Turn a refusal into a translation key, keeping any attempt count with it."""

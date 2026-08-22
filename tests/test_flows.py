@@ -281,6 +281,69 @@ async def test_pairing_sends_the_broker_details_and_creates_an_entry(
     }
 
 
+async def test_pairing_adopts_a_tv_that_was_added_by_hand(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """One television must not become two entries.
+
+    The manual step keys its entry on the topic prefix, because that is all it knows;
+    pairing keys on the device id. Whichever came first, the second has to find it.
+    """
+    add_mqtt_entry(hass)
+    aioclient_mock.post(
+        PAIR_URL, json={"ok": True, "device_id": DEVICE_ID, "name": "Salon"}
+    )
+    by_hand = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="tvsitter/salon",
+        title="Added by hand",
+        data={"name": "Added by hand", "topic_prefix": "tvsitter/salon"},
+    )
+    by_hand.add_to_hass(hass)
+
+    started = await start_zeroconf(hass)
+    result = await hass.config_entries.flow.async_configure(
+        started["flow_id"],
+        {"pin": "927745", "topic_prefix": "tvsitter/salon", "broker": {}},
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "updated_existing"
+
+    entries = hass.config_entries.async_entries(DOMAIN)
+    assert len(entries) == 1
+    assert entries[0].entry_id == by_hand.entry_id
+    assert entries[0].unique_id == DEVICE_ID
+    assert entries[0].data["device_id"] == DEVICE_ID
+    assert entries[0].data["name"] == "Salon"
+    # The prefix is what the entities are keyed on, so it must survive untouched.
+    assert entries[0].data["topic_prefix"] == "tvsitter/salon"
+
+
+async def test_pairing_a_different_tv_still_creates_its_own_entry(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """Adopting must key on the prefix, not merely on there being an entry."""
+    add_mqtt_entry(hass)
+    aioclient_mock.post(
+        PAIR_URL, json={"ok": True, "device_id": DEVICE_ID, "name": "Salon"}
+    )
+    MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="tvsitter/kitchen",
+        data={"name": "Kitchen", "topic_prefix": "tvsitter/kitchen"},
+    ).add_to_hass(hass)
+
+    started = await start_zeroconf(hass)
+    result = await hass.config_entries.flow.async_configure(
+        started["flow_id"],
+        {"pin": "927745", "topic_prefix": "tvsitter/salon", "broker": {}},
+    )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert len(hass.config_entries.async_entries(DOMAIN)) == 2
+
+
 async def test_a_container_local_broker_address_is_replaced(
     hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
 ) -> None:
