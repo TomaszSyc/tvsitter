@@ -116,10 +116,16 @@ class ScreenTimeTracker(
             onDayRolled()
         }
 
-        // Forced on a rollover and whenever nothing is being watched: both are moments where
-        // the next thing to happen might be the process dying, and START_STICKY brings it back
-        // with whatever was last written.
-        persist(nowMs, force = rolled || !watching)
+        // Written when viewing stops, so the last slice is safe, and on a rollover. Not on
+        // every idle sample: a screen saver left running overnight would otherwise rewrite
+        // storage every ten seconds for eight hours, and there would be nothing new in it.
+        // While nothing accrues there is nothing to lose — a stale anchor restored after a
+        // kill is simply re-anchored by the first sample, which adds nothing.
+        val stillWatching = screenOnNow && !screenSavers.contains(appIdNow)
+        val stoppedWatching = watching && !stillWatching
+        if (result.addedMillis > 0 || rolled || stoppedWatching) {
+            persist(nowMs, force = rolled || stoppedWatching)
+        }
     }
 
     private fun persist(nowMs: Long, force: Boolean) {
