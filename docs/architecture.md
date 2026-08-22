@@ -496,6 +496,63 @@ zeroconf.discovery  Discovered new device ... properties={'id': 'testdev01', 'pa
 tvsitter.broker     Broker address core-mosquitto is local to Home Assistant; using <ha-ip>
 ```
 
+## D19 — Everything about an MQTT connection has to be stated per connection (2026-08-22)
+
+Found by switching the TV on after a night in standby. The process had been up for 12.6 hours,
+held both app-ops, and had no socket to port 1883. Home Assistant had shown the retained Last
+Will since the evening before. Four separate mistakes, all in the same few lines, and none of
+them visible without a disconnect log.
+
+`automaticReconnect()` does not reuse the CONNECT built by `connectWith()`. It builds a default
+one, so every retry arrived with no username:
+
+```
+mqtt: disconnected by SERVER, attempt 1, reconnect=true
+Mqtt5ConnAckException: CONNECT failed as CONNACK contained an Error Code: NOT_AUTHORIZED
+```
+
+```
+Client tvsitter-tvsitter-salon disconnected: not authorised.
+error: received null username or password for unpwd check
+```
+
+This is hivemq/hivemq-mqtt-client#574, open upstream. Moving the credentials to the client
+builder is the workaround people suggest, and it is not enough: `cleanStart` and `keepAlive`
+cannot be set there at all, so the keep-alive would revert to the default without a word. The
+CONNECT is therefore built once as an `Mqtt5Connect` and handed both to the first attempt and to
+`MqttClientReconnector.connect()` in the disconnected listener. Every attempt is identical by
+construction.
+
+Announcing availability and subscribing belong to a connection, not to a client. They were in
+the connect callback, which fires once, so a reconnected TV was online but reported offline and
+was subscribed to nothing. `addConnectedListener` runs on every connection, which is where they
+belong. Publishing state belongs there too: `heartbeat()` delays before its first publish, so
+without it Home Assistant showed the previous snapshot for a minute after every start.
+
+If you subscribe from the connected listener, turn HiveMQ's own resubscribe off.
+`resubscribeIfSessionExpired` defaults to true, so the filter was subscribed twice and every
+command arrived twice. Harmless for `lock`; for `grant` it would have handed out double the
+minutes.
+
+Commands arrive on an RxJava thread owned by the client, and acting on one calls
+`WindowManager.addView`, which throws off the main thread:
+
+```
+RuntimeException: Can't create handler inside thread Thread[RxComputationThreadPool-1,5,main]
+  at WindowManagerImpl.addView -> LockOverlay.show -> EnforcerService.lock -> handleCommand
+```
+
+So locking the TV from Home Assistant had never worked. Every lock test until now went through
+`tools/device.sh lock`, which arrives via `onStartCommand` on the main thread. The two paths read
+the same in the code and are not the same. Commands now go through the service's
+`Dispatchers.Main.immediate` scope before anything acts on them.
+
+The general lesson, and the reason this is a decision rather than a bug report: a client object
+is not a connection. Anything that is really a property of the connection — credentials, will,
+keep-alive, subscriptions, the availability announcement — has to be re-established every time
+one is made, and the only way to know it happened is to log the disconnects. There was no such
+log, which is why twelve hours of silence left nothing to read.
+
 ## No open hardware questions from the M0 spike
 
 Everything the spike set out to answer is answered, in D9 through D13. What it turned up

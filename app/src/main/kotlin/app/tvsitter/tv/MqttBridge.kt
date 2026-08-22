@@ -14,7 +14,10 @@ import app.tvsitter.rules.contract.TimeRequest
 import app.tvsitter.rules.contract.Topics
 import com.hivemq.client.mqtt.MqttClient
 import com.hivemq.client.mqtt.datatypes.MqttQos
+import com.hivemq.client.mqtt.lifecycle.MqttClientDisconnectedContext
 import com.hivemq.client.mqtt.mqtt5.Mqtt5AsyncClient
+import com.hivemq.client.mqtt.mqtt5.lifecycle.Mqtt5ClientDisconnectedContext
+import com.hivemq.client.mqtt.mqtt5.message.connect.Mqtt5Connect
 import java.util.concurrent.TimeUnit
 
 /**
@@ -25,12 +28,54 @@ import java.util.concurrent.TimeUnit
  * crashed app cannot look alive; `state` is retained, so Home Assistant knows the state
  * straight after a restart; commands are never published from this side at all.
  */
-class MqttBridge(private val config: BrokerConfig, private val onCommand: (Command) -> Unit) {
+class MqttBridge(
+    private val config: BrokerConfig,
+    private val onCommand: (Command) -> Unit,
+    private val onConnected: () -> Unit = {},
+) {
     private val topics = Topics(config.topicPrefix)
     private var client: Mqtt5AsyncClient? = null
 
     val isConnected: Boolean
         get() = client?.state?.isConnected == true
+
+    /**
+     * Built once and used for every attempt, first and reconnects alike.
+     *
+     * Credentials, the will, `cleanStart` and `keepAlive` are all CONNECT fields, and
+     * HiveMQ's automatic reconnect does not reuse the message given to `connectWith()` — it
+     * builds a default one. The broker therefore saw a CONNECT with no username on every
+     * retry and refused it, which is hivemq/hivemq-mqtt-client#574 and is why this TV sat
+     * for twelve hours retrying against `not authorised`. Neither `cleanStart` nor
+     * `keepAlive` can be set on the client builder either, so keeping one Connect and
+     * handing it to both the first attempt and the reconnector is what makes the attempts
+     * identical.
+     */
+    private val connectMessage: Mqtt5Connect = buildConnectMessage()
+
+    private fun buildConnectMessage(): Mqtt5Connect {
+        var builder = Mqtt5Connect.builder()
+            .cleanStart(true)
+            .keepAlive(KEEP_ALIVE_S)
+
+        // Carried, not discarded: these builders return a new instance rather than mutating,
+        // and dropping the result is how TLS came to be silently disabled once already.
+        if (config.username.isNotBlank()) {
+            builder = builder.simpleAuth()
+                .username(config.username)
+                .password(config.password.toByteArray())
+                .applySimpleAuth()
+        }
+
+        return builder
+            .willPublish()
+            .topic(topics.availability)
+            .payload(Contract.PAYLOAD_OFFLINE.toByteArray())
+            .qos(MqttQos.AT_LEAST_ONCE)
+            .retain(true)
+            .applyWillPublish()
+            .build()
+    }
 
     fun connect() {
         if (client != null) {
@@ -43,6 +88,13 @@ class MqttBridge(private val config: BrokerConfig, private val onCommand: (Comma
             .identifier("tvsitter-${topics.prefix.replace('/', '-')}")
             .serverHost(config.host)
             .serverPort(config.port)
+            // Announcing availability and resubscribing belong to a connection, not to the
+            // client, so they hang off the connected listener. Doing them in the connect
+            // callback meant that after the first dropped connection Home Assistant kept
+            // seeing the Last Will, and commands were accepted by the broker and silently
+            // ignored by us.
+            .addConnectedListener { onConnectionUp() }
+            .addDisconnectedListener(::onConnectionDown)
             // This TV drops off the network in standby, so reconnecting is the normal case
             // rather than an error path. Backoff caps at a minute: a locked TV that cannot
             // reach the broker still enforces locally, so there is nothing to rush for.
@@ -57,33 +109,48 @@ class MqttBridge(private val config: BrokerConfig, private val onCommand: (Comma
         val built = (if (config.useTls) base.sslWithDefaultConfig() else base).buildAsync()
         client = built
 
-        built.connectWith()
-            .cleanStart(true)
-            .keepAlive(KEEP_ALIVE_S)
-            .apply {
-                if (config.username.isNotBlank()) {
-                    simpleAuth()
-                        .username(config.username)
-                        .password(config.password.toByteArray())
-                        .applySimpleAuth()
-                }
-            }
-            .willPublish()
-            .topic(topics.availability)
-            .payload(Contract.PAYLOAD_OFFLINE.toByteArray())
-            .qos(MqttQos.AT_LEAST_ONCE)
-            .retain(true)
-            .applyWillPublish()
-            .send()
+        built.connect(connectMessage)
             .whenComplete { _, error ->
+                // Success is handled by the connected listener, which also covers reconnects.
                 if (error != null) {
                     Log.e(EnforcerService.TAG, "mqtt: connect to ${config.host} failed", error)
-                    return@whenComplete
                 }
-                Log.i(EnforcerService.TAG, "mqtt: connected to ${config.host}, prefix ${topics.prefix}")
-                announceOnline()
-                subscribeToCommands()
             }
+    }
+
+    private fun onConnectionUp() {
+        Log.i(EnforcerService.TAG, "mqtt: connected to ${config.host}, prefix ${topics.prefix}")
+        announceOnline()
+        subscribeToCommands()
+        // Without this the retained snapshot stays stale until the next heartbeat, which is a
+        // minute of Home Assistant showing what the TV was doing before it dropped off.
+        onConnected()
+    }
+
+    /**
+     * The only record that a connection was lost.
+     *
+     * There was none before, which is why a twelve-hour outage left nothing to read: the app
+     * was running, the entities were unavailable, and no log line said either had happened.
+     * `reconnect` says whether another attempt is coming; false means it has given up, which
+     * is the state worth noticing.
+     */
+    private fun onConnectionDown(context: MqttClientDisconnectedContext) {
+        Log.w(
+            EnforcerService.TAG,
+            "mqtt: disconnected by ${context.source}, attempt ${context.reconnector.attempts}, " +
+                "reconnect=${context.reconnector.isReconnect}",
+            context.cause,
+        )
+        // Left to itself the reconnector sends a default CONNECT, without our credentials or
+        // will. Handing it the same message the first attempt used is the whole fix.
+        //
+        // resubscribeIfSessionExpired is off because the connected listener subscribes on
+        // every connection. With both, the filter was subscribed twice and every command
+        // arrived twice — which for a `grant` would have handed out double the minutes.
+        (context as? Mqtt5ClientDisconnectedContext)?.reconnector
+            ?.connect(connectMessage)
+            ?.resubscribeIfSessionExpired(false)
     }
 
     fun publish(snapshot: StateSnapshot) {

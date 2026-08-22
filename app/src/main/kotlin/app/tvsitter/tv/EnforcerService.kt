@@ -79,7 +79,14 @@ class EnforcerService : Service() {
 
         overlay = LockOverlay(this)
         appLabels = AppLabels(this)
-        telemetry = Telemetry(this, scope, ::currentState, ::handleCommand)
+        // Commands arrive on an RxJava thread owned by the MQTT client, and acting on one
+        // touches the window manager, where addView from any thread but the main one throws.
+        // That is why locking from Home Assistant failed every time while the same lock
+        // through the debug ADB hook worked: that one arrives via onStartCommand, which is
+        // already on the main thread. `scope` is Dispatchers.Main.immediate.
+        telemetry = Telemetry(this, scope, ::currentState) { command ->
+            scope.launch { handleCommand(command) }
+        }
         foregroundApps = ForegroundAppMonitor(this) { telemetry?.publishSoon() }
             .also { it.start(scope) { screenState?.isScreenOn != false } }
         screenState = ScreenState(this) { telemetry?.publishSoon() }.also { it.start() }

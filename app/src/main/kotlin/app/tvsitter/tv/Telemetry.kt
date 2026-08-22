@@ -48,7 +48,11 @@ class Telemetry(
         val config = Settings(context).broker.first()
         if (!config.isComplete) return false
 
-        bridge = MqttBridge(config, onCommand).also { it.connect() }
+        // Assigned before connecting, not inside `also`: the connected listener publishes
+        // state through `bridge`, and it can fire before `also` has finished returning.
+        val fresh = MqttBridge(config, onCommand, onConnected = ::publishNow)
+        bridge = fresh
+        fresh.connect()
         heartbeatJob = scope.launch { heartbeat() }
         return true
     }
