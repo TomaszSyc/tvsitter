@@ -6,6 +6,10 @@
 package app.tvsitter.tv
 
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import app.tvsitter.rules.BudgetVerdict
 import app.tvsitter.rules.PinOutcome
@@ -23,18 +27,49 @@ import kotlin.math.ceil
 class LockController(
     private val context: Context,
     private val pin: PinKeeper,
+    /** What is in front right now, asked repeatedly while the lock is up. */
+    private val foregroundApp: () -> String?,
     private val onAskForTime: () -> Unit,
     private val onLimitStandDown: () -> Unit,
     private val onChanged: () -> Unit,
 ) {
     private val overlay = LockOverlay(context)
     private val banner = WarningBanner(context)
-    private val audio = AudioFocusHold(context)
+    private val audio = AudioFocusHold(context) { displaceWhateverIsPlaying() }
     private val memory = LockMemory(context)
 
     private var lockedManually = false
     private var lockedByBudget = false
     private var lastVerdict: BudgetVerdict? = null
+    private var lastDisplacedAtMs = 0L
+
+    private val handler = Handler(Looper.getMainLooper())
+    private val displaceAgain = Runnable { displaceWhateverIsPlaying() }
+
+    /**
+     * Asks what is in front, over and over, for as long as the lock is up.
+     *
+     * Both of the other triggers are edges — focus taken back, foreground app changed — and an
+     * edge cannot see a state that was already wrong. Measured: with the console already in
+     * front and the focus already lost, pressing the source key changed nothing that anything
+     * was watching, and the lock sat there over a playing console perfectly happily.
+     */
+    private val sweep = object : Runnable {
+        override fun run() {
+            if (!overlay.isShowing) return
+            onForegroundApp(foregroundApp())
+            handler.postDelayed(this, SWEEP_INTERVAL_MS)
+        }
+    }
+
+    /** Resolved once. Sending the home screen home would be a fight with nobody. */
+    private val homePackage: String? by lazy {
+        val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+        context.packageManager
+            .resolveActivity(home, PackageManager.MATCH_DEFAULT_ONLY)
+            ?.activityInfo
+            ?.packageName
+    }
 
     val isLocked: Boolean get() = overlay.isShowing
 
@@ -163,7 +198,78 @@ class LockController(
         unlockManually()
     }
 
+    /**
+     * Sends the television to its own home screen, which is the only thing that silences a
+     * source audio focus cannot reach.
+     *
+     * An HDMI input is an ordinary activity here (D12), so bringing the launcher forward puts
+     * it in the background — and that does stop the sound. Confirmed by ear, because `dumpsys
+     * audio` goes on reporting the input service's track as started either way and is no use
+     * as evidence.
+     *
+     * Two things ask for this. Audio focus being taken back is the fast one, at about eighty
+     * milliseconds, and it catches something that keeps playing without coming to the front.
+     * Anything arriving in front of the lock is the thorough one, at up to a poll interval,
+     * and it catches what the first misses — measured on this set, `KEYCODE_TV` brings the
+     * HDMI input back from behind the lock without touching audio focus at all, and the remote
+     * has app hotkeys that presumably do the same.
+     *
+     * Rate-limited rather than once per lock. Once per lock meant a single press of the source
+     * key defeated it for good; a cooldown means the television always gets the last word
+     * without two processes taking turns.
+     *
+     * An app that pauses when it loses focus never reaches any of this, which matters: dropping
+     * a child out of a film loses their place, and doing that unnecessarily is rude.
+     */
+    fun onForegroundApp(packageName: String?) {
+        if (!overlay.isShowing || packageName == null) return
+        // Our own screens are windows on this overlay rather than activities, so anything of
+        // ours in front is the setup screen a parent opened deliberately.
+        if (packageName == context.packageName || packageName == homePackage) return
+
+        Log.i(EnforcerService.TAG, "lock: $packageName came forward behind the lock")
+        displaceWhateverIsPlaying()
+    }
+
+    private fun displaceWhateverIsPlaying() {
+        if (!overlay.isShowing) return
+
+        val nowMs = System.currentTimeMillis()
+        val since = nowMs - lastDisplacedAtMs
+        if (since < DISPLACE_COOLDOWN_MS) {
+            // Deferred rather than dropped. Dropping it lost: pressing the source key twice
+            // inside the cooldown left the console in front, because the second request went
+            // in the bin and nothing else was ever going to arrive. Measured, and it worked.
+            handler.removeCallbacks(displaceAgain)
+            handler.postDelayed(displaceAgain, DISPLACE_COOLDOWN_MS - since)
+            return
+        }
+        lastDisplacedAtMs = nowMs
+
+        val home = Intent(Intent.ACTION_MAIN)
+            .addCategory(Intent.CATEGORY_HOME)
+            .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val started = runCatching { context.startActivity(home) }
+        if (started.isFailure) {
+            // Starting an activity from the background is restricted, and the app-op behind
+            // the lock window is what exempts us. If that were ever revoked, this is where it
+            // would show up rather than as sound that quietly never stops.
+            Log.e(
+                EnforcerService.TAG,
+                "audio: could not reach the home screen",
+                started.exceptionOrNull(),
+            )
+            return
+        }
+        Log.i(EnforcerService.TAG, "audio: sent the TV home to stop what focus could not")
+        // The launcher plays previews of its own and, unlike an HDMI input, does respect
+        // focus — so it is worth asking for it again now that we are the ones in front.
+        audio.claim()
+    }
+
     fun stop() {
+        handler.removeCallbacks(sweep)
+        handler.removeCallbacks(displaceAgain)
         banner.hide()
         overlay.hide()
         audio.release()
@@ -190,11 +296,17 @@ class LockController(
             onAskForTime = onAskForTime,
             onEnterPin = if (pin.isSet) ::promptForPin else null,
         )
-        if (!wasShowing) onChanged()
+        if (!wasShowing) {
+            handler.removeCallbacks(sweep)
+            handler.post(sweep)
+            onChanged()
+        }
     }
 
     private fun hide() {
         if (!overlay.isShowing) return
+        handler.removeCallbacks(sweep)
+        handler.removeCallbacks(displaceAgain)
         memory.cause = LockCause.NONE
         overlay.hide()
         // Given back, so the television is exactly as usable as it was. Nothing resumes by
@@ -205,5 +317,16 @@ class LockController(
 
     private companion object {
         const val SECONDS_PER_MINUTE = 60.0
+
+        /**
+         * Long enough that a stubborn app cannot turn this into a tight loop, short enough
+         * that pressing the source key buys a couple of seconds of console and no more.
+         * Requests arriving inside it are deferred to its end rather than dropped, so the
+         * television always gets the last word.
+         */
+        const val DISPLACE_COOLDOWN_MS = 2_000L
+
+        /** How often the lock asks what is in front of it. */
+        const val SWEEP_INTERVAL_MS = 2_000L
     }
 }

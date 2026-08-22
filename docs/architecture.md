@@ -839,12 +839,48 @@ Eighty-six milliseconds. `com.mediatek.tis` runs as `system` and owns the input 
 does not merely decline to pause — it re-acquires focus. Confirmed from the room at the same
 moment: the screen was covered and the sound carried on.
 
-That narrows #40 rather than adding to it. For an HDMI source there is no audio lever at all,
-and a full-screen Activity would hide the picture without touching the sound. What actually
-stops a console is changing the input or cutting the power, and neither is ours to do from
-inside an app: they are `philips_js` or `androidtv_remote` calls from Home Assistant. Which
-also means the enforcement story for HDMI is a Home Assistant story, and the second mode of
-D25 would not have it.
+So there is no audio lever for an HDMI source. There is a picture lever, and it turns out to
+carry the sound with it: bringing the launcher to the front leaves the room silent. Confirmed by
+ear, and it is the app's own to pull — `Intent.CATEGORY_HOME`, exempt from the
+background-activity-start restriction by the same app-op that lets us draw the lock.
+
+Which corrects a claim made here an hour earlier: that stopping a console needs an input change
+or a power cut from Home Assistant, and that a full-screen Activity would hide the picture
+without touching the sound. Neither is true, and what misled me is worth keeping as a warning
+about method: **`dumpsys audio` reports the input service's track as `state:started` whether or
+not anything is audible.** It says `started` under the lock, when the sound carries on, and it
+says `started` on the home screen, when the room is quiet. A started `AudioTrack` is not
+evidence of sound on this hardware; the only reliable instrument was somebody in the room.
+
+So the escalation is: take focus, and if that is not enough, send the television home.
+
+### The source key cannot be blocked, only undone (measured, 2026-08-22)
+
+The first question anybody asks is why the lock does not simply refuse the source key. Because
+the key never reaches us. `KEYCODE_TV` switched the input back to the console while our lock
+window held focus — the television's own system UI handles it, and an ordinary app is not in
+that path. Intercepting it would need an accessibility service (refused in D15 and D16, because
+merely enabling one unmasks password fields system-wide), lock task mode (Device Owner, which
+needs a factory reset and is out of scope), or vendor privileges.
+
+What is left is to make the switch worthless, which took three triggers rather than one, and
+each of the first two was found by the next test failing:
+
+- **audio focus taken back** — about 20 to 80 ms, and catches something that plays without
+  coming to the front
+- **an app arriving in front of the lock** — 35 ms once the 1.5-second poll notices it
+- **a sweep every two seconds while the lock is up** — the one that matters most, because the
+  other two are edges and an edge cannot see a state that was already wrong. With the console
+  already in front and the focus already lost, pressing the source key changed nothing anything
+  was watching, and the lock sat over a playing console indefinitely
+
+Requests inside the cooldown are deferred to its end rather than dropped, which was also found
+by testing: pressing the source key twice in quick succession beat the first version, because
+the second request went in the bin and nothing else was ever going to arrive.
+
+Measured against three presses in a row: the console holds the screen for under a second each
+time, with the picture covered throughout. Sound is the only thing that gets through, and only
+in those gaps.
 
 ## D24 — Availability is not permission (2026-08-22)
 

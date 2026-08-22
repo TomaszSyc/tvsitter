@@ -31,7 +31,7 @@ import android.util.Log
  * an external HDMI source is not an Android media session at all (D12), so its sound is out of
  * reach of this entirely.
  */
-class AudioFocusHold(context: Context) {
+class AudioFocusHold(context: Context, private val onFocusStolen: () -> Unit = {}) {
 
     private val audioManager = context.getSystemService(AudioManager::class.java)
     private var request: AudioFocusRequest? = null
@@ -79,13 +79,15 @@ class AudioFocusHold(context: Context) {
 
     private fun onFocusChanged(change: Int) {
         // Losing focus while the lock is up means something else claimed the speakers, so the
-        // silence did not hold. Logged rather than fought over: taking it back in a loop would
-        // be two apps arguing, and the escalation for that is displacing the player, not
-        // out-shouting it.
+        // silence did not hold. Never fought over — taking it straight back would be two
+        // processes arguing, and against the television's own input service that argument
+        // cannot be won: measured, it reclaims focus 86 ms later (D21). The escalation is to
+        // displace what is playing instead, which is what [onFocusStolen] is for.
         if (change == AudioManager.AUDIOFOCUS_LOSS ||
             change == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT
         ) {
             Log.w(EnforcerService.TAG, "audio: focus taken back ($change), something is playing")
+            onFocusStolen()
         }
     }
 }

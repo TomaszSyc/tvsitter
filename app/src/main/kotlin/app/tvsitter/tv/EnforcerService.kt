@@ -88,6 +88,7 @@ class EnforcerService : Service() {
         locks = LockController(
             this,
             pin = pin,
+            foregroundApp = { foregroundApps?.current },
             onAskForTime = { Log.i(TAG, "TODO M3: request for more time") },
             onLimitStandDown = { screenTime?.suspendLimitUntilReset() },
             onChanged = { telemetry?.publishSoon() },
@@ -110,6 +111,9 @@ class EnforcerService : Service() {
         }
         foregroundApps = ForegroundAppMonitor(this) { pkg ->
             screenTime?.sampleAtTransition(screenState?.isScreenOn == true, pkg)
+            // Anything arriving in front of a lock is sent home, which is the only thing that
+            // silences a source audio focus cannot reach.
+            locks?.onForegroundApp(pkg)
             telemetry?.publishSoon()
         }.also { it.start(scope) { screenState?.isScreenOn != false } }
         screenState = ScreenState(this) { on ->
