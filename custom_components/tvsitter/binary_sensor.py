@@ -23,7 +23,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up the binary sensors for one TV."""
     client = entry.runtime_data
-    async_add_entities([ScreenOnSensor(client), LockedSensor(client)])
+    async_add_entities([ScreenOnSensor(client)])
 
 
 class ScreenOnSensor(TvSitterEntity, BinarySensorEntity):
@@ -43,17 +43,3 @@ class ScreenOnSensor(TvSitterEntity, BinarySensorEntity):
         """Return True while the screen is on."""
         snapshot = self._client.snapshot
         return None if snapshot is None else snapshot.screen_on
-
-
-class LockedSensor(TvSitterEntity, BinarySensorEntity):
-    """Whether the lock screen is currently up."""
-
-    def __init__(self, client: TvSitterClient) -> None:
-        """Create the lock sensor."""
-        super().__init__(client, "locked")
-
-    @property
-    def is_on(self) -> bool | None:
-        """Return True while the TV is locked."""
-        snapshot = self._client.snapshot
-        return None if snapshot is None else snapshot.locked

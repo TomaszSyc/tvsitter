@@ -67,9 +67,6 @@
     "binary_sensor": {
       "screen": {
         "name": "Screen"
-      },
-      "locked": {
-        "name": "Locked"
       }
     },
     "sensor": {
@@ -81,6 +78,11 @@
       },
       "remaining_today": {
         "name": "Remaining today"
+      }
+    },
+    "switch": {
+      "lock": {
+        "name": "Lock"
       }
     }
   }

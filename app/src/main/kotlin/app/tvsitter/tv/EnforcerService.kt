@@ -102,7 +102,7 @@ class EnforcerService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_LOCK -> lock(intent.getStringExtra(EXTRA_REASON) ?: getString(R.string.lock_title))
+            ACTION_LOCK -> lock(intent.getStringExtra(EXTRA_REASON))
             ACTION_UNLOCK -> unlock()
         }
         // Sticky because there is no longer anything else to bring this back: if the system
@@ -110,10 +110,12 @@ class EnforcerService : Service() {
         return START_STICKY
     }
 
-    fun lock(reason: String) {
+    fun lock(reason: String?) {
         overlay?.show(
             title = getString(R.string.lock_title),
-            subtitle = reason,
+            // A reason that only repeats the title would print the same sentence twice on a
+            // fifty-inch screen. A plain `lock` with no reason gets no second line.
+            subtitle = reason?.takeIf { it.isNotBlank() && it != getString(R.string.lock_title) },
             onAskForTime = { Log.i(TAG, "TODO M3: request for more time") },
         )
         telemetry?.publishSoon()
@@ -178,7 +180,7 @@ class EnforcerService : Service() {
 
     private fun handleCommand(command: Command) {
         when (command) {
-            is Command.Lock -> lock(command.reason ?: getString(R.string.lock_title))
+            is Command.Lock -> lock(command.reason)
             is Command.Unlock -> unlock()
             is Command.Ping -> telemetry?.publishSoon()
             is Command.StopApp -> Log.i(TAG, "TODO M2: stop ${command.pkg}")

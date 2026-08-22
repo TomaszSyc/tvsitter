@@ -8,7 +8,9 @@ SPDX-License-Identifier: AGPL-3.0-only
 from __future__ import annotations
 
 from collections.abc import Callable
+import json
 import logging
+from typing import Any
 
 from homeassistant.components import mqtt
 from homeassistant.core import HomeAssistant, callback
@@ -17,6 +19,7 @@ from .const import (
     PAYLOAD_ONLINE,
     SCHEMA_VERSION,
     TOPIC_AVAILABILITY,
+    TOPIC_COMMAND,
     TOPIC_STATE,
 )
 from .models import StateSnapshot, UnsupportedSchemaError
@@ -69,6 +72,22 @@ class TvSitterClient:
             )
         )
         _LOGGER.debug("Subscribed to %s/#", self._prefix)
+
+    async def async_send(self, command: dict[str, Any]) -> None:
+        """Send one command to the TV.
+
+        Never retained. That is a rule in docs/mqtt-contract.md rather than a detail: a
+        retained `lock` would be replayed to the TV after every broker restart and lock
+        it with nobody having asked. QoS 1, because a command that goes missing is worse
+        than one that arrives twice.
+        """
+        await mqtt.async_publish(
+            self._hass,
+            f"{self._prefix}/{TOPIC_COMMAND}",
+            json.dumps(command),
+            qos=1,
+            retain=False,
+        )
 
     @callback
     def async_stop(self) -> None:

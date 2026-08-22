@@ -40,9 +40,9 @@ class LockOverlay(private val context: Context) {
     val isShowing: Boolean
         get() = root != null
 
-    fun show(title: String, subtitle: String, onAskForTime: () -> Unit) {
+    fun show(title: String, subtitle: String?, onAskForTime: () -> Unit) {
         if (root != null) {
-            subtitleView?.text = subtitle
+            subtitleView?.applySubtitle(subtitle)
             return
         }
 
@@ -57,7 +57,12 @@ class LockOverlay(private val context: Context) {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
             addView(textView(title, sizeSp = 34f, color = Color.WHITE))
-            addView(textView(subtitle, sizeSp = 18f, color = SUBTITLE_COLOR).also { subtitleView = it })
+            addView(
+                textView(subtitle.orEmpty(), sizeSp = 18f, color = SUBTITLE_COLOR).also {
+                    subtitleView = it
+                    it.applySubtitle(subtitle)
+                },
+            )
             addView(askButton)
         }
 
@@ -110,6 +115,12 @@ class LockOverlay(private val context: Context) {
             WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
         PixelFormat.TRANSLUCENT,
     )
+
+    /** Blank means there is nothing to say, which is different from saying nothing. */
+    private fun TextView.applySubtitle(subtitle: String?) {
+        text = subtitle.orEmpty()
+        visibility = if (subtitle.isNullOrBlank()) View.GONE else View.VISIBLE
+    }
 
     private fun textView(value: String, sizeSp: Float, color: Int) = TextView(context).apply {
         text = value

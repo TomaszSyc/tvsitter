@@ -13,7 +13,11 @@ from homeassistant.const import Platform
 
 DOMAIN: Final = "tvsitter"
 
-PLATFORMS: Final[list[Platform]] = [Platform.BINARY_SENSOR, Platform.SENSOR]
+PLATFORMS: Final[list[Platform]] = [
+    Platform.BINARY_SENSOR,
+    Platform.SENSOR,
+    Platform.SWITCH,
+]
 
 CONF_TOPIC_PREFIX: Final = "topic_prefix"
 CONF_DEVICE_ID: Final = "device_id"

@@ -31,6 +31,7 @@ MODULES = [
     f"{PACKAGE}.models",
     f"{PACKAGE}.pairing",
     f"{PACKAGE}.sensor",
+    f"{PACKAGE}.switch",
 ]
 
 

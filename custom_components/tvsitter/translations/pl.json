@@ -67,9 +67,6 @@
     "binary_sensor": {
       "screen": {
         "name": "Ekran"
-      },
-      "locked": {
-        "name": "Blokada"
       }
     },
     "sensor": {
@@ -81,6 +78,11 @@
       },
       "remaining_today": {
         "name": "Pozostało dziś"
+      }
+    },
+    "switch": {
+      "lock": {
+        "name": "Blokada"
       }
     }
   }
