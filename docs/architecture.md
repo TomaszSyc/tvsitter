@@ -807,9 +807,20 @@ The number is still logged on every entry, which is how it was found.
 
 Also learned, and filed rather than fixed: the television's own image-sticking protection draws
 a drifting logo above our windows after a few minutes of a static screen (#50), which answers
-D16's open question about whether our overlay outranks `tvsystemui` — it does not. And because
-that saver is not a `DreamService`, D20's exclusion does not see it, so time under it still
-counts as watching (#51).
+D16's open question about whether our overlay outranks `tvsystemui` — it does not.
+
+And that saver costs the child time. Measured from the recorder while it was demonstrably on
+screen: seven minutes counted, the screen reporting on throughout, and the foreground app never
+changing — so D20's exclusion cannot see it, because it works by recognising screen-saver
+packages and this is a window rather than an activity. Worse, nothing else can see it either:
+this television emits no `USER_INTERACTION` usage events, so "somebody is pressing buttons" is
+not a question that can be asked here.
+
+The one free signal is `AudioManager.isMusicActive()`, and it carries a trap worth writing down
+before somebody reaches for it: an HDMI source does not play through Android's mixer, so
+"nothing is playing" would quietly stop counting a console session — the opposite of what a
+parent wants, and D12 put HDMI in scope. #51 has the measurement and what a correct rule would
+have to combine.
 
 ## D24 — Availability is not permission (2026-08-22)
 
