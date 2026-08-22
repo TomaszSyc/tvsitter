@@ -134,20 +134,21 @@ class LockController(
     /** Returns what the keypad should say, or null when the PIN was right. */
     private fun onPinTyped(typed: String): String? {
         val outcome = pin.verify(typed)
-        if (outcome == PinOutcome.Accepted) pinAccepted()
+        if (outcome == PinOutcome.Accepted) unlockUntilReset()
         return context.pinMessage(outcome)
     }
 
     /**
-     * The PIN was right, so whatever is on the screen comes off.
+     * Lifts the lock, setting the limit aside only when the limit is what put it there.
      *
-     * The limit is set aside only when the limit is what is holding the lock up. Doing it
-     * either way would mean that lifting a bedtime lock also handed over the rest of the day's
-     * budget, which is not what the person typing the PIN asked for. Hiding a budget lock
-     * without setting the limit aside does not work either: the next sample would put it
-     * straight back, ten seconds later, for no reason a child could be told.
+     * The answer both to `unlock` with no minutes and to a correct PIN, which have to mean the
+     * same thing. Setting the limit aside either way meant that lifting a bedtime lock also
+     * handed over the rest of the day's budget, which is not what the person doing it asked
+     * for (#42). Hiding a budget lock *without* setting the limit aside does not work either:
+     * the next sample would put it straight back, ten seconds later, for no reason a child
+     * could be told.
      */
-    private fun pinAccepted() {
+    fun unlockUntilReset() {
         if (lockedByBudget) onLimitStandDown()
         unlockManually()
     }

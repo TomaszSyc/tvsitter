@@ -97,9 +97,14 @@ grants the time twice.
 { "op": "ping" }
 ```
 
-`unlock` without `minutes` unlocks until the end of the budget day. A `set_rules` whose
-`rev` is not higher than the current `rules_rev` is ignored, which protects against a
-duplicated message rolling the rules back.
+`unlock` without `minutes` lifts the lock. If the daily limit is what put the lock there,
+the limit is set aside until the next reset — anything less would be undone by the next
+sample, ten seconds later. If the lock was one a parent asked for, the limit stays in force:
+taking down a bedtime lock is not a decision to hand over the rest of the day's budget. A
+correct parent PIN at the television means exactly the same thing.
+
+A `set_rules` whose `rev` is not higher than the current `rules_rev` is ignored, which
+protects against a duplicated message rolling the rules back.
 
 `set_rules` **merges** into the rules already in force, and a key carrying `null` removes
 it. So `{"daily_limit_s": null}` lifts the daily limit and leaves everything else alone,

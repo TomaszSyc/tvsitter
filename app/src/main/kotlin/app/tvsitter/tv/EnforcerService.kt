@@ -222,14 +222,21 @@ class EnforcerService : Service() {
     private fun handleCommand(command: Command) {
         when (command) {
             is Command.Lock -> lock(command.reason)
-            // Minutes buy time against today's budget; no minutes means "not tonight". The
-            // lock then lifts because there is time again, not because it was hidden — hiding
-            // it while the budget is spent would bring it straight back on the next sample.
+            // Minutes buy time against today's budget, and the lock then lifts because
+            // there is time again rather than because it was hidden — hiding it while the
+            // budget is spent would bring it straight back on the next sample.
+            //
+            // No minutes lifts the lock and sets the limit aside only if the limit is what put
+            // it there. Setting it aside either way made the lock switch a limit-killer:
+            // turning off a bedtime lock handed over the rest of the day's budget (#42).
             is Command.Unlock -> scope.launch {
-                command.minutes
-                    ?.let { screenTime?.addBonus(it * SECONDS_PER_MINUTE) }
-                    ?: screenTime?.suspendLimitUntilReset()
-                locks?.unlockManually()
+                val minutes = command.minutes
+                if (minutes == null) {
+                    locks?.unlockUntilReset()
+                } else {
+                    screenTime?.addBonus(minutes * SECONDS_PER_MINUTE)
+                    locks?.unlockManually()
+                }
                 telemetry?.publishSoon()
             }
             // Hashed in Home Assistant, so the PIN itself never reaches the broker. No
