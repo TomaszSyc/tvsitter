@@ -6,7 +6,10 @@
 package app.tvsitter.tv
 
 import android.content.Context
+import android.media.AudioManager
 import android.util.Log
+import app.tvsitter.rules.Attention
+import app.tvsitter.rules.AttentionRule
 import app.tvsitter.rules.BudgetClock
 import app.tvsitter.rules.BudgetEnforcement
 import app.tvsitter.rules.BudgetState
@@ -35,6 +38,8 @@ class ScreenTimeTracker(
 ) {
     private val counter = ScreenTimeCounter(clock)
     private val screenSavers = ScreenSaverPackages(context)
+    private val tvInputs = TvInputPackages(context)
+    private val audioManager = context.getSystemService(AudioManager::class.java)
     private var scope: CoroutineScope? = null
     private var lastSavedAtMs = 0L
 
@@ -50,6 +55,19 @@ class ScreenTimeTracker(
      */
     private var screenOnDuringInterval = false
     private var appDuringInterval: String? = null
+    private var playingDuringInterval = false
+
+    /**
+     * When something last happened: playback running, or the app in front changing.
+     *
+     * What makes the difference between browsing and an empty room. There is no signal for
+     * "somebody pressed a button" on this television — it emits no user-interaction events at
+     * all — so this is the closest thing to one.
+     */
+    private var lastActivityAtMs = System.currentTimeMillis()
+
+    /** Logged when it changes rather than every ten seconds, which would say nothing. */
+    private var wasWatching: Boolean? = null
 
     @Volatile
     var state: BudgetState = BudgetState(day = clock.budgetDay(Instant.now()))
@@ -123,9 +141,34 @@ class ScreenTimeTracker(
      */
     fun sampleAtTransition(screenOn: Boolean, appId: String?) = sample(screenOn, appId)
 
+    /**
+     * Whether this sample is evidence of somebody being there.
+     *
+     * Playback running, the app in front changing, or the screen coming on. Not much, but this
+     * television reports no user interaction at all, so it is what there is.
+     */
+    private fun somethingHappened(playing: Boolean, screenOn: Boolean, appId: String?): Boolean {
+        val appChanged = appId != appDuringInterval
+        val screenJustOn = screenOn && !screenOnDuringInterval
+        return playing || appChanged || screenJustOn
+    }
+
+    /** What the rule in `:rules` sees, so the same picture can be logged and tested. */
+    fun attention(nowMs: Long = System.currentTimeMillis()): Attention = Attention(
+        screenOn = screenOnDuringInterval,
+        screenSaver = screenSavers.contains(appDuringInterval),
+        playing = playingDuringInterval,
+        tvInput = tvInputs.contains(appDuringInterval),
+        quietForMs = nowMs - lastActivityAtMs,
+    )
+
     private fun sample(screenOnNow: Boolean, appIdNow: String?) {
-        val watching = screenOnDuringInterval && !screenSavers.contains(appDuringInterval)
         val nowMs = System.currentTimeMillis()
+        val playingNow = audioManager?.isMusicActive == true
+        if (somethingHappened(playingNow, screenOnNow, appIdNow)) lastActivityAtMs = nowMs
+
+        val watching = AttentionRule.isWatching(attention(nowMs))
+        announceAttention(watching, nowMs)
         val previous = state
 
         val result = counter.sample(previous, nowMs, watching, appDuringInterval)
@@ -133,6 +176,7 @@ class ScreenTimeTracker(
 
         screenOnDuringInterval = screenOnNow
         appDuringInterval = appIdNow
+        playingDuringInterval = playingNow
 
         if (result.discardedMillis > 0) {
             // Not swallowed: this is the only sign that the device was away longer than
@@ -154,13 +198,32 @@ class ScreenTimeTracker(
         // storage every ten seconds for eight hours, and there would be nothing new in it.
         // While nothing accrues there is nothing to lose — a stale anchor restored after a
         // kill is simply re-anchored by the first sample, which adds nothing.
-        val stillWatching = screenOnNow && !screenSavers.contains(appIdNow)
+        val stillWatching = AttentionRule.isWatching(attention(nowMs))
         val stoppedWatching = watching && !stillWatching
         if (result.addedMillis > 0 || rolled || stoppedWatching) {
             persist(nowMs, force = rolled || stoppedWatching)
         }
 
         announceVerdict()
+    }
+
+    /**
+     * Says out loud when the counter starts or stops charging, and why.
+     *
+     * The reason matters more than the fact: "the screen is on but nothing has happened for
+     * six minutes" is the difference between a bug and the rule working, and without this line
+     * the two look identical from outside.
+     */
+    private fun announceAttention(watching: Boolean, nowMs: Long) {
+        if (watching == wasWatching) return
+        wasWatching = watching
+        val seen = attention(nowMs)
+        Log.i(
+            EnforcerService.TAG,
+            "counter: ${if (watching) "counting" else "not counting"} — screen=${seen.screenOn} " +
+                "playing=${seen.playing} saver=${seen.screenSaver} input=${seen.tvInput} " +
+                "quiet=${seen.quietForMs / MILLIS_PER_SECOND}s app=$appDuringInterval",
+        )
     }
 
     private fun announceVerdict() {

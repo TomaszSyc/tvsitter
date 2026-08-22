@@ -71,7 +71,8 @@ class DebugCommandReceiver : BroadcastReceiver() {
                 } else {
                     Log.i(
                         EnforcerService.TAG,
-                        "STATUS: locked=${service.isLocked} foreground=${service.foregroundPackage}",
+                        "STATUS: locked=${service.isLocked} foreground=${service.foregroundPackage} " +
+                            "attention=${service.attention}",
                     )
                 }
             }

@@ -54,6 +54,9 @@ class EnforcerService : Service() {
 
     val isLocked: Boolean get() = locks?.isLocked == true
 
+    /** What the counter thinks is going on, for the debug status hook to print. */
+    val attention: app.tvsitter.rules.Attention? get() = screenTime?.attention()
+
     val pairingPin: String? get() = pairing?.pin
 
     /** Whether this TV has broker settings, which is the lasting result of pairing. */
