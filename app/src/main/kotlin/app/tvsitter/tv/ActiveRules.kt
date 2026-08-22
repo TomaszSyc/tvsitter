@@ -50,6 +50,15 @@ class ActiveRules(private val context: Context) {
      * a claim we cannot keep.
      */
     suspend fun apply(json: JsonObject, rev: Int) {
+        // The contract's rule, and not a theoretical one: `cmd` is QoS 1, which is
+        // at-least-once, so the same message can arrive twice and two messages can arrive out
+        // of order. Without this, a redelivered older `set_rules` silently rolls the limit
+        // back to what it was, and nothing anywhere says it happened.
+        if (rev <= revision) {
+            Log.i(EnforcerService.TAG, "rules: ignoring rev=$rev, already at rev=$revision")
+            return
+        }
+
         val parsed = Rules.fromJson(json)
         Settings(context).saveRules(json.toString(), rev)
         rules = parsed

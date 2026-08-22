@@ -587,6 +587,49 @@ before every screen-off.
 For the same reason the counter samples at every transition and not only on its timer: an
 interval can only be attributed correctly if it is cut where the state changed.
 
+## D21 — Audio focus stops playback; `stop_app` cannot be built (measured, 2026-08-22)
+
+The lock covered the screen and the sound carried on (#16), which leaves anything audio-led
+unrestricted. Taking `AUDIOFOCUS_GAIN` when the lock goes up fixes it, measured with YouTube
+playing:
+
+```
+before   media_session  youtube.tv  state=PLAYING(3)
+         audio          piid:559  state:started  usage=USAGE_MEDIA content=CONTENT_TYPE_MOVIE
+locked   media_session  state=PAUSED(2)
+         audio          piid:559  state:paused
+```
+
+Confirmed by ear as well as by dumpsys.
+
+`AUDIOFOCUS_GAIN` rather than a transient form, on purpose. Transient focus asks other apps to
+pause and resume afterwards; for a lock that is the wrong shape, because a film starting up on
+its own the moment the lock lifts is not what anybody asked for. Measured: playback stayed
+paused after unlocking. The request presents as `USAGE_MEDIA` / `CONTENT_TYPE_MOVIE`, which is
+the focus other players yield to — a sonification usage makes them duck instead, and a film at
+low volume behind a lock screen is still a film.
+
+### The contract has an operation that cannot be implemented
+
+`stop_app` is in `docs/mqtt-contract.md` and was the planned escalation for an app that ignores
+focus loss. An ordinary Android application cannot stop another application.
+`ActivityManager.killBackgroundProcesses` needs a permission and only touches background
+processes, never the foreground one — which is exactly the case that matters. There is no
+in-app equivalent of `am force-stop` without Device Owner.
+
+So the operation stays in the contract as a name with nothing behind it for now. The escalation
+that is actually available is displacing the player: launching a full-screen Activity of our own
+moves the media app to the background, and Android pauses it as part of the lifecycle. That is
+the same mechanism D16 identified for leaving an HDMI input, and it changes shape rather than
+degree — an Activity takes over the task stack, where the overlay merely sits above it. Tracked
+as #40.
+
+### Still out of reach
+
+An external HDMI source is not an Android media session (D12), so none of this touches it.
+Muting, changing source, or powering the panel off through `philips_js` are the only levers, and
+they belong to Home Assistant rather than to the app.
+
 ## No open hardware questions from the M0 spike
 
 Everything the spike set out to answer is answered, in D9 through D13. What it turned up

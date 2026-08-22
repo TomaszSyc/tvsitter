@@ -87,6 +87,11 @@ grants the time twice.
 `rev` is not higher than the current `rules_rev` is ignored, which protects against a
 duplicated message rolling the rules back.
 
+`stop_app` is **not implemented and cannot be**, as D21 records: an ordinary Android app
+cannot stop another one. It stays here as a name because the operation is still the right
+shape for the problem, and a Device Owner build could honour it; nothing should be written
+against it in the meantime.
+
 ## Watching it live
 
 ```bash
