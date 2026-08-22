@@ -783,6 +783,37 @@ grid looks at three metres, and how long 120 000 iterations take on this process
 unknown. The last one is logged as a number on every entry, because the hash runs on the main
 thread and a keypad that stalls visibly would want moving off it.
 
+## D24 — Availability is not permission (2026-08-22)
+
+Every entity follows the TV's own availability topic, which is right: a value nobody can read
+is not a value, and a crashed app must not look like a television with nothing to report. The
+lock switch followed the same rule and that turned out to be wrong. A switched-off television
+drops off the network — measured on the Philips, the screen reads `off` for about ninety
+seconds and then the connection goes — so the switch greyed out exactly when a parent decided
+the evening was over, and commands are never retained, so there was nowhere for the decision
+to go.
+
+Availability answers "do I know whether it is locked". It is the wrong answer to "may I ask
+for it to be locked". So the lock switch alone stays operable while the TV is offline, holds
+the intention, and sends it the moment the TV reports in.
+
+Three things keep that from becoming the optimism this switch was deliberately built without:
+
+The intention exists only until it can be sent, not until the TV confirms. Afterwards the
+television's own reports are the truth again, which also means a command it declines — such as
+unlocking while the budget is spent — cannot turn into one resent for ever.
+
+An intention that matches what the TV last reported is not queued at all. A stale `unlock`
+arriving at a set that woke up locked by its own budget would set the daily limit aside for
+the rest of the day, from a switch nobody had touched since the night before.
+
+It survives a Home Assistant restart, through `RestoreEntity`. An update at the wrong moment
+should not quietly drop a decision about tonight.
+
+What this does not fix is the gap after a cold start. The intention lands when the app reaches
+the broker, and on a television that was fully off that is the reboot gap of D22 — most of
+which is not ours to close.
+
 ## No open hardware questions from the M0 spike
 
 Everything the spike set out to answer is answered, in D9 through D13. What it turned up

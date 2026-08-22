@@ -24,7 +24,9 @@ Three rules the correctness of the whole thing rests on:
    Without it a crashed app looks alive to Home Assistant — which looks exactly like a
    child who has not been watching TV.
 2. `cmd` is **never** retained. A retained `{"op":"lock"}` would mean the lock comes back
-   on its own, for no reason, after every broker or TV restart.
+   on its own, for no reason, after every broker or TV restart. Locking a television that
+   is switched off therefore cannot work by leaving a message on the broker: Home Assistant
+   holds the intention instead and sends it when the TV reports in (D24).
 3. `state` is retained, so Home Assistant knows the state immediately after a restart
    instead of waiting for the next tick.
 
