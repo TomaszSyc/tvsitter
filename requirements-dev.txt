@@ -11,3 +11,8 @@ pytest==9.0.3
 homeassistant==2026.8.2
 # Required by homeassistant.components.mqtt, which core does not pull in by itself.
 paho-mqtt==2.1.0
+
+# Home Assistant's own test fixtures, so the config flows can be stepped through against a
+# real `hass`. Each release pins one Home Assistant version — 0.13.356 pins 2026.8.2 — so this
+# and the pin above have to move together. test_imports.py fails if they ever disagree.
+pytest-homeassistant-custom-component==0.13.356

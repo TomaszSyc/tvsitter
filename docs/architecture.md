@@ -444,6 +444,44 @@ early start should be usable — with the caveat that credential-encrypted stora
 therefore our settings, is not readable until the user is unlocked. Starting the overlay and
 the counter early while deferring anything that needs settings is the shape of the fix.
 
+## D18 — What Home Assistant knows about the broker is not what the TV needs (2026-08-22)
+
+D14 says pairing should hand the TV the broker settings Home Assistant already has, so nobody
+retypes them. Reading the MQTT config entry on a normal Home Assistant OS install gives:
+
+```
+broker=core-mosquitto  port=1883  username_set=true  password_set=true
+```
+
+`core-mosquitto` is a container hostname on Supervisor's own network. It resolves inside Home
+Assistant and nowhere else, so a TV told to connect there never will. The pairing itself would
+succeed — the TV accepts the settings and closes its endpoint — and the failure would surface
+afterwards as a TV that is simply never online, with the one chance to configure it already
+spent.
+
+So credentials and port are taken from the MQTT entry as they are, and the address is not.
+When the stored address only means something locally, the flow substitutes the local address
+the routing table would use to reach the TV:
+
+```python
+sock = socket.socket(AF_INET, SOCK_DGRAM)
+sock.connect((tv_host, port))  # sends nothing; asks which interface would be used
+sock.getsockname()[0]
+```
+
+That is better than any configured URL, because it comes from the same network path the TV was
+just discovered over. `internal_url` may be unset, may be a name only some clients resolve, and
+may point through a proxy.
+
+An address the user configured themselves is left alone: they may well have a broker elsewhere
+on the network, and second-guessing it would be worse than useless. The test for "local only"
+is loopback plus the Supervisor naming conventions (`core-`, `addon_`, `hassio`).
+
+Credentials are pre-filled but never rendered: the broker section starts with empty username
+and password fields, and empty means "reuse the Home Assistant account". A typed username takes
+the password typed beside it, because mixing a new username with a stored password gives a TV
+that cannot authenticate.
+
 ## No open hardware questions from the M0 spike
 
 Everything the spike set out to answer is answered, in D9 through D13. What it turned up

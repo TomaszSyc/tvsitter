@@ -1,5 +1,6 @@
 {
   "config": {
+    "flow_title": "{name}",
     "step": {
       "user": {
         "title": "TV Sitter",
@@ -11,25 +12,75 @@
         "data_description": {
           "topic_prefix": "No wildcards, for example tvsitter/livingroom."
         }
+      },
+      "pair": {
+        "title": "Pair with the TV",
+        "description": "{name} is showing a six-digit PIN. Type it here. It is valid for five minutes, and you get five attempts.",
+        "data": {
+          "pin": "PIN shown on the TV",
+          "topic_prefix": "MQTT topic prefix"
+        },
+        "data_description": {
+          "topic_prefix": "No wildcards. This is sent to the TV, so both halves end up using the same one."
+        },
+        "sections": {
+          "broker": {
+            "name": "Broker settings",
+            "description": "Taken from your MQTT integration. Leave the account blank to reuse the one Home Assistant already connects with, or fill it in to give this TV its own.",
+            "data": {
+              "host": "Broker address",
+              "port": "Port",
+              "username": "Username",
+              "password": "Password",
+              "use_tls": "Use TLS"
+            },
+            "data_description": {
+              "host": "The address as the TV sees it. Home Assistant reaches the Mosquitto add-on by a name that only works inside Home Assistant, so this is filled in with something the TV can actually reach."
+            }
+          }
+        }
       }
     },
     "error": {
-      "invalid_topic_prefix": "The prefix must not be empty or contain + or # characters."
+      "invalid_topic_prefix": "The prefix must not be empty or contain + or # characters.",
+      "wrong_pin": "That is not the PIN on the screen.",
+      "wrong_pin_attempts": "That is not the PIN on the screen. {attempts} attempts left.",
+      "expired": "The PIN has expired. Open TV Sitter on the TV for a new one.",
+      "no_attempts_left": "Too many wrong attempts. Open TV Sitter on the TV for a new PIN.",
+      "already_used": "That PIN has already been used.",
+      "pairing_not_active": "The TV is not waiting to be paired. Open TV Sitter on it first.",
+      "bad_request": "The TV rejected the request.",
+      "cannot_connect": "The TV did not answer. Check that it is on and still showing the PIN.",
+      "unexpected_response": "Something other than TV Sitter answered on that port.",
+      "unknown": "Pairing failed, and the TV did not say why."
     },
     "abort": {
       "already_configured": "This TV is already configured.",
+      "already_paired": "This TV is already paired.",
+      "not_tvsitter": "That device is not running TV Sitter.",
+      "no_broker": "Home Assistant could not work out a broker address to give the TV. Enter the broker settings by hand.",
       "mqtt_unavailable": "TV Sitter talks to the TV over MQTT. Set up the MQTT integration first, then add this one."
     }
   },
   "entity": {
     "binary_sensor": {
-      "screen": { "name": "Screen" },
-      "locked": { "name": "Locked" }
+      "screen": {
+        "name": "Screen"
+      },
+      "locked": {
+        "name": "Locked"
+      }
     },
     "sensor": {
-      "active_app": { "name": "Active app" },
-      "used_today": { "name": "Used today" },
-      "remaining_today": { "name": "Remaining today" }
+      "active_app": {
+        "name": "Active app"
+      },
+      "used_today": {
+        "name": "Used today"
+      },
+      "remaining_today": {
+        "name": "Remaining today"
+      }
     }
   }
 }

@@ -16,10 +16,37 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 set -euo pipefail
 
-DEVICE="${TVSITTER_DEVICE:-<tv-ip>:5555}"
 PKG="app.tvsitter.tv"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APK="$REPO_ROOT/app/build/outputs/apk/debug/app-debug.apk"
+DEVICE_CONF="$REPO_ROOT/tools/device.local"
+
+# A TV's address belongs to one household, so it is not committed. In order of preference:
+# the environment, a git-ignored tools/device.local, or — when exactly one device is already
+# attached — that one, which is unambiguous and saves anybody configuring anything at all.
+resolve_device() {
+    if [[ -n "${TVSITTER_DEVICE:-}" ]]; then
+        printf '%s' "$TVSITTER_DEVICE"
+        return 0
+    fi
+    if [[ -f "$DEVICE_CONF" ]]; then
+        # shellcheck source=/dev/null
+        . "$DEVICE_CONF"
+        if [[ -n "${TVSITTER_DEVICE:-}" ]]; then
+            printf '%s' "$TVSITTER_DEVICE"
+            return 0
+        fi
+    fi
+    local attached
+    attached="$(adb devices 2>/dev/null | awk 'NR > 1 && NF >= 2 {print $1}')"
+    if [[ "$(printf '%s' "$attached" | grep -c . || true)" == 1 ]]; then
+        printf '%s' "$attached"
+        return 0
+    fi
+    return 1
+}
+
+DEVICE="$(resolve_device || true)"
 
 say() { printf '\n\033[1m== %s\033[0m\n' "$1"; }
 ok() { printf '  \033[32m✓\033[0m %s\n' "$1"; }
@@ -29,6 +56,16 @@ info() { printf '    %s\n' "$1"; }
 adb_() { adb -s "$DEVICE" "$@"; }
 
 require_device() {
+    if [[ -z "$DEVICE" ]]; then
+        bad "no TV address configured"
+        info "Set one for this shell:"
+        info "  export TVSITTER_DEVICE=<tv-ip>:5555"
+        info "or write it down once, git-ignored:"
+        info "  echo 'TVSITTER_DEVICE=<tv-ip>:5555' > tools/device.local"
+        info "The address is under Settings -> Network on the TV. Port 5555 is where"
+        info "Developer options -> Network debugging listens."
+        exit 1
+    fi
     adb connect "$DEVICE" >/dev/null 2>&1 || true
     local state
     state="$(adb devices | awk -v d="$DEVICE" '$1 == d {print $2}')"
@@ -320,7 +357,7 @@ cmd_reboot_test() {
 
 usage() {
     cat <<EOF
-tools/device.sh <command>          target: $DEVICE (override with TVSITTER_DEVICE)
+tools/device.sh <command>          target: ${DEVICE:-none found; set TVSITTER_DEVICE}
 
   doctor        report device, install, permission and service state
   install       build the debug APK, install it, grant the ADB-only permissions

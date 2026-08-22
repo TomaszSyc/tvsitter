@@ -11,15 +11,11 @@ SPDX-License-Identifier: AGPL-3.0-only
 from __future__ import annotations
 
 import json
-from pathlib import Path
-import sys
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "custom_components"))
-
-from tvsitter.const import SCHEMA_VERSION
-from tvsitter.models import StateSnapshot, UnsupportedSchemaError
+from custom_components.tvsitter.const import SCHEMA_VERSION
+from custom_components.tvsitter.models import StateSnapshot, UnsupportedSchemaError
 
 # Captured from the real device, so these break if either side drifts from the other.
 LIVE_PAYLOAD = json.dumps(

@@ -29,6 +29,11 @@ adb connect <tv-ip>:5555
 adb devices -l
 ```
 
+The address is under Settings → Network on the TV. `tools/device.sh` finds it from
+`$TVSITTER_DEVICE`, or from `tools/device.local` (git-ignored, one line:
+`TVSITTER_DEVICE=<tv-ip>:5555`), or from `adb devices` when exactly one device is
+attached. No address is committed — every household has a different one.
+
 The first connection from a new computer pops up an "Allow debugging?" dialog **on the
 TV**. It has to be accepted with the remote, ticking "always allow from this computer".
 Until you do, `adb devices` reports `unauthorized` and nothing else will work. Home

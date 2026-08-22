@@ -3,14 +3,15 @@
 # TV Sitter
 
 Parental control for **Android TV / Google TV**, driven from **Home Assistant**.
-Screen time limits, per-app blocking, a PIN-protected lock screen and — above all —
-**a "may I have more time?" request from the remote that a parent answers with one tap
-on their phone**.
+Screen time limits, per-app blocking, a PIN-protected lock screen, and a "may I have more
+time?" request from the remote that a parent answers with one tap on their phone.
 
 Runs on your network. No cloud, no subscription.
 
-> **Status: pre-alpha.** Milestone M0 is in progress — the skeleton stands and the rules
-> tests pass, but nothing has been run on a real TV yet. Not usable.
+> **Status: pre-alpha.** M0 is done and M1 is nearly there. The app runs on a Philips
+> Google TV, publishes its state over MQTT, and Home Assistant shows it as entities.
+> Screen time is not counted yet and no limit is enforced, so it is not yet usable as
+> parental control.
 
 ## Why this exists
 
@@ -67,10 +68,10 @@ Fire TV (Fire OS), Samsung (Tizen), LG (webOS) and Roku are not supported.
 
 **On the TV:** [`docs/setup.md`](docs/setup.md).
 
-**In Home Assistant:** eventually through HACS as a custom repository —
-`custom_components/tvsitter` already follows the HACS layout. Until then, copy the
-`custom_components/tvsitter/` directory into your `config/custom_components/` and restart
-Home Assistant.
+**In Home Assistant:** through HACS once the repository is public (`custom_components/tvsitter`
+already follows the HACS layout). Until then, copy `custom_components/tvsitter/` into your
+`config/custom_components/` and restart Home Assistant, then add "TV Sitter" from Devices &
+Services.
 
 ## Roadmap
 

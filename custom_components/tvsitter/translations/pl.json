@@ -1,35 +1,86 @@
 {
   "config": {
+    "flow_title": "{name}",
     "step": {
       "user": {
         "title": "TV Sitter",
-        "description": "Podaj prefiks topiców MQTT ustawiony w aplikacji na telewizorze.",
+        "description": "Podaj prefiks tematów MQTT ustawiony w aplikacji na telewizorze.",
         "data": {
           "name": "Nazwa telewizora",
-          "topic_prefix": "Prefiks topiców MQTT"
+          "topic_prefix": "Prefiks tematów MQTT"
         },
         "data_description": {
-          "topic_prefix": "Bez znaków wieloznacznych, np. tvsitter/salon."
+          "topic_prefix": "Bez znaków wieloznacznych, na przykład tvsitter/salon."
+        }
+      },
+      "pair": {
+        "title": "Parowanie z telewizorem",
+        "description": "{name} pokazuje sześciocyfrowy PIN. Wpisz go tutaj. Jest ważny pięć minut i masz pięć prób.",
+        "data": {
+          "pin": "PIN z ekranu telewizora",
+          "topic_prefix": "Prefiks tematów MQTT"
+        },
+        "data_description": {
+          "topic_prefix": "Bez znaków wieloznacznych. Wysyłamy go do telewizora, żeby obie strony używały tego samego."
+        },
+        "sections": {
+          "broker": {
+            "name": "Ustawienia brokera",
+            "description": "Wzięte z Twojej integracji MQTT. Zostaw konto puste, aby telewizor korzystał z tego samego, którym łączy się Home Assistant, albo wypełnij je, aby dać mu własne.",
+            "data": {
+              "host": "Adres brokera",
+              "port": "Port",
+              "username": "Nazwa użytkownika",
+              "password": "Hasło",
+              "use_tls": "Użyj TLS"
+            },
+            "data_description": {
+              "host": "Adres widziany przez telewizor. Home Assistant sięga do dodatku Mosquitto nazwą, która działa tylko wewnątrz Home Assistanta, więc tutaj podstawiamy adres, pod który telewizor faktycznie się dodzwoni."
+            }
+          }
         }
       }
     },
     "error": {
-      "invalid_topic_prefix": "Prefiks nie może być pusty ani zawierać znaków + i #."
+      "invalid_topic_prefix": "Prefiks nie może być pusty ani zawierać znaków + i #.",
+      "wrong_pin": "To nie ten PIN, który jest na ekranie.",
+      "wrong_pin_attempts": "To nie ten PIN, który jest na ekranie. Pozostałe próby: {attempts}.",
+      "expired": "PIN wygasł. Otwórz TV Sitter na telewizorze, aby dostać nowy.",
+      "no_attempts_left": "Zbyt wiele błędnych prób. Otwórz TV Sitter na telewizorze, aby dostać nowy PIN.",
+      "already_used": "Ten PIN został już użyty.",
+      "pairing_not_active": "Telewizor nie czeka na parowanie. Najpierw otwórz na nim TV Sitter.",
+      "bad_request": "Telewizor odrzucił żądanie.",
+      "cannot_connect": "Telewizor nie odpowiedział. Sprawdź, czy jest włączony i czy nadal pokazuje PIN.",
+      "unexpected_response": "Na tym porcie odpowiedziało coś innego niż TV Sitter.",
+      "unknown": "Parowanie się nie udało, a telewizor nie podał powodu."
     },
     "abort": {
       "already_configured": "Ten telewizor jest już skonfigurowany.",
+      "already_paired": "Ten telewizor jest już sparowany.",
+      "not_tvsitter": "To urządzenie nie ma TV Sittera.",
+      "no_broker": "Home Assistant nie ustalił adresu brokera dla telewizora. Wpisz ustawienia brokera ręcznie.",
       "mqtt_unavailable": "TV Sitter rozmawia z telewizorem przez MQTT. Skonfiguruj najpierw integrację MQTT, potem dodaj tę."
     }
   },
   "entity": {
     "binary_sensor": {
-      "screen": { "name": "Ekran" },
-      "locked": { "name": "Blokada" }
+      "screen": {
+        "name": "Ekran"
+      },
+      "locked": {
+        "name": "Blokada"
+      }
     },
     "sensor": {
-      "active_app": { "name": "Aktywna aplikacja" },
-      "used_today": { "name": "Wykorzystane dziś" },
-      "remaining_today": { "name": "Pozostało dziś" }
+      "active_app": {
+        "name": "Aktywna aplikacja"
+      },
+      "used_today": {
+        "name": "Wykorzystane dziś"
+      },
+      "remaining_today": {
+        "name": "Pozostało dziś"
+      }
     }
   }
 }

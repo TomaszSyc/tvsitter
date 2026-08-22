@@ -16,9 +16,23 @@ DOMAIN: Final = "tvsitter"
 PLATFORMS: Final[list[Platform]] = [Platform.BINARY_SENSOR, Platform.SENSOR]
 
 CONF_TOPIC_PREFIX: Final = "topic_prefix"
+CONF_DEVICE_ID: Final = "device_id"
+CONF_USE_TLS: Final = "use_tls"
+CONF_PIN: Final = "pin"
+CONF_BROKER: Final = "broker"
 
 DEFAULT_NAME: Final = "TV Sitter"
 DEFAULT_TOPIC_PREFIX: Final = "tvsitter/livingroom"
+
+# Pairing, as described in D14 and implemented by PairingProtocol on the TV side.
+ZEROCONF_TYPE: Final = "_tvsitter._tcp.local."
+PAIRING_PATH: Final = "/pair"
+PAIRING_TIMEOUT_S: Final = 10
+
+TXT_DEVICE_ID: Final = "id"
+TXT_NAME: Final = "name"
+TXT_VERSION: Final = "version"
+TXT_PAIRED: Final = "paired"
 
 # Payload schema this build understands. A payload declaring a higher one is refused
 # rather than guessed at: past that point the meaning of existing fields cannot be
