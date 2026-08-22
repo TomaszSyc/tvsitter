@@ -315,9 +315,11 @@ async def test_pairing_adopts_a_tv_that_was_added_by_hand(
     assert entries[0].entry_id == by_hand.entry_id
     assert entries[0].unique_id == DEVICE_ID
     assert entries[0].data["device_id"] == DEVICE_ID
-    assert entries[0].data["name"] == "Salon"
     # The prefix is what the entities are keyed on, so it must survive untouched.
     assert entries[0].data["topic_prefix"] == "tvsitter/salon"
+    # And so must the name, which somebody chose. Pairing writes identity, not labels.
+    assert entries[0].title == "Added by hand"
+    assert entries[0].data["name"] == "Added by hand"
 
 
 async def test_pairing_a_different_tv_still_creates_its_own_entry(

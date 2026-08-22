@@ -277,11 +277,13 @@ class TvSitterConfigFlow(ConfigFlow, domain=DOMAIN):
             # two entries, with the first one's entities going quiet for good.
             adopted = self._existing_entry_for(prefix)
             if adopted is not None:
+                # Only the identity is written. The title and the name stay as they
+                # are: whoever added this TV by hand chose them, and pairing is no
+                # reason to replace a chosen name with whatever the TV calls itself.
                 return self.async_update_reload_and_abort(
                     adopted,
                     unique_id=device_id,
-                    title=name,
-                    data_updates={CONF_NAME: name, CONF_DEVICE_ID: device_id},
+                    data_updates={CONF_DEVICE_ID: device_id},
                     reason="updated_existing",
                 )
 
