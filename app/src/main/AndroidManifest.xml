@@ -5,6 +5,19 @@
     <uses-feature android:name="android.software.leanback" android:required="true" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
+    <!--
+        Package visibility, narrowly. Screen-saver time must not be counted against a
+        child's allowance (D20), and finding out which packages provide one means asking
+        the package manager about them. A <queries> intent is the declaration designed for
+        exactly this, and avoids QUERY_ALL_PACKAGES, which Play reviews as a restricted
+        permission (see the Play notes in #14).
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.service.dreams.DreamService" />
+        </intent>
+    </queries>
+
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 

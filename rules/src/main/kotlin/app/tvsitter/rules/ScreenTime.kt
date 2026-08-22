@@ -104,11 +104,15 @@ class ScreenTimeCounter(
         // right response is to re-anchor and carry on rather than to count a negative session.
         if (elapsed <= 0) return SampleResult(anchored)
 
+        // Before the clamp, not after it. An interval the caller says was not watched is
+        // accounted for: nothing happened. Only an interval we believed was being watched,
+        // and which is too long to be true, is a gap worth reporting. Checking the clamp
+        // first would report every night of standby as unexplained time.
+        if (!watching) return SampleResult(anchored)
+
         if (elapsed > maxIntervalMillis) {
             return SampleResult(anchored, discardedMillis = elapsed)
         }
-
-        if (!watching) return SampleResult(anchored)
 
         return SampleResult(
             anchored.copy(

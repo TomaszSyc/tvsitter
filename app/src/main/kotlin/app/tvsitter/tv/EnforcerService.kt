@@ -42,6 +42,7 @@ class EnforcerService : Service() {
     private var appLabels: AppLabels? = null
     private var foregroundApps: ForegroundAppMonitor? = null
     private var telemetry: Telemetry? = null
+    private var screenTime: ScreenTimeTracker? = null
     private var pairing: PairingManager? = null
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -79,6 +80,7 @@ class EnforcerService : Service() {
 
         overlay = LockOverlay(this)
         appLabels = AppLabels(this)
+        screenTime = ScreenTimeTracker(this, onDayRolled = { telemetry?.publishSoon() })
         // Commands arrive on an RxJava thread owned by the MQTT client, and acting on one
         // touches the window manager, where addView from any thread but the main one throws.
         // That is why locking from Home Assistant failed every time while the same lock
@@ -87,9 +89,19 @@ class EnforcerService : Service() {
         telemetry = Telemetry(this, scope, ::currentState) { command ->
             scope.launch { handleCommand(command) }
         }
-        foregroundApps = ForegroundAppMonitor(this) { telemetry?.publishSoon() }
-            .also { it.start(scope) { screenState?.isScreenOn != false } }
-        screenState = ScreenState(this) { telemetry?.publishSoon() }.also { it.start() }
+        foregroundApps = ForegroundAppMonitor(this) { pkg ->
+            screenTime?.sampleAtTransition(screenState?.isScreenOn == true, pkg)
+            telemetry?.publishSoon()
+        }.also { it.start(scope) { screenState?.isScreenOn != false } }
+        screenState = ScreenState(this) { on ->
+            screenTime?.sampleAtTransition(on, foregroundApps?.current)
+            telemetry?.publishSoon()
+        }.also { it.start() }
+        screenTime?.start(
+            scope,
+            screenOn = { screenState?.isScreenOn == true },
+            appId = { foregroundApps?.current },
+        )
 
         Log.i(
             TAG,
@@ -199,9 +211,12 @@ class EnforcerService : Service() {
             locked = isLocked,
             appId = pkg,
             appName = pkg?.let { appLabels?.labelOf(it) },
-            // Counters arrive with the rules engine in M2; publishing zeroes now would be a
-            // lie, so the fields keep their "nothing known yet" defaults.
-            remainingTodaySeconds = null,
+            usedTodaySeconds = screenTime?.usedSeconds ?: 0,
+            bonusTodaySeconds = screenTime?.bonusSeconds ?: 0,
+            perApp = screenTime?.perAppSeconds ?: emptyMap(),
+            // Still null, and still on purpose: there is no limit to be left over from until
+            // #37 lets one be set. Zero would read as "time is up" everywhere.
+            remainingTodaySeconds = screenTime?.remainingSeconds(null),
         )
     }
 

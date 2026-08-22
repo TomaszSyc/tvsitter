@@ -553,6 +553,40 @@ keep-alive, subscriptions, the availability announcement — has to be re-establ
 one is made, and the only way to know it happened is to log the disconnects. There was no such
 log, which is why twelve hours of silence left nothing to read.
 
+## D20 — The screen saver does not count as screen time (2026-08-22)
+
+A dream runs with the panel lit and the room empty, and Android does not send
+`ACTION_SCREEN_OFF` for it. So `ScreenState` reports the screen as on,
+`ForegroundAppMonitor` reports the dream as the foreground app, and the counter would spend a
+child's evening while nobody is watching. Decided with the household: it does not count.
+
+The evidence that this is not theoretical is the retained payload from the first night, which
+carried `app_id: com.google.android.apps.tv.dreamx` — the Google TV screen saver — as the last
+thing in the foreground.
+
+Detected by asking the package manager which packages provide a `DreamService`, not by naming
+that package. It is what this television happens to use; another set uses its own, and a
+hard-coded name would be wrong there with nothing to say so. The resolved set is logged at
+startup, because an empty set is silent and means every screen saver counts as viewing.
+
+That query needs package visibility on Android 11 and later, declared as a `<queries>` intent
+for `android.service.dreams.DreamService`. Deliberately not `QUERY_ALL_PACKAGES`: that is a
+restricted permission Play reviews (see the Play notes in #14), and this needs one narrow answer
+rather than the whole package list.
+
+### What counts as an interval, rather than an instant
+
+Worth recording because it is easy to get backwards. `ScreenState` and `ForegroundAppMonitor`
+both announce a change *after* applying it, so at the moment a callback runs the new value is
+already current. An interval is closed with what was true *during* it: an interval that ended
+because the screen went off was watched, and one that ended because the app changed belongs to
+the app that was showing. Reading "now" at sample time would charge every interval to the state
+that replaced it — quietly moving time from Netflix to the launcher, and losing the last stretch
+before every screen-off.
+
+For the same reason the counter samples at every transition and not only on its timer: an
+interval can only be attributed correctly if it is cut where the state changed.
+
 ## No open hardware questions from the M0 spike
 
 Everything the spike set out to answer is answered, in D9 through D13. What it turned up

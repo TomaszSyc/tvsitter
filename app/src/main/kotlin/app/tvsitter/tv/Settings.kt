@@ -6,16 +6,22 @@
 package app.tvsitter.tv
 
 import android.content.Context
+import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import app.tvsitter.rules.BudgetState
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.json.Json
+import java.time.Clock
+import java.time.LocalDate
 
 /** Where to reach the broker, and under which prefix to talk. */
 data class BrokerConfig(
@@ -67,6 +73,46 @@ class Settings(private val context: Context) {
     }
 
     /**
+     * The screen-time counter, as last written.
+     *
+     * [BudgetState.lastSampleAtMs] is persisted with the totals rather than derived at start.
+     * Without it a restart cannot tell a long absence from a long session, and the first
+     * sample after coming back would either invent time or discard real time.
+     */
+    suspend fun budget(clock: Clock = Clock.systemDefaultZone()): BudgetState {
+        val prefs = context.dataStore.data.first()
+        val storedDay = prefs[KEY_BUDGET_DAY]
+        return BudgetState(
+            day = storedDay?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+                ?: LocalDate.now(clock),
+            usedMillis = prefs[KEY_BUDGET_USED_MS] ?: 0,
+            bonusMillis = prefs[KEY_BUDGET_BONUS_MS] ?: 0,
+            perAppMillis = decodePerApp(prefs[KEY_BUDGET_PER_APP]),
+            lastSampleAtMs = prefs[KEY_BUDGET_LAST_SAMPLE_MS],
+        )
+    }
+
+    suspend fun saveBudget(state: BudgetState) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_BUDGET_DAY] = state.day.toString()
+            prefs[KEY_BUDGET_USED_MS] = state.usedMillis
+            prefs[KEY_BUDGET_BONUS_MS] = state.bonusMillis
+            prefs[KEY_BUDGET_PER_APP] = Json.encodeToString(state.perAppMillis)
+            state.lastSampleAtMs?.let { prefs[KEY_BUDGET_LAST_SAMPLE_MS] = it }
+        }
+    }
+
+    private fun decodePerApp(stored: String?): Map<String, Long> {
+        if (stored.isNullOrBlank()) return emptyMap()
+        // A corrupt breakdown loses the per-app split for the day and nothing else, which is
+        // a better outcome than refusing to start.
+        return runCatching { Json.decodeFromString<Map<String, Long>>(stored) }.getOrElse {
+            Log.w(EnforcerService.TAG, "unreadable per-app breakdown, dropping it", it)
+            emptyMap()
+        }
+    }
+
+    /**
      * Read, modify, write. A partial update is then just `copy()` at the call site, which
      * beats a row of nullable parameters where every one means "leave this alone".
      */
@@ -91,6 +137,12 @@ class Settings(private val context: Context) {
         val KEY_USE_TLS = booleanPreferencesKey("broker_tls")
 
         val KEY_DEVICE_ID = stringPreferencesKey("device_id")
+
+        val KEY_BUDGET_DAY = stringPreferencesKey("budget_day")
+        val KEY_BUDGET_USED_MS = longPreferencesKey("budget_used_ms")
+        val KEY_BUDGET_BONUS_MS = longPreferencesKey("budget_bonus_ms")
+        val KEY_BUDGET_PER_APP = stringPreferencesKey("budget_per_app")
+        val KEY_BUDGET_LAST_SAMPLE_MS = longPreferencesKey("budget_last_sample_ms")
 
         const val DEVICE_ID_LENGTH = 8
         const val DEFAULT_PORT = 1883

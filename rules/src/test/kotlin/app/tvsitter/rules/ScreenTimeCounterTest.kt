@@ -73,6 +73,19 @@ class ScreenTimeCounterTest {
     }
 
     @Test
+    fun `a long interval known not to be watched is not a gap`() {
+        val anchored = fresh("2026-08-22").copy(lastSampleAtMs = at("2026-08-22T22:00:00"))
+
+        // A night of standby. We know nobody watched, so there is nothing to reconcile and
+        // nothing to report — reporting it would drown the real gaps in noise.
+        val result = counter.sample(anchored, at("2026-08-23T03:00:00"), watching = false)
+
+        assertEquals(0, result.addedMillis)
+        assertEquals(0, result.discardedMillis)
+        assertEquals(at("2026-08-23T03:00:00"), result.state.lastSampleAtMs)
+    }
+
+    @Test
     fun `a gap across the reset is clamped on the part that belongs to today`() {
         val anchored = fresh("2026-08-22").copy(lastSampleAtMs = at("2026-08-22T20:00:00"))
 
