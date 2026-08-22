@@ -16,6 +16,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import app.tvsitter.rules.BudgetState
+import app.tvsitter.rules.RequestHistory
 import app.tvsitter.rules.Rules
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -143,6 +144,28 @@ class Settings(private val context: Context) {
     }
 
     /**
+     * What the child has asked for and when, as last written.
+     *
+     * Persisted for the reason the PIN lockout is: held only in memory, the allowance and the
+     * cooldown reset when the process dies, and force-stopping an app is something a child can
+     * do from Settings.
+     */
+    suspend fun requests(): RequestHistory {
+        val stored = context.dataStore.data.first()[KEY_REQUESTS] ?: return RequestHistory()
+        return runCatching { Json.decodeFromString<RequestHistory>(stored) }.getOrElse {
+            // An unreadable history means starting fresh, which gives the child their
+            // allowance back. The alternative — refusing to ask at all — punishes them for a
+            // corrupt file they had nothing to do with.
+            Log.w(EnforcerService.TAG, "unreadable request history, starting again", it)
+            RequestHistory()
+        }
+    }
+
+    suspend fun saveRequests(history: RequestHistory) {
+        context.dataStore.edit { prefs -> prefs[KEY_REQUESTS] = Json.encodeToString(history) }
+    }
+
+    /**
      * Read, modify, write. A partial update is then just `copy()` at the call site, which
      * beats a row of nullable parameters where every one means "leave this alone".
      */
@@ -174,6 +197,8 @@ class Settings(private val context: Context) {
         val KEY_BUDGET_PER_APP = stringPreferencesKey("budget_per_app")
         val KEY_BUDGET_LAST_SAMPLE_MS = longPreferencesKey("budget_last_sample_ms")
         val KEY_BUDGET_LIMIT_SUSPENDED = booleanPreferencesKey("budget_limit_suspended")
+
+        val KEY_REQUESTS = stringPreferencesKey("request_history")
 
         val KEY_RULES_JSON = stringPreferencesKey("rules_json")
         val KEY_RULES_REV = intPreferencesKey("rules_rev")

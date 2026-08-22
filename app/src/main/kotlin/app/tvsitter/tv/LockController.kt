@@ -73,6 +73,27 @@ class LockController(
 
     val isLocked: Boolean get() = overlay.isShowing
 
+    /**
+     * Tells the child something, wherever they can currently see it.
+     *
+     * On the lock screen it is the second line. Once the lock has gone it is the banner, which
+     * matters for the case that reads worst otherwise: a grant lifts the lock, so a message
+     * written on the lock screen would vanish in the same instant it appeared, and the child
+     * would be left guessing whether anybody had answered at all.
+     */
+    fun say(message: String) {
+        if (overlay.isShowing) {
+            overlay.show(
+                title = context.getString(R.string.lock_title),
+                subtitle = message,
+                onAskForTime = onAskForTime,
+                onEnterPin = if (pin.isSet) ::promptForPin else null,
+            )
+        } else {
+            banner.show(message)
+        }
+    }
+
     fun lockManually(reason: String?) {
         lockedManually = true
         memory.cause = LockCause.MANUAL

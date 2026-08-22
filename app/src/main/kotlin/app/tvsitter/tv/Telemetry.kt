@@ -9,6 +9,7 @@ import android.content.Context
 import android.util.Log
 import app.tvsitter.rules.contract.Command
 import app.tvsitter.rules.contract.StateSnapshot
+import app.tvsitter.rules.contract.TimeRequest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -74,6 +75,21 @@ class Telemetry(
      * opening one app can produce several transitions within a few hundred milliseconds — and
      * a message per transition would be noise on the broker and in the recorder.
      */
+    /**
+     * Sends a request from the child straight out, with no debouncing.
+     *
+     * Unlike state, which is a picture that can wait a moment for the next one, a request is a
+     * question — and it is only asked once, so there is nothing to coalesce it with.
+     */
+    fun publish(request: TimeRequest) {
+        val out = bridge
+        if (out == null) {
+            Log.w(EnforcerService.TAG, "request ${request.id} not sent: no broker configured")
+            return
+        }
+        out.publish(request)
+    }
+
     fun publishSoon() {
         pendingPublish?.cancel()
         pendingPublish = scope.launch {

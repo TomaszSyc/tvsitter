@@ -47,6 +47,7 @@ class EnforcerService : Service() {
     private var unlockGate: UnlockGate? = null
     private var pairing: PairingManager? = null
     private var parentPin: PinKeeper? = null
+    private var requests: TimeRequester? = null
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
@@ -92,12 +93,22 @@ class EnforcerService : Service() {
             this,
             pin = pin,
             foregroundApp = { foregroundApps?.current },
-            onAskForTime = { Log.i(TAG, "TODO M3: request for more time") },
+            onAskForTime = { requests?.ask() },
             onLimitStandDown = { screenTime?.suspendLimitUntilReset() },
             onChanged = { telemetry?.publishSoon() },
         )
         appLabels = AppLabels(this)
         activeRules = ActiveRules(this)
+        requests = TimeRequester(
+            this,
+            currentApp = { foregroundApps?.current },
+            send = { request -> telemetry?.publish(request) },
+            onGranted = { seconds ->
+                screenTime?.addBonus(seconds)
+                telemetry?.publishSoon()
+            },
+            say = { message -> locks?.say(message) },
+        )
         screenTime = ScreenTimeTracker(
             this,
             limitSeconds = { activeRules?.dailyLimitSeconds },
@@ -149,6 +160,7 @@ class EnforcerService : Service() {
                 screenOn = { screenState?.isScreenOn == true },
                 appId = { foregroundApps?.current },
             )
+            requests?.start(scope)
         }
     }
 
@@ -267,7 +279,11 @@ class EnforcerService : Service() {
 
             is Command.Ping -> telemetry?.publishSoon()
             is Command.StopApp -> Log.i(TAG, "TODO M2: stop ${command.pkg}")
-            is Command.Grant, is Command.Deny -> Log.i(TAG, "TODO M3: $command")
+            // The id matters more than the answer: the policy ignores one naming a request
+            // this television never made or has already settled, which is what stops a parent
+            // tapping the notification twice from granting the time twice.
+            is Command.Grant -> requests?.settle(command.requestId, command.minutes)
+            is Command.Deny -> requests?.settle(command.requestId, minutes = null)
             is Command.SetRules -> scope.launch {
                 activeRules?.apply(command.rules, command.rev)
                 telemetry?.publishSoon()
@@ -313,6 +329,8 @@ class EnforcerService : Service() {
         screenState = null
         unlockGate?.stop()
         unlockGate = null
+        requests?.stop()
+        requests = null
         locks?.stop()
         locks = null
         parentPin = null

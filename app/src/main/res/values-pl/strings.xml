@@ -34,6 +34,25 @@
         <item quantity="other">Za dużo błędnych prób. Spróbuj za %d minuty.</item>
     </plurals>
 
+    <string name="request_sent">Poprosiłem rodzica o więcej czasu.</string>
+    <string name="request_waiting">Już pytasz — czekaj na odpowiedź.</string>
+    <string name="request_refused">Nie teraz.</string>
+    <string name="request_expired">Nikt nie odpowiedział.</string>
+
+    <plurals name="request_granted">
+        <item quantity="one">Masz jeszcze %d minutę.</item>
+        <item quantity="few">Masz jeszcze %d minuty.</item>
+        <item quantity="many">Masz jeszcze %d minut.</item>
+        <item quantity="other">Masz jeszcze %d minuty.</item>
+    </plurals>
+
+    <plurals name="request_wait">
+        <item quantity="one">Możesz zapytać znowu za %d minutę.</item>
+        <item quantity="few">Możesz zapytać znowu za %d minuty.</item>
+        <item quantity="many">Możesz zapytać znowu za %d minut.</item>
+        <item quantity="other">Możesz zapytać znowu za %d minuty.</item>
+    </plurals>
+
     <plurals name="warn_minutes_left">
         <item quantity="one">Została %d minuta telewizji</item>
         <item quantity="few">Zostały %d minuty telewizji</item>

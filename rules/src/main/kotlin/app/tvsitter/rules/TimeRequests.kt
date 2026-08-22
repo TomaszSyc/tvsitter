@@ -5,7 +5,10 @@
  */
 package app.tvsitter.rules
 
+import kotlinx.serialization.Serializable
+
 /** A request the child has made and the television is still waiting on an answer to. */
+@Serializable
 data class PendingRequest(val id: String, val askedMinutes: Int, val askedAtMs: Long)
 
 /**
@@ -15,6 +18,7 @@ data class PendingRequest(val id: String, val askedMinutes: Int, val askedAtMs: 
  * the app resets the allowance and the cooldown — and force-stopping an app is something a
  * child can do from Settings. The same reasoning as the PIN lockout in [PinGuard].
  */
+@Serializable
 data class RequestHistory(
     /** When each allowed request was made, within the sliding window. */
     val askedAtMs: List<Long> = emptyList(),

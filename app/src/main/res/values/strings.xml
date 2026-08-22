@@ -32,6 +32,21 @@
         <item quantity="other">Too many wrong attempts. Try again in %d minutes.</item>
     </plurals>
 
+    <string name="request_sent">Asked a parent for more time.</string>
+    <string name="request_waiting">You have already asked. Waiting for an answer.</string>
+    <string name="request_refused">Not now.</string>
+    <string name="request_expired">Nobody answered.</string>
+
+    <plurals name="request_granted">
+        <item quantity="one">You have %d more minute.</item>
+        <item quantity="other">You have %d more minutes.</item>
+    </plurals>
+
+    <plurals name="request_wait">
+        <item quantity="one">You can ask again in %d minute.</item>
+        <item quantity="other">You can ask again in %d minutes.</item>
+    </plurals>
+
     <plurals name="warn_minutes_left">
         <item quantity="one">%d minute of TV left</item>
         <item quantity="other">%d minutes of TV left</item>
