@@ -27,6 +27,7 @@ class LockController(
     private val overlay = LockOverlay(context)
     private val banner = WarningBanner(context)
     private val audio = AudioFocusHold(context)
+    private val memory = LockMemory(context)
 
     private var lockedManually = false
     private var lockedByBudget = false
@@ -36,7 +37,34 @@ class LockController(
 
     fun lockManually(reason: String?) {
         lockedManually = true
+        memory.cause = LockCause.MANUAL
         show(reason)
+    }
+
+    /**
+     * Puts the lock straight back after a reboot, before storage is readable.
+     *
+     * The cause matters, not just the fact: restored as a budget lock it lifts as soon as
+     * there is time again, and restored as a manual one it stays until a parent lifts it.
+     * Without the distinction, the first verdict after startup would undo a lock somebody
+     * deliberately put up.
+     */
+    fun restoreFromMemory() {
+        when (memory.cause) {
+            LockCause.MANUAL -> {
+                lockedManually = true
+                Log.i(EnforcerService.TAG, "lock restored from before the reboot: manual")
+                show(null)
+            }
+
+            LockCause.BUDGET -> {
+                lockedByBudget = true
+                Log.i(EnforcerService.TAG, "lock restored from before the reboot: budget")
+                show(null)
+            }
+
+            LockCause.NONE -> Unit
+        }
     }
 
     /**
@@ -68,6 +96,7 @@ class LockController(
 
         if (verdict == BudgetVerdict.SPENT) {
             lockedByBudget = true
+            if (!lockedManually) memory.cause = LockCause.BUDGET
             banner.hide()
             // No subtitle: the title already says the day is done, and a reason that
             // repeats it prints the same sentence twice.
@@ -120,6 +149,7 @@ class LockController(
 
     private fun hide() {
         if (!overlay.isShowing) return
+        memory.cause = LockCause.NONE
         overlay.hide()
         // Given back, so the television is exactly as usable as it was. Nothing resumes by
         // itself, which is deliberate — see AudioFocusHold.

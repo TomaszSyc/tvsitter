@@ -665,14 +665,45 @@ That also means `EnforcerService` would have to become `directBootAware` and def
 storage-dependent step until `ACTION_USER_UNLOCKED`, rather than doing it in `onCreate` as it
 does now.
 
-### Decision
+### Decision, and what it turned out to be
 
-Worth doing, and worth doing as its own change rather than folded into something else: fifteen
-seconds of free television per reboot is exactly the hole #23 describes, and a child who works
-out that switching off and on again buys time has found a real one. But it is a 25% improvement
-bought with a storage split, not the fix D17 implied, and recording that ratio matters more than
-the change itself — the remaining 40 seconds are not a bug to be fixed but a property of the
-platform.
+Built. Enforcement now resumes from `LOCKED_BOOT_COMPLETED` when there was a lock to put back,
+measured on the following reboot:
+
+```
+service start   uptime ~36s   (device up 59s, process alive 23s)
+BOOT_COMPLETED  uptime 51s
+```
+
+against a baseline where nothing ran until `BOOT_COMPLETED` plus a few seconds of service
+startup — so roughly fifteen seconds earlier, on a gap of about sixty. A 25% improvement, not
+the fix D17 implied, and recording that ratio matters as much as the change: the remaining forty
+seconds are a property of the platform rather than a bug to be fixed.
+
+The early start is conditional. On an ordinary boot there is nothing to put back, and the
+counter and rules are not readable yet, so starting early would mean fifteen seconds of a
+service that can enforce nothing. It starts early only when the device-encrypted memory says a
+lock was up.
+
+### What the measurement corrected about the plan
+
+On this television `isUserUnlocked` is already true when `LOCKED_BOOT_COMPLETED` arrives, so
+credential-encrypted storage is readable from the start and the deferral never triggers. The
+evidence for that is the MQTT timing: the connection landed six seconds after `onCreate`, waiting
+for Wi-Fi, not for an unlock. `UnlockGate` therefore earns its place for correctness on devices
+that do have a credential lock, not for this one.
+
+Which also narrows what the device-encrypted memory is really for. A budget lock can be worked
+out again from the counter and the rules, so it survives a restart without help — that was
+already observed when reinstalling put the lock straight back. A lock a parent put up is a
+decision rather than a calculation, and had no record of itself at all: a reboot forgot it. That
+is the case this closes, and it is why the memory stores the cause rather than a flag.
+
+The first attempt got this wrong in a way worth writing down. The restore was gated behind
+"storage is locked", which on this hardware is never true, so it never ran — and a reboot still
+forgot the lock. Whether a lock should come back has nothing to do with whether storage is
+readable: it was up when the process last died, so it goes back up. Verified afterwards with a
+manual lock, a reboot, and `STATUS: locked=true`.
 
 Incidentally caught by the same measurement: `tools/device.sh reboot-test` decided the enforcer
 was running by grepping for the process. A `directBootAware` receiver starts the process without

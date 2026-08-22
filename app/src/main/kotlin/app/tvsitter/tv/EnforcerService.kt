@@ -44,6 +44,7 @@ class EnforcerService : Service() {
     private var telemetry: Telemetry? = null
     private var screenTime: ScreenTimeTracker? = null
     private var activeRules: ActiveRules? = null
+    private var unlockGate: UnlockGate? = null
     private var pairing: PairingManager? = null
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -85,7 +86,7 @@ class EnforcerService : Service() {
             onChanged = { telemetry?.publishSoon() },
         )
         appLabels = AppLabels(this)
-        activeRules = ActiveRules(this).also { rules -> scope.launch { rules.load() } }
+        activeRules = ActiveRules(this)
         screenTime = ScreenTimeTracker(
             this,
             limitSeconds = { activeRules?.dailyLimitSeconds },
@@ -108,19 +109,33 @@ class EnforcerService : Service() {
             screenTime?.sampleAtTransition(on, foregroundApps?.current)
             telemetry?.publishSoon()
         }.also { it.start() }
-        screenTime?.start(
-            scope,
-            screenOn = { screenState?.isScreenOn == true },
-            appId = { foregroundApps?.current },
-        )
-
         Log.i(
             TAG,
             "onCreate(): version=${BuildConfig.VERSION_NAME} api=${Build.VERSION.SDK_INT} " +
                 "model=${Build.MODEL} manufacturer=${Build.MANUFACTURER}",
         )
 
-        scope.launch { startTelemetryOrOfferPairing() }
+        // Unconditionally, and before anything that reads storage. Whether the lock should
+        // come back has nothing to do with whether storage is readable: it was up when this
+        // process last died, so it goes back up. Gating this on locked storage meant it never
+        // ran on this television, where the user is already unlocked when the early broadcast
+        // arrives — and a lock a parent had put up was quietly forgotten by a reboot.
+        locks?.restoreFromMemory()
+
+        // Everything below reads credential-encrypted storage, which does not exist yet on a
+        // device that does have a credential lock (D22).
+        val gate = UnlockGate(this).also { unlockGate = it }
+        gate.whenOpen {
+            scope.launch {
+                activeRules?.load()
+                startTelemetryOrOfferPairing()
+            }
+            screenTime?.start(
+                scope,
+                screenOn = { screenState?.isScreenOn == true },
+                appId = { foregroundApps?.current },
+            )
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -246,6 +261,8 @@ class EnforcerService : Service() {
         pairing = null
         screenState?.stop()
         screenState = null
+        unlockGate?.stop()
+        unlockGate = null
         locks?.stop()
         locks = null
         appLabels = null

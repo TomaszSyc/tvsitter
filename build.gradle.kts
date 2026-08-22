@@ -8,6 +8,14 @@ plugins {
 
 // Spotless is configured once at the root and reaches into every module, which keeps the
 // module build files free of formatting plumbing.
+//
+// Run it in its own invocation, as the CI workflow does: `./gradlew spotlessCheck` and then
+// `./gradlew detekt :app:lintDebug :rules:test`. Combining them in one command intermittently
+// fails with "Could not read path .../app/build/intermediates/.../Something.class", because
+// Spotless walks the project tree while a compile triggered by the same build is rewriting
+// those directories. The targetExclude entries below do not prevent it — the walk happens
+// anyway — and it only bites on the first run after a source change, which is what makes it
+// look like a flake rather than a race.
 spotless {
     kotlin {
         target("**/*.kt")

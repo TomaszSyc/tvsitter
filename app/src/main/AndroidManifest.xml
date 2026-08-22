@@ -80,6 +80,7 @@
 
         <service
             android:name=".EnforcerService"
+            android:directBootAware="true"
             android:exported="false"
             android:foregroundServiceType="specialUse">
             <property

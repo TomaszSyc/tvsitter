@@ -30,16 +30,18 @@ class BootReceiver : BroadcastReceiver() {
         val uptimeSeconds = SystemClock.elapsedRealtime() / MILLIS_PER_SECOND
 
         when (action) {
-            // Measured, not acted on. Whether starting here is worth building depends on how
-            // far ahead of BOOT_COMPLETED it lands, and on this hardware that is unknown — a
-            // television has no credential lock to wait on, so the two may be moments apart.
-            // Starting the enforcer from here would mean everything it persists moving to
-            // device-encrypted storage, which is a real change to make on evidence rather
-            // than on a hunch. See #23.
-            LOCKED_BOOT_COMPLETED -> Log.i(
-                EnforcerService.TAG,
-                "LOCKED_BOOT_COMPLETED at uptime ${uptimeSeconds}s",
-            )
+            // Started early only when there is a lock to put back. On an ordinary boot this
+            // buys nothing: the counter and the rules are unreadable until the user unlocks,
+            // so there would be fifteen seconds of a service that can enforce nothing. When
+            // the lock was up, those fifteen seconds are the whole point.
+            LOCKED_BOOT_COMPLETED -> {
+                val cause = LockMemory(context).cause
+                Log.i(
+                    EnforcerService.TAG,
+                    "LOCKED_BOOT_COMPLETED at uptime ${uptimeSeconds}s, lock was $cause",
+                )
+                if (cause != LockCause.NONE) EnforcerService.start(context)
+            }
 
             Intent.ACTION_BOOT_COMPLETED -> {
                 Log.i(
