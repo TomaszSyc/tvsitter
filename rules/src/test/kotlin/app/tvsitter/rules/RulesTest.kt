@@ -57,4 +57,42 @@ class RulesTest {
 
         assertEquals(60, rules.dailyLimitSeconds)
     }
+
+    @Test
+    fun `merging keeps rules the sender said nothing about`() {
+        // The case this exists for: a control that only knows about the limit must not wipe a
+        // schedule it has never heard of.
+        val merged = Rules.merge(
+            json("""{"daily_limit_s": 3600, "weekday_window": "16-19"}"""),
+            json("""{"daily_limit_s": 1800}"""),
+        )
+
+        assertEquals(json("""{"weekday_window": "16-19", "daily_limit_s": 1800}"""), merged)
+    }
+
+    @Test
+    fun `a null removes just that rule`() {
+        val merged = Rules.merge(
+            json("""{"daily_limit_s": 3600, "weekday_window": "16-19"}"""),
+            json("""{"daily_limit_s": null}"""),
+        )
+
+        assertEquals(json("""{"weekday_window": "16-19"}"""), merged)
+        assertNull(Rules.fromJson(merged).dailyLimitSeconds)
+    }
+
+    @Test
+    fun `an empty object changes nothing, which is the opposite of the obvious reading`() {
+        val current = json("""{"daily_limit_s": 3600}""")
+
+        assertEquals(current, Rules.merge(current, json("{}")))
+    }
+
+    @Test
+    fun `merging into nothing is just the incoming rules`() {
+        assertEquals(
+            json("""{"daily_limit_s": 600}"""),
+            Rules.merge(json("{}"), json("""{"daily_limit_s": 600}""")),
+        )
+    }
 }

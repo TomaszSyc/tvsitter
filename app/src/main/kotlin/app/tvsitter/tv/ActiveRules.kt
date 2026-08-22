@@ -30,12 +30,16 @@ class ActiveRules(private val context: Context) {
     var revision: Int = 0
         private set
 
+    /** The rules exactly as stored, so an incoming change can be folded into them. */
+    private var stored: JsonObject = JsonObject(emptyMap())
+
     val dailyLimitSeconds: Long? get() = rules.dailyLimitSeconds
 
     suspend fun load() {
-        val stored = Settings(context).rules()
-        rules = stored.rules
-        revision = stored.revision
+        val loaded = Settings(context).rules()
+        stored = loaded.json
+        rules = loaded.rules
+        revision = loaded.revision
         Log.i(
             EnforcerService.TAG,
             "rules: loaded rev=$revision limit=${rules.dailyLimitSeconds ?: "none"}",
@@ -59,13 +63,20 @@ class ActiveRules(private val context: Context) {
             return
         }
 
-        val parsed = Rules.fromJson(json)
-        Settings(context).saveRules(json.toString(), rev)
+        // Merged, not replaced. Whoever sent this knows about the rules it is changing and
+        // need not know about the rest, so a control for the limit cannot wipe a schedule it
+        // has never heard of. A key carrying null removes it.
+        val merged = Rules.merge(stored, json)
+        val parsed = Rules.fromJson(merged)
+
+        Settings(context).saveRules(merged.toString(), rev)
+        stored = merged
         rules = parsed
         revision = rev
         Log.i(
             EnforcerService.TAG,
-            "rules: applied rev=$rev limit=${parsed.dailyLimitSeconds ?: "none"}",
+            "rules: applied rev=$rev limit=${parsed.dailyLimitSeconds ?: "none"} " +
+                "keys=${merged.keys.sorted()}",
         )
     }
 }

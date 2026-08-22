@@ -89,6 +89,11 @@
       "daily_limit": {
         "name": "Daily limit"
       }
+    },
+    "button": {
+      "clear_limit": {
+        "name": "Clear the limit"
+      }
     }
   }
 }

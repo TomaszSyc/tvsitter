@@ -87,6 +87,14 @@ grants the time twice.
 `rev` is not higher than the current `rules_rev` is ignored, which protects against a
 duplicated message rolling the rules back.
 
+`set_rules` **merges** into the rules already in force, and a key carrying `null` removes
+it. So `{"daily_limit_s": null}` lifts the daily limit and leaves everything else alone,
+and `{}` changes nothing — which is worth stating because the obvious reading is the
+opposite. The alternative, replacing the whole object, would force whoever is editing to
+know every rule in force; since the TV keeps the rules (D3) that means publishing all of
+them and hoping the two copies agree, and it lets two controls on a dashboard quietly
+clobber each other.
+
 `stop_app` is **not implemented and cannot be**, as D21 records: an ordinary Android app
 cannot stop another one. It stays here as a name because the operation is still the right
 shape for the problem, and a Device Owner build could honour it; nothing should be written

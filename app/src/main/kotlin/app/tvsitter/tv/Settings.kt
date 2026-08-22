@@ -21,12 +21,13 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import java.time.Clock
 import java.time.LocalDate
 
 /** Rules and the revision they came with, which travel together or not at all. */
-data class StoredRules(val rules: Rules, val revision: Int)
+data class StoredRules(val json: JsonObject, val rules: Rules, val revision: Int)
 
 /** Where to reach the broker, and under which prefix to talk. */
 data class BrokerConfig(
@@ -80,17 +81,16 @@ class Settings(private val context: Context) {
     /** Rules as last written, with the revision they arrived under. */
     suspend fun rules(): StoredRules {
         val prefs = context.dataStore.data.first()
-        val json = prefs[KEY_RULES_JSON]
-        val parsed = json?.let {
-            runCatching { Rules.fromJson(Json.parseToJsonElement(it).jsonObject) }
-                .getOrElse { error ->
-                    // Unreadable rules mean enforcing none, which is the safe direction: a TV
-                    // that stops limiting is a complaint, a TV that locks on garbage is not.
-                    Log.w(EnforcerService.TAG, "unreadable rules, enforcing none", error)
-                    null
-                }
-        }
-        return StoredRules(parsed ?: Rules.NONE, prefs[KEY_RULES_REV] ?: 0)
+        val raw = prefs[KEY_RULES_JSON]
+        val json = raw?.let {
+            runCatching { Json.parseToJsonElement(it).jsonObject }.getOrElse { error ->
+                // Unreadable rules mean enforcing none, which is the safe direction: a TV that
+                // stops limiting is a complaint, a TV that locks on garbage is not.
+                Log.w(EnforcerService.TAG, "unreadable rules, enforcing none", error)
+                null
+            }
+        } ?: JsonObject(emptyMap())
+        return StoredRules(json, Rules.fromJson(json), prefs[KEY_RULES_REV] ?: 0)
     }
 
     suspend fun saveRules(json: String, revision: Int) {

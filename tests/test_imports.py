@@ -24,6 +24,7 @@ MODULES = [
     PACKAGE,
     f"{PACKAGE}.binary_sensor",
     f"{PACKAGE}.broker",
+    f"{PACKAGE}.button",
     f"{PACKAGE}.config_flow",
     f"{PACKAGE}.const",
     f"{PACKAGE}.coordinator",

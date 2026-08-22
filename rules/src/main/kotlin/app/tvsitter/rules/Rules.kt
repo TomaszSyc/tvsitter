@@ -5,6 +5,7 @@
  */
 package app.tvsitter.rules
 
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -29,6 +30,28 @@ data class Rules(val dailyLimitSeconds: Long? = null) {
 
     companion object {
         const val KEY_DAILY_LIMIT: String = "daily_limit_s"
+
+        /**
+         * Folds an incoming `set_rules` object into the stored one.
+         *
+         * `set_rules` merges rather than replaces, and a key carrying `null` removes it. The
+         * alternative is a full replacement, which forces whoever is editing to know every
+         * rule in force — and since the TV keeps the rules (D3), that means publishing all of
+         * them and hoping the two copies agree. It also means two controls on a dashboard can
+         * clobber each other's unrelated rules, which is a bug nobody would suspect.
+         *
+         * An empty object therefore changes nothing, which is worth saying out loud because
+         * the obvious reading is the opposite.
+         */
+        fun merge(current: JsonObject, incoming: JsonObject): JsonObject = buildJsonObject {
+            val removed = incoming.filterValues { it is JsonNull }.keys
+            for ((key, value) in current) {
+                if (key !in removed && key !in incoming) put(key, value)
+            }
+            for ((key, value) in incoming) {
+                if (value !is JsonNull) put(key, value)
+            }
+        }
 
         val NONE: Rules = Rules()
 
