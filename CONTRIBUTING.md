@@ -53,6 +53,20 @@ without a TV, it is probably in the wrong module.
 [`docs/mqtt-contract.md`](docs/mqtt-contract.md) is binding for both halves of the
 project. Changing a field means bumping `schema` and changing both sides in one commit.
 
+## The version
+
+`version.txt` is the one place it is written; the integration's `manifest.json` has to match it
+and the app reads it rather than repeating it. A test enforces all three.
+
+**Every commit bumps it**, not only a release. The reason is not bookkeeping: the repository is
+private, so HACS cannot deliver the integration and it is copied to `/config` by hand — and a
+copy that silently predates a fix is indistinguishable from a fix that does not work. That cost
+an hour on 2026-08-23, chasing a notification showing a package name instead of an app name. The
+code was right; the file on the Home Assistant box was three commits old and its `manifest.json`
+claimed the same version as the repository, so nothing gave it away.
+
+A rising number is the cheapest possible answer to "is what I am testing what I wrote".
+
 ## Style
 
 - Kotlin: see `.editorconfig`, 120 column limit.
