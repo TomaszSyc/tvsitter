@@ -7,9 +7,7 @@ package app.tvsitter.tv
 
 import android.content.Context
 import android.util.Log
-
-/** Why the lock was up, if it was. */
-enum class LockCause { NONE, BUDGET, MANUAL }
+import app.tvsitter.rules.LockCause
 
 /**
  * The one thing this app remembers in device-encrypted storage.

@@ -6,23 +6,31 @@
 package app.tvsitter.tv
 
 import android.content.Context
-import android.content.Intent
-import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import app.tvsitter.rules.BudgetVerdict
+import app.tvsitter.rules.Decision
+import app.tvsitter.rules.Judgement
+import app.tvsitter.rules.LockCause
+import app.tvsitter.rules.LockChange
+import app.tvsitter.rules.LockReason
+import app.tvsitter.rules.LockState
+import app.tvsitter.rules.LockTransitions
 import app.tvsitter.rules.PinOutcome
 import kotlin.math.ceil
 
 /**
  * What is on the screen, and why.
  *
- * The lock has two possible reasons and they behave differently. A budget lock lifts by itself
- * when there is time again — because a bonus was granted, or the day rolled over. A lock a
- * parent asked for stays until a parent lifts it. Without keeping them apart, granting fifteen
- * minutes would also undo a deliberate lock, and unlocking by hand would be reversed by the
- * next sample ten seconds later.
+ * The deciding is not here. [LockState] and [LockTransitions] hold it, in `:rules`, where it is
+ * tested on the JVM — this class turns their answers into an overlay, a banner, audio focus and
+ * two values in device-encrypted storage, and nothing else. Five bugs came out of this logic
+ * while it lived in the fields of a service class that no test could reach (#43).
+ *
+ * The shape that makes that work: every entry point asks for a transition, then hands the result
+ * to [act], which compares what was covered before against what should be covered now and only
+ * touches the screen on the difference. Nothing here decides whether a lock stays.
  */
 class LockController(
     private val context: Context,
@@ -35,33 +43,20 @@ class LockController(
 ) {
     private val overlay = LockOverlay(context)
     private val banner = WarningBanner(context)
-    private val audio = AudioFocusHold(context) { displaceWhateverIsPlaying() }
+
+    // Types spelled out because these two refer to each other: the lock claims focus after
+    // going home, and losing focus is one of the things that sends it home.
+    private val displacer: Displacer = Displacer(context) { if (overlay.isShowing) audio.claim() }
+    private val audio: AudioFocusHold = AudioFocusHold(context) { if (overlay.isShowing) displacer.sendHome() }
     private val memory = LockMemory(context)
 
-    private var lockedManually = false
-    private var lockedByBudget = false
-    private var lastVerdict: BudgetVerdict? = null
-    private var lastDisplacedAtMs = 0L
+    private var state = LockState()
 
     private val handler = Handler(Looper.getMainLooper())
-    private val displaceAgain = Runnable { displaceWhateverIsPlaying() }
-    private val resumeManual = Runnable {
-        memory.pausedUntilMs = 0
-        if (lockedManually) {
-            Log.i(EnforcerService.TAG, "lock: granted time is up, the lock is back")
-            show(null)
-        }
-    }
 
-    /**
-     * Whether a lock a parent asked for is in force *now*.
-     *
-     * Different from [lockedManually], which stays true while the lock is standing down for
-     * granted time. Everything deciding whether the screen should be covered asks this one;
-     * only granting and unlocking touch the other.
-     */
-    private val manualInForce: Boolean
-        get() = lockedManually && memory.pausedUntilMs <= System.currentTimeMillis()
+    private val resumeManual = Runnable {
+        act(LockTransitions.resumeAfterStandDown(state, System.currentTimeMillis()))
+    }
 
     /**
      * Asks what is in front, over and over, for as long as the lock is up.
@@ -79,13 +74,30 @@ class LockController(
         }
     }
 
-    /** Resolved once. Sending the home screen home would be a fight with nobody. */
-    private val homePackage: String? by lazy {
-        val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
-        context.packageManager
-            .resolveActivity(home, PackageManager.MATCH_DEFAULT_ONLY)
-            ?.activityInfo
-            ?.packageName
+    /**
+     * Offers the keypad, which is the way out of the lock with no Home Assistant in reach.
+     *
+     * A value rather than a method because that is what it is used as — the overlay is handed
+     * this to call — and because the deciding in this class is meant to be countable at a
+     * glance rather than mixed in with its callbacks.
+     */
+    private val enterPin = { overlay.showKeypad(context.getString(R.string.pin_enter), onPinTyped) }
+
+    /**
+     * Answers the keypad twice: once immediately, and once when the hash has been derived.
+     *
+     * The derivation takes about two seconds on this television, so the first answer is only
+     * "checking". Without it the keypad sits there having apparently swallowed the press.
+     */
+    private val onPinTyped: (String) -> String? = { typed ->
+        pin.verify(typed) { outcome ->
+            if (outcome == PinOutcome.Accepted) {
+                unlockUntilReset()
+            } else {
+                overlay.keypadMessage(context.pinMessage(outcome).orEmpty())
+            }
+        }
+        context.getString(R.string.pin_checking)
     }
 
     val isLocked: Boolean get() = overlay.isShowing
@@ -104,7 +116,7 @@ class LockController(
                 title = context.getString(R.string.lock_title),
                 subtitle = message,
                 onAskForTime = onAskForTime,
-                onEnterPin = if (pin.isSet) ::promptForPin else null,
+                onEnterPin = if (pin.isSet) enterPin else null,
             )
         } else {
             banner.show(message)
@@ -112,153 +124,35 @@ class LockController(
     }
 
     fun lockManually(reason: String?) {
-        lockedManually = true
-        memory.cause = LockCause.MANUAL
-        // A fresh lock overrides time granted earlier: a parent locking the television now
-        // means now, not once the last fifteen minutes have run out.
-        memory.pausedUntilMs = 0
-        handler.removeCallbacks(resumeManual)
-        show(reason)
+        act(LockTransitions.lockManually(state), reason)
     }
 
-    /**
-     * A parent granted time, so the lock comes off — and comes back when the time is up.
-     *
-     * The budget half is the caller's bonus: the next verdict is no longer SPENT and the lock
-     * lifts on its own. This is the other half, and the one that was missing. A lock a parent
-     * put up ignored a grant entirely, so tapping "+15 min" added minutes to a budget and left
-     * the television covered; with no daily limit at all it did nothing whatsoever. Yet a
-     * parent tapping that button has said yes, whatever the lock was for.
-     *
-     * It stands down rather than ending, because "+15 min" has to mean fifteen minutes. The
-     * deadline goes to device-encrypted storage so a reboot does not hand over the evening.
-     */
+    /** A parent granted time, so a lock they put up stands down and comes back on its own. */
     fun standDownFor(seconds: Long) {
-        if (!lockedManually) return
-
-        val millis = seconds * MILLIS_PER_SECOND
-        memory.pausedUntilMs = System.currentTimeMillis() + millis
-        handler.removeCallbacks(resumeManual)
-        handler.postDelayed(resumeManual, millis)
         Log.i(EnforcerService.TAG, "lock: standing down for ${seconds}s of granted time")
-
-        // Hidden here only when the budget is not also holding it up. When it is, the
-        // caller's bonus flips that verdict and applyVerdict does the hiding.
-        if (!lockedByBudget) hide()
+        act(LockTransitions.standDownFor(state, seconds, System.currentTimeMillis()))
     }
 
     /**
-     * Puts the lock straight back after a reboot, before storage is readable.
+     * Puts the lock straight back after a reboot, from the little that is remembered.
      *
-     * The cause matters, not just the fact: restored as a budget lock it lifts as soon as
-     * there is time again, and restored as a manual one it stays until a parent lifts it.
-     * Without the distinction, the first verdict after startup would undo a lock somebody
-     * deliberately put up.
+     * The cause matters, not just the fact: restored as a budget lock it lifts as soon as there
+     * is time again, and restored as a manual one it stays until a parent lifts it.
      */
     fun restoreFromMemory() {
-        when (memory.cause) {
-            LockCause.MANUAL -> {
-                lockedManually = true
-                val remaining = memory.pausedUntilMs - System.currentTimeMillis()
-                if (remaining > 0) {
-                    // Granted time survives a reboot too. Showing the lock here would take
-                    // back minutes a parent had already given.
-                    Log.i(EnforcerService.TAG, "lock restored: manual, standing down ${remaining}ms")
-                    handler.postDelayed(resumeManual, remaining)
-                } else {
-                    Log.i(EnforcerService.TAG, "lock restored from before the reboot: manual")
-                    show(null)
-                }
-            }
-
-            LockCause.BUDGET -> {
-                lockedByBudget = true
-                Log.i(EnforcerService.TAG, "lock restored from before the reboot: budget")
-                show(null)
-            }
-
-            LockCause.NONE -> Unit
+        val remembered = memory.cause
+        if (remembered != LockCause.NONE) {
+            Log.i(EnforcerService.TAG, "lock restored from before the reboot: $remembered")
         }
+        act(LockTransitions.restore(remembered, memory.pausedUntilMs, System.currentTimeMillis()))
     }
 
-    /**
-     * Lifts a lock a parent asked for.
-     *
-     * Does not lift a budget lock: the overlay would come straight back on the next sample and
-     * look broken. Granting time is how that one is answered, which is why `unlock` carrying
-     * minutes means something different from `unlock` on its own.
-     */
+    /** Lifts a lock a parent asked for, and not one the rules put up. */
     fun unlockManually() {
-        lockedManually = false
-        memory.pausedUntilMs = 0
-        handler.removeCallbacks(resumeManual)
-        if (lockedByBudget) {
+        if (state.budget) {
             Log.i(EnforcerService.TAG, "unlock ignored: the budget is spent, grant time instead")
-            return
         }
-        hide()
-    }
-
-    /**
-     * Acts on what the budget says, but only when the answer has changed.
-     *
-     * Sampling runs every ten seconds and the verdict is usually the same as last time.
-     * Re-showing the warning on each one would put a banner on screen permanently for the last
-     * five minutes of the day, which is nagging rather than warning.
-     */
-    fun applyVerdict(verdict: BudgetVerdict, remainingSeconds: Int?) {
-        if (verdict == lastVerdict) return
-        lastVerdict = verdict
-
-        if (verdict == BudgetVerdict.SPENT) {
-            lockedByBudget = true
-            if (!manualInForce) memory.cause = LockCause.BUDGET
-            banner.hide()
-            // No subtitle: the title already says the day is done, and a reason that
-            // repeats it prints the same sentence twice.
-            show(null)
-            return
-        }
-
-        // Anything that is not SPENT means there is time, so a budget lock has to lift —
-        // including WARN. Treating WARN as merely "show a banner" left the lock up after a
-        // grant of a few minutes: there was time again, a warning about it was on screen, and
-        // the television stayed covered.
-        lockedByBudget = false
-        if (!manualInForce) hide()
-
-        if (verdict == BudgetVerdict.WARN) {
-            banner.show(context.warningFor(remainingSeconds))
-        } else {
-            banner.hide()
-        }
-    }
-
-    /**
-     * Offers the keypad, which is the way out of the lock with no Home Assistant in reach.
-     *
-     * Only ever reached from a button that exists when there is a PIN, so an entry here is a
-     * parent's attempt rather than a way of finding out whether a PIN exists at all.
-     */
-    private fun promptForPin() {
-        overlay.showKeypad(context.getString(R.string.pin_enter), ::onPinTyped)
-    }
-
-    /**
-     * Answers the keypad twice: once immediately, and once when the hash has been derived.
-     *
-     * The derivation takes about two seconds on this television, so the first answer is only
-     * "checking". Without it the keypad sits there having apparently swallowed the press.
-     */
-    private fun onPinTyped(typed: String): String? {
-        pin.verify(typed) { outcome ->
-            if (outcome == PinOutcome.Accepted) {
-                unlockUntilReset()
-            } else {
-                overlay.keypadMessage(context.pinMessage(outcome).orEmpty())
-            }
-        }
-        return context.getString(R.string.pin_checking)
+        act(LockTransitions.unlockManually(state, System.currentTimeMillis()))
     }
 
     /**
@@ -266,92 +160,80 @@ class LockController(
      *
      * The answer both to `unlock` with no minutes and to a correct PIN, which have to mean the
      * same thing. Setting the limit aside either way meant that lifting a bedtime lock also
-     * handed over the rest of the day's budget, which is not what the person doing it asked
-     * for (#42). Hiding a budget lock *without* setting the limit aside does not work either:
-     * the next sample would put it straight back, ten seconds later, for no reason a child
-     * could be told.
+     * handed over the rest of the day's budget (#42).
      */
     fun unlockUntilReset() {
-        if (lockedByBudget) onLimitStandDown()
-        unlockManually()
+        act(LockTransitions.unlockUntilReset(state, System.currentTimeMillis()))
+    }
+
+    /** Acts on what the budget says. The deciding, including when to say nothing, is in `:rules`. */
+    fun applyVerdict(verdict: BudgetVerdict, remainingSeconds: Int?) {
+        val reason = if (verdict == BudgetVerdict.WITHIN) LockReason.NONE else LockReason.DAILY_LIMIT
+        val judgement = Judgement(Decision(verdict, reason), remainingSeconds?.toLong())
+        act(LockTransitions.applyDecision(state, judgement, System.currentTimeMillis()))
     }
 
     /**
-     * Sends the television to its own home screen, which is the only thing that silences a
-     * source audio focus cannot reach.
+     * Something came forward while the lock was up, so put the television back where it was.
      *
-     * An HDMI input is an ordinary activity here (D12), so bringing the launcher forward puts
-     * it in the background — and that does stop the sound. Confirmed by ear, because `dumpsys
-     * audio` goes on reporting the input service's track as started either way and is no use
-     * as evidence.
-     *
-     * Two things ask for this. Audio focus being taken back is the fast one, at about eighty
-     * milliseconds, and it catches something that keeps playing without coming to the front.
-     * Anything arriving in front of the lock is the thorough one, at up to a poll interval,
-     * and it catches what the first misses — measured on this set, `KEYCODE_TV` brings the
-     * HDMI input back from behind the lock without touching audio focus at all, and the remote
-     * has app hotkeys that presumably do the same.
-     *
-     * Rate-limited rather than once per lock. Once per lock meant a single press of the source
-     * key defeated it for good; a cooldown means the television always gets the last word
-     * without two processes taking turns.
-     *
-     * An app that pauses when it loses focus never reaches any of this, which matters: dropping
-     * a child out of a film loses their place, and doing that unnecessarily is rude.
+     * An app that pauses when it loses focus never reaches this, which matters: dropping a child
+     * out of a film loses their place, and doing that unnecessarily is rude.
      */
     fun onForegroundApp(packageName: String?) {
         if (!overlay.isShowing || packageName == null) return
         // Our own screens are windows on this overlay rather than activities, so anything of
         // ours in front is the setup screen a parent opened deliberately.
-        if (packageName == context.packageName || packageName == homePackage) return
+        if (packageName == context.packageName || packageName == displacer.homePackage) return
 
         Log.i(EnforcerService.TAG, "lock: $packageName came forward behind the lock")
-        displaceWhateverIsPlaying()
-    }
-
-    private fun displaceWhateverIsPlaying() {
-        if (!overlay.isShowing) return
-
-        val nowMs = System.currentTimeMillis()
-        val since = nowMs - lastDisplacedAtMs
-        if (since < DISPLACE_COOLDOWN_MS) {
-            // Deferred rather than dropped. Dropping it lost: pressing the source key twice
-            // inside the cooldown left the console in front, because the second request went
-            // in the bin and nothing else was ever going to arrive. Measured, and it worked.
-            handler.removeCallbacks(displaceAgain)
-            handler.postDelayed(displaceAgain, DISPLACE_COOLDOWN_MS - since)
-            return
-        }
-        lastDisplacedAtMs = nowMs
-
-        val home = Intent(Intent.ACTION_MAIN)
-            .addCategory(Intent.CATEGORY_HOME)
-            .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        val started = runCatching { context.startActivity(home) }
-        if (started.isFailure) {
-            // Starting an activity from the background is restricted, and the app-op behind
-            // the lock window is what exempts us. If that were ever revoked, this is where it
-            // would show up rather than as sound that quietly never stops.
-            Log.e(
-                EnforcerService.TAG,
-                "audio: could not reach the home screen",
-                started.exceptionOrNull(),
-            )
-            return
-        }
-        Log.i(EnforcerService.TAG, "audio: sent the TV home to stop what focus could not")
-        // The launcher plays previews of its own and, unlike an HDMI input, does respect
-        // focus — so it is worth asking for it again now that we are the ones in front.
-        audio.claim()
+        displacer.sendHome()
     }
 
     fun stop() {
         handler.removeCallbacks(sweep)
-        handler.removeCallbacks(displaceAgain)
         handler.removeCallbacks(resumeManual)
+        displacer.stop()
         banner.hide()
         overlay.hide()
         audio.release()
+    }
+
+    /**
+     * Carries out one transition: remembers it, schedules what it implies, and changes the
+     * screen only where it differs from what was already there.
+     *
+     * Both values go to storage on every transition rather than at the places that used to
+     * write them. That is what killed #66 and the same mistake one path along — a spent budget
+     * arriving during granted time used to write BUDGET over a parent's decision, so a restart
+     * restored a lock that lifted by itself.
+     */
+    private fun act(change: LockChange, reason: String? = null) {
+        val nowMs = System.currentTimeMillis()
+        val wasCovered = state.covered(nowMs)
+        state = change.state
+        memory.cause = state.cause
+        memory.pausedUntilMs = state.pausedUntilMs
+
+        handler.removeCallbacks(resumeManual)
+        if (state.pausedUntilMs > nowMs) {
+            handler.postDelayed(resumeManual, state.pausedUntilMs - nowMs)
+        }
+
+        val effects = change.effects ?: return
+        if (effects.standDownLimit) onLimitStandDown()
+
+        if (effects.covered != wasCovered) {
+            Log.i(EnforcerService.TAG, "lock: ${if (effects.covered) "covered" else "clear"}, cause ${state.cause}")
+            if (effects.covered) show(reason) else hide()
+        }
+
+        val warning = effects.warnAtRemainingSeconds
+        if (warning != null) banner.show(context.warningFor(warning)) else banner.hide()
+
+        effects.displace?.let { app ->
+            Log.i(EnforcerService.TAG, "rules: $app has used its own time, sending the TV home")
+            displacer.sendHome()
+        }
     }
 
     private fun show(reason: String?) {
@@ -363,7 +245,7 @@ class LockController(
             title = context.getString(R.string.lock_title),
             subtitle = reason,
             onAskForTime = onAskForTime,
-            onEnterPin = if (pin.isSet) ::promptForPin else null,
+            onEnterPin = if (pin.isSet) enterPin else null,
         )
         if (!wasShowing) {
             handler.removeCallbacks(sweep)
@@ -375,13 +257,7 @@ class LockController(
     private fun hide() {
         if (!overlay.isShowing) return
         handler.removeCallbacks(sweep)
-        handler.removeCallbacks(displaceAgain)
-        // Not always NONE. A manual lock standing down for granted time is still a manual
-        // lock, and writing NONE here threw that away: the screen came off, the memory said
-        // there was nothing to restore, and a restart during those fifteen minutes — or after
-        // the lock had already come back — left the television unlocked for the evening. A
-        // child only has to notice it once.
-        memory.cause = if (lockedManually) LockCause.MANUAL else LockCause.NONE
+        displacer.stop()
         overlay.hide()
         // Given back, so the television is exactly as usable as it was. Nothing resumes by
         // itself, which is deliberate — see AudioFocusHold.
@@ -390,17 +266,6 @@ class LockController(
     }
 
     private companion object {
-
-        /**
-         * Long enough that a stubborn app cannot turn this into a tight loop, short enough
-         * that pressing the source key buys a couple of seconds of console and no more.
-         * Requests arriving inside it are deferred to its end rather than dropped, so the
-         * television always gets the last word.
-         */
-        const val MILLIS_PER_SECOND = 1_000L
-
-        const val DISPLACE_COOLDOWN_MS = 2_000L
-
         /** How often the lock asks what is in front of it. */
         const val SWEEP_INTERVAL_MS = 2_000L
     }
@@ -412,7 +277,7 @@ class LockController(
  * Rounded up and never below one: "one minute left" with thirty seconds to go is friendlier
  * than "zero minutes left", and closer to what somebody would actually say.
  */
-private fun Context.warningFor(remainingSeconds: Int?): String {
+private fun Context.warningFor(remainingSeconds: Long?): String {
     val minutes = remainingSeconds
         ?.let { ceil(it / SECONDS_IN_A_MINUTE).toInt() }
         ?.coerceAtLeast(1)

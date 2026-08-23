@@ -10,6 +10,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.SystemClock
 import android.util.Log
+import app.tvsitter.rules.LockCause
 
 /**
  * Brings the enforcer back after a reboot.
