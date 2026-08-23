@@ -76,4 +76,34 @@ class EnforcementTest {
         assertEquals(900, counter.remainingSeconds(state, limitSeconds = 3_600))
         assertEquals(BudgetVerdict.WITHIN, BudgetEnforcement.verdictFor(900))
     }
+
+    @Test
+    fun `the nearest threshold passed is the one in force`() {
+        val ladder = listOf(900L, 300L)
+
+        assertNull(BudgetEnforcement.warningAt(901, ladder), "nothing has been passed yet")
+        assertEquals(900, BudgetEnforcement.warningAt(900, ladder))
+        assertEquals(900, BudgetEnforcement.warningAt(400, ladder), "still the quarter-hour one")
+        assertEquals(300, BudgetEnforcement.warningAt(300, ladder))
+        assertEquals(300, BudgetEnforcement.warningAt(1, ladder))
+    }
+
+    @Test
+    fun `past the end is not a warning, it is the end`() {
+        assertNull(BudgetEnforcement.warningAt(0, listOf(300L)))
+        assertNull(BudgetEnforcement.warningAt(-30, listOf(300L)))
+    }
+
+    @Test
+    fun `no thresholds is no warning at any point`() {
+        assertNull(BudgetEnforcement.warningAt(60, emptyList()))
+        assertEquals(BudgetVerdict.WITHIN, BudgetEnforcement.verdictFor(60, emptyList()))
+        assertEquals(BudgetVerdict.SPENT, BudgetEnforcement.verdictFor(0, emptyList()), "the end still ends")
+    }
+
+    @Test
+    fun `no limit is no warning either`() {
+        assertNull(BudgetEnforcement.warningAt(null, listOf(300L)))
+        assertEquals(BudgetVerdict.WITHIN, BudgetEnforcement.verdictFor(null, listOf(300L)))
+    }
 }

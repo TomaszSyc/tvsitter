@@ -44,6 +44,23 @@ data class BudgetState(
     val perAppSeconds: Map<String, Long>
         get() = perAppMillis.mapValues { (_, millis) -> millis / MILLIS_PER_SECOND }
 
+    /**
+     * The limit actually in force, which is not always the one configured.
+     *
+     * A limit set aside for tonight is not in force. Lives on the state rather than on the
+     * counter because it is a fact about the day, and the rule engine needs the same answer
+     * without holding a counter to get it.
+     */
+    fun effectiveLimitSeconds(limitSeconds: Long?): Long? = if (limitSuspended) null else limitSeconds
+
+    fun remainingSeconds(limitSeconds: Long?): Long? {
+        val limit = effectiveLimitSeconds(limitSeconds) ?: return null
+        return maxOf(0, limit + bonusSeconds - usedSeconds)
+    }
+
+    /** What this app has used today, zero for one that has not been in front. */
+    fun usedSecondsBy(appId: String): Long = perAppSeconds[appId] ?: 0
+
     private companion object {
         const val MILLIS_PER_SECOND = 1000L
     }
@@ -139,10 +156,7 @@ class ScreenTimeCounter(
      * "time is up" are different answers, and collapsing them turns an unlimited evening into
      * an instant lock.
      */
-    fun remainingSeconds(state: BudgetState, limitSeconds: Long?): Long? {
-        val limit = effectiveLimitSeconds(state, limitSeconds) ?: return null
-        return maxOf(0, limit + state.bonusSeconds - state.usedSeconds)
-    }
+    fun remainingSeconds(state: BudgetState, limitSeconds: Long?): Long? = state.remainingSeconds(limitSeconds)
 
     /**
      * The limit actually being enforced, which is not always the one configured.
@@ -152,7 +166,7 @@ class ScreenTimeCounter(
      * ignoring it would be the one thing worse than having no field at all.
      */
     fun effectiveLimitSeconds(state: BudgetState, limitSeconds: Long?): Long? =
-        if (state.limitSuspended) null else limitSeconds
+        state.effectiveLimitSeconds(limitSeconds)
 
     /** Whether the day's allowance is spent. False whenever there is no limit at all. */
     fun isSpent(state: BudgetState, limitSeconds: Long?): Boolean = remainingSeconds(state, limitSeconds) == 0L

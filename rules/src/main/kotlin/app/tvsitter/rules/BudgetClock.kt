@@ -21,7 +21,11 @@ import java.time.ZonedDateTime
  * The whole class is plain Kotlin with no Android dependencies so it can be tested on the
  * JVM without an emulator.
  */
-class BudgetClock(private val zone: ZoneId, private val dayStartHour: Int = DEFAULT_DAY_START_HOUR) {
+class BudgetClock(
+    /** Public because a window is wall-clock, and reading it needs the same zone as the day. */
+    val zone: ZoneId,
+    val dayStartHour: Int = DEFAULT_DAY_START_HOUR,
+) {
     init {
         require(dayStartHour in HOURS_OF_DAY) { "dayStartHour must be within $HOURS_OF_DAY, was $dayStartHour" }
     }

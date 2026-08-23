@@ -34,6 +34,27 @@ object BudgetEnforcement {
     /** Five minutes. Long enough to finish a scene, short enough to still mean "soon". */
     const val DEFAULT_WARNING_SECONDS: Long = 300
 
+    /**
+     * Which warning is in force, or null for none.
+     *
+     * The nearest threshold that has been passed: with a quarter of an hour and then five
+     * minutes, twelve minutes left is still the quarter-hour warning, and four minutes is the
+     * five-minute one. Naming it rather than returning a boolean is what lets the caller show
+     * two warnings in an evening without showing either of them twice — both are WARN, so the
+     * verdict alone cannot tell them apart (#39).
+     */
+    fun warningAt(remainingSeconds: Long?, thresholds: List<Long>): Long? {
+        if (remainingSeconds == null || remainingSeconds <= 0) return null
+        return thresholds.filter { it >= remainingSeconds }.minOrNull()
+    }
+
+    fun verdictFor(remainingSeconds: Long?, thresholds: List<Long>): BudgetVerdict = when {
+        remainingSeconds == null -> BudgetVerdict.WITHIN
+        remainingSeconds <= 0 -> BudgetVerdict.SPENT
+        warningAt(remainingSeconds, thresholds) != null -> BudgetVerdict.WARN
+        else -> BudgetVerdict.WITHIN
+    }
+
     fun verdictFor(remainingSeconds: Long?, warningSeconds: Long = DEFAULT_WARNING_SECONDS): BudgetVerdict = when {
         // No limit in force. Not the same as plenty of time left, but it calls for the same
         // amount of doing nothing.

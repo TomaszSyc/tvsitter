@@ -1021,6 +1021,44 @@ recursion stops after four levels and replaces instead: the rules are two levels
 is slack rather than a limit, but the merge walks a payload that arrived over the network and a
 service whose job is to enforce a limit must not be killable by one.
 
+## D27 — Every rule becomes a number of seconds, and the smallest one wins (2026-08-23)
+
+M4 adds three ways for viewing to have to stop — the day's allowance, the hours it is allowed in,
+and one app's own budget — on top of the daily limit that was already there. The obvious shape is
+a check per rule, each with its own warning, its own countdown and its own way of covering the
+screen. That is three times the surface for the two failures that matter most here, a television
+locked when it should not be and unlocked when it should not be.
+
+So every rule is reduced to the same thing: how many seconds until viewing has to stop. The
+smallest of them is the one in force, the existing warning ladder and countdown work unchanged
+whichever rule it is, and the verdict carries a reason saying which. `active_window` — declared in
+the contract since M1 and never populated — is what the window half of that reason publishes.
+
+Three decisions inside it, each of which could reasonably have gone the other way:
+
+**A window list is a list of permissions.** Once any window exists, viewing outside the windows is
+blocked on every day, including days no window mentions. The alternative — a day with no window of
+its own is unrestricted — fails by silently not applying, and a parental control that quietly does
+nothing is worse than one that is inconveniently strict. The cost is real: adding only a weekend
+window closes Monday. So the lock says when viewing is allowed again, today at least, because
+"blocked, and I cannot tell you why or for how long" is the state that gets a feature turned off.
+
+**A spent app budget displaces the app; it does not cover the screen.** Netflix running out with
+an hour of daily budget left is not the end of the evening, and covering everything would punish
+the choice of app rather than the watching. It reuses the displacement built for #40. The reverse
+also holds: behind a covered screen there is nothing to displace, and a spent day is the reason
+worth explaining rather than whichever app happened to be in front.
+
+**A limit set aside for tonight sets the hours aside with it, but not an app's own budget.** A
+parent who lifts the lock at nine has answered the evening; re-covering the screen ten seconds
+later because a window closed is exactly the "looks broken" failure the budget lock already
+avoids. An app budget is a different rule, nobody lifted it, and displacement never puts a PIN
+screen in front of anyone to lift it at — so it stands. Changing it means changing the rule, in
+Home Assistant, which is where rules are edited.
+
+One thing this does not do: work out that the next window is on Saturday. `opensAt` covers today
+only. A lock screen has room for "allowed again at four" and not for a calendar.
+
 ## No open hardware questions from the M0 spike
 
 Everything the spike set out to answer is answered, in D9 through D13. What it turned up
