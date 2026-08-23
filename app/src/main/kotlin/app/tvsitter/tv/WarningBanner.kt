@@ -40,6 +40,10 @@ class WarningBanner(private val context: Context) {
     fun show(message: String) {
         val existing = root
         if (existing is TextView) {
+            // Logged as loudly as a new banner. Without this the replacement was silent, and a
+            // refusal arriving while a "waiting for an answer" banner was still up looked from
+            // the log exactly like a refusal that did nothing (#76).
+            Log.i(EnforcerService.TAG, "warning replaced: $message")
             existing.text = message
             restartTimer()
             return

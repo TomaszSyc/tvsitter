@@ -137,6 +137,8 @@ class TimeRequester(
         history = result.history
         persist()
 
+        Log.i(EnforcerService.TAG, "request $id answered: ${result.answer}")
+
         when (val answer = result.answer) {
             is Answer.Granted -> {
                 handler.removeCallbacks(giveUp)
@@ -151,10 +153,10 @@ class TimeRequester(
                 say(context.getString(R.string.request_refused))
             }
 
-            // Nothing on screen for either: one is an answer to a question that is already
-            // over, the other is addressed to a television that never asked.
-            Answer.AlreadySettled, Answer.Unknown, Answer.Expired ->
-                Log.i(EnforcerService.TAG, "request $id: $answer")
+            // Nothing on screen for any of these: one is an answer to a question that is
+            // already over, another is addressed to a television that never asked. The line
+            // above has already said which.
+            Answer.AlreadySettled, Answer.Unknown, Answer.Expired -> Unit
         }
     }
 
