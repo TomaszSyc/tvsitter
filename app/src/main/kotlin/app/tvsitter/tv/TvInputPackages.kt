@@ -7,6 +7,7 @@ package app.tvsitter.tv
 
 import android.content.Context
 import android.content.Intent
+import android.media.tv.TvInputManager
 import android.media.tv.TvInputService
 import android.util.Log
 
@@ -19,10 +20,14 @@ import android.util.Log
  * a child nothing is much worse than a menu counted for a few extra minutes. So an input
  * counts whenever the screen is on, without asking whether anything is playing.
  *
- * Resolved by asking which packages provide a [TvInputService], the same way screen savers are
- * found by asking for a `DreamService` (D20), and for the same reason: `org.droidtv.playtv` is
- * what this Philips happens to use, and a hard-coded name would be wrong on any other set with
- * nothing to say so.
+ * Two questions rather than one, and the second was found by measuring. Asking which packages
+ * provide a [TvInputService] gives the *back end* — on this Philips, four MediaTek packages —
+ * and none of them is ever the app in front. The app in front while a console is on screen is
+ * `org.droidtv.playtv`, which is the television's own viewing app, and it is found by asking
+ * who handles [TvInputManager.ACTION_SETUP_INPUTS]: only the system TV app does.
+ *
+ * Resolved rather than named, the same way screen savers are (D20), because both halves differ
+ * by manufacturer and a hard-coded name would be wrong elsewhere with nothing to say so.
  */
 class TvInputPackages(context: Context) {
 
@@ -32,10 +37,13 @@ class TvInputPackages(context: Context) {
 
     private fun resolve(context: Context): Set<String> {
         val found = runCatching {
-            context.packageManager
+            val backends = context.packageManager
                 .queryIntentServices(Intent(TvInputService.SERVICE_INTERFACE), 0)
                 .mapNotNull { it.serviceInfo?.packageName }
-                .toSet()
+            val viewer = context.packageManager
+                .queryIntentActivities(Intent(TvInputManager.ACTION_SETUP_INPUTS), 0)
+                .mapNotNull { it.activityInfo?.packageName }
+            (backends + viewer).toSet()
         }.getOrElse {
             Log.w(EnforcerService.TAG, "could not list TV inputs; none will be privileged", it)
             emptySet()
