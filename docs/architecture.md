@@ -996,6 +996,31 @@ answered — with the notification being the part Home Assistant adds rather tha
 makes it work. And M5's history lives only in the recorder, so a second mode either keeps a
 rolling window on the device or has no statistics at all.
 
+## D26 — The rules merge reaches inside objects (2026-08-23)
+
+`set_rules` has merged rather than replaced since M2, so that a control which knows about the
+daily limit cannot wipe a schedule it has never heard of. The merge was shallow, and that
+guarantee held only while every rule's value was a number.
+
+M4's first rule with an object for a value breaks it. A per-app budget names one package:
+`{"app_limits_s": {"com.netflix.ninja": 1800}}` under a shallow merge replaces the whole map
+and drops every other app's budget — silently, since nothing on either side compares the two.
+Home Assistant cannot avoid it by reading the current map and sending it back complete, because
+the television is the side that keeps the rules (D3) and does not publish them.
+
+So objects merge key by key and a `null` removes at any depth. Arrays and scalars still replace
+whole: a window in a list has no key identity to merge on, and half a schedule is worse than
+the schedule that was already in force. `windows` is therefore always sent complete, which is
+also how it is documented.
+
+Two smaller decisions inside that, both because the alternative needs explaining rather than
+because it is wrong. Emptying a nested object leaves the empty object behind — dropping the
+container would mean that removing the last app's budget also removed the thing that holds
+them, and clearing all of them at once is what a `null` on the container is for. And the
+recursion stops after four levels and replaces instead: the rules are two levels deep, so this
+is slack rather than a limit, but the merge walks a payload that arrived over the network and a
+service whose job is to enforce a limit must not be killable by one.
+
 ## No open hardware questions from the M0 spike
 
 Everything the spike set out to answer is answered, in D9 through D13. What it turned up

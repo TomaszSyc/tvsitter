@@ -32,6 +32,16 @@ data class Rules(val dailyLimitSeconds: Long? = null) {
         const val KEY_DAILY_LIMIT: String = "daily_limit_s"
 
         /**
+         * How deep a merge goes before it starts replacing instead.
+         *
+         * The rules are two levels deep — an object of rules, some of which are objects keyed by
+         * day or by package — so four is slack rather than a limit anyone will meet. It is here
+         * because this recurses over a payload that arrives from the network, and a service that
+         * enforces a limit must not be killable by a deeply nested object.
+         */
+        private const val MAX_DEPTH = 4
+
+        /**
          * Folds an incoming `set_rules` object into the stored one.
          *
          * `set_rules` merges rather than replaces, and a key carrying `null` removes it. The
@@ -42,14 +52,35 @@ data class Rules(val dailyLimitSeconds: Long? = null) {
          *
          * An empty object therefore changes nothing, which is worth saying out loud because
          * the obvious reading is the opposite.
+         *
+         * The merge reaches **inside** objects, and that is the whole point of it now that a
+         * rule's value can be an object: a per-app budget names one package, and a shallow
+         * merge would replace the map and drop every other app's budget silently. Home
+         * Assistant cannot avoid that by reading the current map first, because the rules live
+         * on the television. So an object merges key by key, a `null` removes at any depth, and
+         * arrays and scalars replace whole — a list has no key identity to merge on, and half a
+         * schedule is worse than the one that was there.
+         *
+         * Emptying a nested object leaves the empty object behind rather than removing it.
+         * Nothing reads the two differently, and dropping the container would mean removing the
+         * last app's budget also removed the thing that holds them, which is a rule that would
+         * need explaining. Clearing all of them at once is what a `null` on the container is for.
          */
-        fun merge(current: JsonObject, incoming: JsonObject): JsonObject = buildJsonObject {
-            val removed = incoming.filterValues { it is JsonNull }.keys
+        fun merge(current: JsonObject, incoming: JsonObject): JsonObject = merge(current, incoming, depth = 1)
+
+        private fun merge(current: JsonObject, incoming: JsonObject, depth: Int): JsonObject = buildJsonObject {
             for ((key, value) in current) {
-                if (key !in removed && key !in incoming) put(key, value)
+                if (key !in incoming) put(key, value)
             }
             for ((key, value) in incoming) {
-                if (value !is JsonNull) put(key, value)
+                val existing = current[key]
+                when {
+                    value is JsonNull -> Unit
+                    value is JsonObject && existing is JsonObject && depth < MAX_DEPTH ->
+                        put(key, merge(existing, value, depth + 1))
+
+                    else -> put(key, value)
+                }
             }
         }
 

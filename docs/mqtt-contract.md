@@ -136,6 +136,19 @@ know every rule in force; since the TV keeps the rules (D3) that means publishin
 them and hoping the two copies agree, and it lets two controls on a dashboard quietly
 clobber each other.
 
+The merge reaches **inside objects**, key by key, and a `null` removes at any depth. So
+`{"app_limits_s": {"com.netflix.ninja": 1800}}` sets one app's budget and leaves the other
+apps' budgets alone, and `{"app_limits_s": {"com.netflix.ninja": null}}` removes just that
+one. A `null` on the container itself — `{"app_limits_s": null}` — clears all of them.
+Removing the last entry inside an object leaves an empty object behind rather than removing
+the container; nothing reads the two differently.
+
+Arrays and scalars **replace whole**. A window in a list has no key identity to merge on,
+so `windows` is always sent complete, and half a schedule would be worse than the one
+already in force. The merge stops recursing after four levels and replaces instead, which
+is slack rather than a limit: the rules are two levels deep, and the bound is there because
+this walks a payload that arrived over the network.
+
 `set_pin` carries a **hash**, never the PIN: Home Assistant derives it, so the PIN itself
 never reaches the broker. PBKDF2-HMAC-SHA256 over exactly four digits, and the parameters
 travel with the digest so that raising the iteration count later does not invalidate a PIN
