@@ -70,6 +70,14 @@ max_exceeded: silent
 triggers:
   - trigger: state
     entity_id: !input request_event
+    # Both directions, and the from side is the one that matters. An event entity restores
+    # its last value, so a television coming back from standby moves this entity from
+    # unavailable to a timestamp — and without not_from that reads as a fresh request, with
+    # the old id still in the attributes. Measured: one wake produced a notification asking
+    # about a request answered seven minutes earlier.
+    not_from:
+      - unavailable
+      - unknown
     not_to:
       - unavailable
       - unknown
