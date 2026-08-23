@@ -26,9 +26,34 @@ blueprint:
       name: Notification action
       description: >-
         The old-style notify action for the parent's phone, such as
-        notify.mobile_app_pixel_9_pro. It has to be that rather than a notify entity:
-        action buttons only work through the old service, and a watch mirrors them.
-      default: ""
+        notify.mobile_app_pixel_9_pro. It has to be the old service rather than a notify
+        entity: action buttons only work there, and they are the whole point.
+      selector:
+        text:
+    also_notify:
+      name: Notify a second device
+      description: >-
+        Turn this on to notify a watch as well, and know what it does and does not buy.
+
+        The companion app on Wear OS supports channel, message, notification_icon, tag, title
+        and vibrationPattern — **not** actions. So a notification sent to a watch carries no
+        buttons, and the phone's notification is not relayed either, because an app shipping
+        its own watch app opts out of bridging to avoid duplicates. Measured: with the
+        companion app installed on the watch, nothing arrives from the phone, and a direct
+        send arrives without buttons.
+
+        So this gives a wrist-level heads-up and the answer is still given on the phone. For
+        buttons on the wrist, the companion app has to be off the watch, which lets Wear OS
+        relay and render the phone's own actions.
+      default: false
+      selector:
+        boolean:
+    second_notify_action:
+      name: Second notification action
+      description: >-
+        Used only when the switch above is on, for example
+        notify.mobile_app_pixel_watch_4.
+      default: notify.persistent_notification
       selector:
         text:
     first_offer:
@@ -108,10 +133,14 @@ actions:
               second: !input second_offer
               req_id: "{{ trigger.to_state.attributes.id }}"
               minutes: "{{ trigger.to_state.attributes.asked_minutes | int(15) }}"
+              # Never the package name: a parent reading "com.google.android.youtube.tv"
+              # on a phone at nine in the evening learns nothing.
               what: >-
-                {{ trigger.to_state.attributes.app_name
-                   or trigger.to_state.attributes.app_id
-                   or 'the TV' }}
+                {{ trigger.to_state.attributes.app_name or 'the TV' }}
+          # Two slots rather than a list, because a list needs `repeat.item` in the action
+          # name and Home Assistant rejects that when saving: it renders the template with no
+          # variables and refuses the empty service name. Two named inputs are substituted at
+          # load time and validate.
           - action: !input notify_action
             data:
               title: More TV?
@@ -121,13 +150,24 @@ actions:
                 tag: "tvsitter-{{ req_id }}"
                 importance: high
                 timeout: !input expiry_seconds
-                actions:
+                actions: &offers
                   - action: "TVSITTER-GRANT-{{ first }}-{{ req_id }}"
                     title: "+{{ first }} min"
                   - action: "TVSITTER-GRANT-{{ second }}-{{ req_id }}"
                     title: "+{{ second }} min"
                   - action: "TVSITTER-DENY-0-{{ req_id }}"
                     title: Not now
+          - action: !input second_notify_action
+            enabled: !input also_notify
+            data:
+              title: More TV?
+              message: >-
+                {{ what }} — asking for {{ minutes }} more minutes.
+              data:
+                tag: "tvsitter-{{ req_id }}"
+                importance: high
+                timeout: !input expiry_seconds
+                actions: *offers
 
       - alias: A parent answered
         conditions:

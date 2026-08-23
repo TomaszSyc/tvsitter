@@ -78,8 +78,13 @@ Three rules the correctness of the whole thing rests on:
 ## `<p>/request`
 
 ```json
-{ "id": "8f14e45f", "kind": "more_time", "app_id": "com.netflix.ninja", "asked_minutes": 15, "ts": 1787315400000 }
+{ "id": "8f14e45f", "kind": "more_time", "app_id": "com.netflix.ninja", "app_name": "Netflix", "asked_minutes": 15, "ts": 1787315400000 }
 ```
+
+`app_name` is what the television calls the app, sent rather than left to be worked out
+on the other side: Home Assistant could only pair `app_id` against whatever the last state
+payload said, and a child changing app in the same breath as asking breaks that — leaving a
+parent reading a package name off their phone at nine in the evening.
 
 `id` must be stable for a single request. The app ignores `grant`/`deny` carrying an
 unknown or already-settled `req_id` — otherwise a parent tapping the notification twice

@@ -49,6 +49,7 @@ def arriving(**overrides: Any) -> SimpleNamespace:
         "id": REQUEST_ID,
         "kind": "more_time",
         "app_id": "com.netflix.ninja",
+        "app_name": "Netflix",
         "asked_minutes": 15,
         "ts": 1787400000000,
     }
@@ -101,8 +102,8 @@ async def test_two_identical_requests_are_two_events(hass: HomeAssistant) -> Non
     assert entity.state != first
 
 
-async def test_the_app_is_named_only_when_the_two_agree(hass: HomeAssistant) -> None:
-    """Otherwise a notification names the wrong programme, and it gets answered."""
+async def test_the_request_names_the_app_itself(hass: HomeAssistant) -> None:
+    """The TV resolved that name at the moment of asking, so it wins."""
     client = make_client(hass)
     client.snapshot = snapshot(
         app_id="com.google.android.youtube.tv", app_name="YouTube"
@@ -110,9 +111,23 @@ async def test_the_app_is_named_only_when_the_two_agree(hass: HomeAssistant) -> 
     entity = await listening(hass, client)
 
     with patch.object(TimeRequestEvent, "async_write_ha_state"):
-        client._handle_request(arriving(app_id="com.netflix.ninja"))
+        client._handle_request(arriving(app_id="com.netflix.ninja", app_name="Netflix"))
 
     assert entity.state_attributes["app_id"] == "com.netflix.ninja"
+    assert entity.state_attributes["app_name"] == "Netflix"
+
+
+async def test_without_a_name_the_two_have_to_agree(hass: HomeAssistant) -> None:
+    """An older TV sends no name, and the wrong programme is worse than none."""
+    client = make_client(hass)
+    client.snapshot = snapshot(
+        app_id="com.google.android.youtube.tv", app_name="YouTube"
+    )
+    entity = await listening(hass, client)
+
+    with patch.object(TimeRequestEvent, "async_write_ha_state"):
+        client._handle_request(arriving(app_id="com.netflix.ninja", app_name=None))
+
     assert entity.state_attributes["app_name"] is None
 
 

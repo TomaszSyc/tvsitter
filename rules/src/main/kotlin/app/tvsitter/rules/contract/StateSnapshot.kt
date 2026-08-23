@@ -65,6 +65,15 @@ data class TimeRequest(
     val id: String,
     val kind: String = KIND_MORE_TIME,
     @SerialName("app_id") val appId: String? = null,
+    /**
+     * What the app is called, as the television resolves it.
+     *
+     * Sent rather than left to the other side to work out. Home Assistant can only pair the
+     * package name against whatever the last state payload said, and a child who changes app
+     * in the same breath as asking breaks that — leaving a parent reading a package name off
+     * their phone.
+     */
+    @SerialName("app_name") val appName: String? = null,
     @SerialName("asked_minutes") val askedMinutes: Int,
     val ts: Long,
 ) {

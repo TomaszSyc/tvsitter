@@ -106,10 +106,11 @@ class TimeRequestEvent(TvSitterEntity, EventEntity):
     def _details(self, request: TimeRequest) -> dict[str, object]:
         """Describe the request, naming the app when we can be sure which it is."""
         snapshot = self._client.snapshot
-        # Only when the two agree. The request carries a package name; the friendly
-        # name lives in the state payload, and pairing them up when they disagree would
-        # put the wrong programme in a notification a parent answers in one tap.
-        app_name = (
+        # What the request says, first: the TV resolved that name itself, at the
+        # moment of asking. The state payload is only a fallback for a TV that sends
+        # no name, and then only when the two agree about which app it was — pairing
+        # them up when they disagree names the wrong programme.
+        app_name = request.app_name or (
             snapshot.app_name
             if snapshot is not None and snapshot.app_id == request.app_id
             else None

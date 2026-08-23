@@ -102,6 +102,7 @@ class EnforcerService : Service() {
         requests = TimeRequester(
             this,
             currentApp = { foregroundApps?.current },
+            currentAppName = { foregroundApps?.current?.let { appLabels?.labelOf(it) } },
             send = { request -> telemetry?.publish(request) },
             onGranted = { seconds ->
                 screenTime?.addBonus(seconds)

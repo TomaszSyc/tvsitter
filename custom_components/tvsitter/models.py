@@ -95,6 +95,7 @@ class TimeRequest:
     asked_minutes: int
     kind: str = KIND_MORE_TIME
     app_id: str | None = None
+    app_name: str | None = None
     ts: int = 0
 
     @classmethod
@@ -118,5 +119,6 @@ class TimeRequest:
             asked_minutes=int(data.get("asked_minutes") or 0),
             kind=str(data.get("kind") or KIND_MORE_TIME),
             app_id=data.get("app_id"),
+            app_name=data.get("app_name"),
             ts=int(data.get("ts") or 0),
         )

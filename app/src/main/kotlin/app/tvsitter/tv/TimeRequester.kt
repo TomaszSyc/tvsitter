@@ -35,6 +35,7 @@ import kotlin.math.ceil
 class TimeRequester(
     private val context: Context,
     private val currentApp: () -> String?,
+    private val currentAppName: () -> String?,
     private val send: (TimeRequest) -> Unit,
     private val onGranted: (Long) -> Unit,
     private val say: (String) -> Unit,
@@ -72,6 +73,7 @@ class TimeRequester(
                     TimeRequest(
                         id = verdict.request.id,
                         appId = currentApp(),
+                        appName = currentAppName(),
                         askedMinutes = verdict.request.askedMinutes,
                         ts = nowMs,
                     ),
