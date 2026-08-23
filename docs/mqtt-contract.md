@@ -149,6 +149,50 @@ already in force. The merge stops recursing after four levels and replaces inste
 is slack rather than a limit: the rules are two levels deep, and the bound is there because
 this walks a payload that arrived over the network.
 
+### The rules object
+
+```json
+{
+  "daily_limit_s": 3600,
+  "days": { "sat": 7200, "sun": 7200 },
+  "windows": [
+    { "id": "school",  "from": "16:00", "to": "19:30", "days": ["mon", "tue", "wed", "thu", "fri"] },
+    { "id": "weekend", "from": "09:00", "to": "21:00", "days": ["sat", "sun"] }
+  ],
+  "app_limits_s": { "com.netflix.ninja": 1800, "com.twitch.android.app": 0 },
+  "warn_before_s": [900, 300]
+}
+```
+
+What an absent key, a `null`, a `0` and an empty list each mean, per rule — stated because this
+is where a misreading turns into a television that enforces the opposite of what was intended:
+
+| key | absent | `null` | `0` | `[]` |
+|---|---|---|---|---|
+| `daily_limit_s` | no limit | removes it | no viewing today | — |
+| `days.<day>` | that day takes `daily_limit_s` | removes the override | no viewing that day | — |
+| `windows` | hours not restricted | removes them | — | hours not restricted |
+| `app_limits_s.<pkg>` | app has no budget of its own | removes its budget | **app is blocked** | — |
+| `warn_before_s` | the default, five minutes | back to the default | no warning | no warning |
+
+- `days` is keyed `mon` … `sun`, and a full name (`monday`) is accepted on the way in. The day is
+  the **budget day**, so watching at 01:00 on a Saturday is still Friday's allowance and Friday's
+  limit — the same boundary the counter already uses.
+- `windows` carry `id`, `from`, `to` and optionally `days`; an absent `days` means every day. Times
+  are `HH:MM` and nothing else — `16:00:30` is refused rather than rounded. A window whose `from`
+  equals its `to` is refused too: read as all day it hands over the evening, read as no time it
+  takes one away, and neither is a guess worth making. The `id` is what `active_window` publishes.
+- `app_limits_s` is keyed by package and counts against the same screen time as the daily budget.
+  A blocked app is one with a budget of zero; there is no separate block list, because zero
+  already means "none of that" everywhere else here.
+- `warn_before_s` is seconds before the end, and the TV uses them farthest first. A single number
+  is accepted where a list belongs. Duplicates and zeros are dropped: zero is how "no warning" is
+  spelled, and the same warning twice is one warning.
+
+A rule the TV cannot read is not enforced, and it says which one in its log rather than guessing.
+That degrades towards **less** enforcement — a window that fails to parse widens the evening
+rather than closing it — which is deliberate, and the reason nothing may be dropped silently.
+
 `set_pin` carries a **hash**, never the PIN: Home Assistant derives it, so the PIN itself
 never reaches the broker. PBKDF2-HMAC-SHA256 over exactly four digits, and the parameters
 travel with the digest so that raising the iteration count later does not invalidate a PIN

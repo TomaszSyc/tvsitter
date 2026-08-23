@@ -10,7 +10,10 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.time.DayOfWeek
+import java.time.LocalTime
 
 class RulesTest {
 
@@ -178,5 +181,120 @@ class RulesTest {
         )
 
         assertEquals(json("""{"a": {"b": {"c": {"d": {"add": 2}}}}}"""), merged)
+    }
+
+    @Test
+    fun `a day's own limit wins over the plain daily one`() {
+        val rules = Rules.fromJson(json("""{"daily_limit_s": 3600, "days": {"sat": 7200}}"""))
+
+        assertEquals(7200, rules.limitFor(DayOfWeek.SATURDAY))
+        assertEquals(3600, rules.limitFor(DayOfWeek.MONDAY))
+    }
+
+    @Test
+    fun `a day set to zero is no viewing, not no limit`() {
+        // The distinction the daily limit has always made, one level down.
+        val rules = Rules.fromJson(json("""{"daily_limit_s": 3600, "days": {"wed": 0}}"""))
+
+        assertEquals(0, rules.limitFor(DayOfWeek.WEDNESDAY))
+    }
+
+    @Test
+    fun `a day override without a daily limit leaves the other days unlimited`() {
+        val rules = Rules.fromJson(json("""{"days": {"sat": 7200}}"""))
+
+        assertEquals(7200, rules.limitFor(DayOfWeek.SATURDAY))
+        assertNull(rules.limitFor(DayOfWeek.MONDAY))
+    }
+
+    @Test
+    fun `an app limit of zero is a blocked app, not an app without one`() {
+        val rules = Rules.fromJson(
+            json("""{"app_limits_s": {"com.twitch.android.app": 0, "com.netflix.ninja": 1800}}"""),
+        )
+
+        assertEquals(0, rules.appLimitSeconds["com.twitch.android.app"])
+        assertEquals(1800, rules.appLimitSeconds["com.netflix.ninja"])
+        assertNull(rules.appLimitSeconds["com.google.android.youtube.tv"])
+    }
+
+    @Test
+    fun `warnings are five minutes until somebody says otherwise`() {
+        // An absent key is "the ordinary amount", because a parent who has never touched this
+        // should still get a warning. Zero is what says none, and it needs to stay free to.
+        assertEquals(listOf(300L), Rules.fromJson(json("{}")).warnBeforeSeconds)
+    }
+
+    @Test
+    fun `an empty list is no warnings, and so is a zero`() {
+        assertEquals(emptyList<Long>(), Rules.fromJson(json("""{"warn_before_s": []}""")).warnBeforeSeconds)
+        assertEquals(emptyList<Long>(), Rules.fromJson(json("""{"warn_before_s": [0]}""")).warnBeforeSeconds)
+        assertEquals(emptyList<Long>(), Rules.fromJson(json("""{"warn_before_s": 0}""")).warnBeforeSeconds)
+    }
+
+    @Test
+    fun `warnings come back farthest first however they were written`() {
+        // The order the television will use them in, decided here rather than at every reading.
+        val rules = Rules.fromJson(json("""{"warn_before_s": [300, 900, 300]}"""))
+
+        assertEquals(listOf(900L, 300L), rules.warnBeforeSeconds)
+    }
+
+    @Test
+    fun `one number is accepted where a list belongs`() {
+        // What anyone types first, and refusing it would enforce a shape rather than a rule.
+        assertEquals(listOf(600L), Rules.fromJson(json("""{"warn_before_s": 600}""")).warnBeforeSeconds)
+    }
+
+    @Test
+    fun `a rule that cannot be read is named rather than dropped in silence`() {
+        // This degrades towards *less* enforcement — a dropped window widens the evening — so
+        // nothing may go missing without something to log.
+        val reading = Rules.read(
+            json("""{"daily_limit_s": "an hour", "days": {"funday": 60}, "windows": [{"from": "16:00"}]}"""),
+        )
+
+        assertNull(reading.rules.dailyLimitSeconds)
+        assertEquals(listOf("daily_limit_s", "days.funday", "windows[0]"), reading.ignored)
+    }
+
+    @Test
+    fun `rules that read cleanly report nothing to log`() {
+        val reading = Rules.read(json("""{"daily_limit_s": 3600, "days": {"sat": 7200}}"""))
+
+        assertEquals(emptyList<String>(), reading.ignored)
+    }
+
+    @Test
+    fun `one unreadable window does not take the readable ones with it`() {
+        val reading = Rules.read(
+            json(
+                """{"windows": [{"id": "school", "from": "16:00", "to": "19:30"}, {"id": "broken"}]}""",
+            ),
+        )
+
+        assertEquals(1, reading.rules.windows.size)
+        assertEquals("school", reading.rules.windows.first().id)
+        assertEquals(listOf("windows[1]"), reading.ignored)
+    }
+
+    @Test
+    fun `everything survives the round trip it will make over MQTT`() {
+        val rules = Rules(
+            dailyLimitSeconds = 3600,
+            dayLimitSeconds = mapOf(DayOfWeek.SATURDAY to 7200),
+            windows = listOf(Window("school", LocalTime.of(16, 0), LocalTime.of(19, 30), setOf(DayOfWeek.MONDAY))),
+            appLimitSeconds = mapOf("com.netflix.ninja" to 1800),
+            warnBeforeSeconds = listOf(900, 300),
+        )
+
+        assertEquals(rules, Rules.fromJson(rules.toJson()))
+    }
+
+    @Test
+    fun `rules nobody has touched encode to nothing at all`() {
+        // Including the warning default: writing it out would turn "the ordinary amount" into a
+        // setting, and then changing the default later would not reach anybody.
+        assertTrue(Rules.NONE.toJson().isEmpty(), Rules.NONE.toJson().toString())
     }
 }
