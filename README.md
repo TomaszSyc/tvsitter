@@ -3,15 +3,24 @@
 # TV Sitter
 
 Parental control for **Android TV / Google TV**, driven from **Home Assistant**.
-Screen time limits, per-app blocking, a PIN-protected lock screen, and a "may I have more
-time?" request from the remote that a parent answers with one tap on their phone.
+Screen time limits, a PIN-protected lock screen, and a "may I have more time?" request from
+the remote that a parent answers with one tap on their phone.
 
 Runs on your network. No cloud, no subscription.
 
-> **Status: pre-alpha.** M0 is done and M1 is nearly there. The app runs on a Philips
-> Google TV, publishes its state over MQTT, and Home Assistant shows it as entities.
-> Screen time is not counted yet and no limit is enforced, so it is not yet usable as
-> parental control.
+> **Status: alpha.** The first three milestones are done, and the parts they cover work on
+> real hardware: the TV publishes its state over MQTT, counts screen time against a day that
+> starts at 04:00, enforces a daily limit behind a lock screen, and a child can ask for more
+> time from the remote and have a parent answer it from their phone. A PIN lifts the lock at
+> the set itself, with no Home Assistant in reach, and can be changed there too.
+>
+> Rules beyond a single daily limit are being built now (M4): a different limit per day of the
+> week, allowed hours, a budget per app, a sleep timer. There are no usage statistics yet (M5),
+> and nothing has been designed to be looked at from a sofa yet (M6).
+>
+> **Tested on exactly one television** — a Philips Google TV TA5 on Android 14. If you try it
+> on another, a [device report](../../issues/new?template=03-device-report.yml) is the most
+> useful thing you could send.
 
 ## Why this exists
 
@@ -23,11 +32,12 @@ and those are the reason for this project.
 |---|---|---|
 | Price | 2.99 USD/month or 19.99 USD/year, 7-day trial | free, AGPL |
 | Number of TVs | 1 per subscription | unlimited (topics carry a device id) |
-| Time limit, app blocking, sleep timer, PIN | yes | yes (M2/M4) |
-| Weekly schedules | announced | M4 |
-| **"More time" request from the TV → actionable notification for the parent** | no | **M3, the main reason this exists** |
-| **Usage statistics and history** | no | **M5, via the Home Assistant recorder** |
-| **At-a-glance "is the TV on, what is running"** | no | **M1** |
+| Time limit, PIN-protected lock | yes | **done** |
+| App blocking, sleep timer | yes | in progress (M4) |
+| Weekly schedules | announced | in progress (M4) |
+| **"More time" request from the TV → actionable notification for the parent** | no | **done — the main reason this exists** |
+| **Usage statistics and history** | no | planned (M5), via the Home Assistant recorder |
+| **At-a-glance "is the TV on, what is running"** | no | **done** |
 | Where the data lives | vendor cloud | your MQTT broker and your Home Assistant |
 
 ## How it works
@@ -73,18 +83,33 @@ already follows the HACS layout). Until then, copy `custom_components/tvsitter/`
 `config/custom_components/` and restart Home Assistant, then add "TV Sitter" from Devices &
 Services.
 
+## What it cannot do
+
+Measured on the television it runs on, rather than guessed:
+
+- **An external HDMI source cannot be stopped, only displaced.** The lock covers the screen and
+  the TV is sent to its own home screen, which does silence a console — but pressing the source
+  key brings it back, and the lock puts it away again a second or two later. Preventing the
+  switch outright needs rights an ordinary app does not have.
+- **The TV's own anti-burn-in screen saver can draw over the lock** on this Philips, because it
+  belongs to the system UI ([#50](../../issues/50)).
+- **Stopping another app is impossible**, so a blocked app is one the TV walks away from rather
+  than one that gets killed. See D21 in [`docs/architecture.md`](docs/architecture.md).
+- Nothing here survives a factory reset, and it is not meant to. This is a house rule with
+  teeth, not device management.
+
 ## Roadmap
 
-| | Milestone | Contents |
-|---|---|---|
-| M0 | foundation | repository, toolchain, app skeleton, on-device spike |
-| M1 | telemetry | screen state and active app surfaced in Home Assistant |
-| M2 | counter and lock | daily budget, day starting at 04:00, lock screen, PIN |
-| M3 | time requests | button on the TV → actionable notification → granted time |
-| M4 | rules | weekly schedule, allowed time windows, per-app budgets |
-| M5 | statistics and anti-tamper | history, Settings lockout, alarm when the app dies |
-| M6 | interface and graphics | screens designed for a ten-foot view, real artwork, the words a child reads |
-| M7 | going public | documentation, release, HACS submission |
+| | Milestone | Contents | |
+|---|---|---|---|
+| M0 | foundation | repository, toolchain, app skeleton, on-device spike | done |
+| M1 | telemetry | screen state and active app surfaced in Home Assistant | done |
+| M2 | counter and lock | daily budget, day starting at 04:00, lock screen, PIN | done |
+| M3 | time requests | button on the TV → actionable notification → granted time | done |
+| M4 | rules | weekly schedule, allowed time windows, per-app budgets, app blocking, sleep timer | in progress |
+| M5 | statistics and anti-tamper | history, Settings lockout, alarm when the app dies | |
+| M6 | interface and graphics | screens designed for a ten-foot view, real artwork, the words a child reads | |
+| M7 | going public | documentation, release, HACS submission | |
 
 ## License
 
