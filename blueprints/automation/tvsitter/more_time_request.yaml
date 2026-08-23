@@ -35,16 +35,13 @@ blueprint:
       description: >-
         Turn this on to notify a watch as well, and know what it does and does not buy.
 
-        The companion app on Wear OS supports channel, message, notification_icon, tag, title
-        and vibrationPattern — **not** actions. So a notification sent to a watch carries no
-        buttons, and the phone's notification is not relayed either, because an app shipping
-        its own watch app opts out of bridging to avoid duplicates. Measured: with the
-        companion app installed on the watch, nothing arrives from the phone, and a direct
-        send arrives without buttons.
-
-        So this gives a wrist-level heads-up and the answer is still given on the phone. For
-        buttons on the wrist, the companion app has to be off the watch, which lets Wear OS
-        relay and render the phone's own actions.
+        Turn it on if you wear one. Measured on a Pixel Watch: with the companion app
+        installed on the watch, a notification sent only to the phone does not arrive on the
+        wrist at all — an app shipping its own watch app opts out of Android's bridging to
+        avoid duplicates — while a notification sent to the watch directly does arrive, and
+        the buttons work. The companion documentation lists only channel, message,
+        notification_icon, tag, title and vibrationPattern for Wear OS, so that the buttons
+        work is better than the documentation promises rather than something to rely on.
       default: false
       selector:
         boolean:
@@ -204,3 +201,19 @@ actions:
                       entity_id: !input request_event
                     data:
                       req_id: "{{ answered_id }}"
+
+          # Answered, so it comes off the devices. Left up, a parent taps it again later in
+          # good faith and nothing happens: the television ignores an answer to a request it
+          # has already settled, which is safe and completely silent. `timeout` covers the
+          # case nobody answers; this covers the case somebody did.
+          - action: !input notify_action
+            data:
+              message: clear_notification
+              data:
+                tag: "tvsitter-{{ answered_id }}"
+          - action: !input second_notify_action
+            enabled: !input also_notify
+            data:
+              message: clear_notification
+              data:
+                tag: "tvsitter-{{ answered_id }}"

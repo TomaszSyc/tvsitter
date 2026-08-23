@@ -37,6 +37,13 @@
     <string name="request_refused">Not now.</string>
     <string name="request_expired">Nobody answered.</string>
 
+    <string name="request_can_ask">You can ask again now.</string>
+
+    <plurals name="request_waiting_minutes">
+        <item quantity="one">Waiting for an answer, %d minute left.</item>
+        <item quantity="other">Waiting for an answer, %d minutes left.</item>
+    </plurals>
+
     <plurals name="request_granted">
         <item quantity="one">You have %d more minute.</item>
         <item quantity="other">You have %d more minutes.</item>

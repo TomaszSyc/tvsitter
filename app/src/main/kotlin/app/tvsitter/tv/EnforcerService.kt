@@ -105,6 +105,10 @@ class EnforcerService : Service() {
             currentAppName = { foregroundApps?.current?.let { appLabels?.labelOf(it) } },
             send = { request -> telemetry?.publish(request) },
             onGranted = { seconds ->
+                // The lock first, then the budget. Standing down before the bonus means the
+                // verdict that follows finds nothing manual holding the screen and lifts it;
+                // the other order leaves a covered television with time on the clock.
+                locks?.standDownFor(seconds)
                 screenTime?.addBonus(seconds)
                 telemetry?.publishSoon()
             },

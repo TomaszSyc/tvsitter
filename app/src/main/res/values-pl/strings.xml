@@ -39,6 +39,15 @@
     <string name="request_refused">Nie teraz.</string>
     <string name="request_expired">Nikt nie odpowiedział.</string>
 
+    <string name="request_can_ask">Możesz już zapytać znowu.</string>
+
+    <plurals name="request_waiting_minutes">
+        <item quantity="one">Czekam na odpowiedź, została %d minuta.</item>
+        <item quantity="few">Czekam na odpowiedź, zostały %d minuty.</item>
+        <item quantity="many">Czekam na odpowiedź, zostało %d minut.</item>
+        <item quantity="other">Czekam na odpowiedź, zostało %d minuty.</item>
+    </plurals>
+
     <plurals name="request_granted">
         <item quantity="one">Masz jeszcze %d minutę.</item>
         <item quantity="few">Masz jeszcze %d minuty.</item>

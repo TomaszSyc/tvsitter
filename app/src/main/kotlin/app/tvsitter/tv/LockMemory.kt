@@ -33,6 +33,19 @@ class LockMemory(context: Context) {
         .createDeviceProtectedStorageContext()
         .getSharedPreferences(FILE, Context.MODE_PRIVATE)
 
+    /**
+     * Until when a manual lock is standing down, epoch milliseconds. Zero when it is not.
+     *
+     * Kept here rather than in memory because it is the deadline a child would most like to
+     * lose: a parent granted fifteen minutes, and pulling the plug must not turn that into
+     * the rest of the evening.
+     */
+    var pausedUntilMs: Long
+        get() = preferences.getLong(KEY_PAUSED_UNTIL, 0)
+        set(value) {
+            preferences.edit().putLong(KEY_PAUSED_UNTIL, value).apply()
+        }
+
     var cause: LockCause
         get() = runCatching { LockCause.valueOf(preferences.getString(KEY, null) ?: NONE_NAME) }
             .getOrElse {
@@ -49,6 +62,7 @@ class LockMemory(context: Context) {
     private companion object {
         const val FILE = "lock_memory"
         const val KEY = "cause"
+        const val KEY_PAUSED_UNTIL = "paused_until"
         val NONE_NAME: String = LockCause.NONE.name
     }
 }

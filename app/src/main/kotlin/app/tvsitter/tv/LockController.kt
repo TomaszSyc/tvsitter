@@ -45,6 +45,23 @@ class LockController(
 
     private val handler = Handler(Looper.getMainLooper())
     private val displaceAgain = Runnable { displaceWhateverIsPlaying() }
+    private val resumeManual = Runnable {
+        memory.pausedUntilMs = 0
+        if (lockedManually) {
+            Log.i(EnforcerService.TAG, "lock: granted time is up, the lock is back")
+            show(null)
+        }
+    }
+
+    /**
+     * Whether a lock a parent asked for is in force *now*.
+     *
+     * Different from [lockedManually], which stays true while the lock is standing down for
+     * granted time. Everything deciding whether the screen should be covered asks this one;
+     * only granting and unlocking touch the other.
+     */
+    private val manualInForce: Boolean
+        get() = lockedManually && memory.pausedUntilMs <= System.currentTimeMillis()
 
     /**
      * Asks what is in front, over and over, for as long as the lock is up.
@@ -97,7 +114,37 @@ class LockController(
     fun lockManually(reason: String?) {
         lockedManually = true
         memory.cause = LockCause.MANUAL
+        // A fresh lock overrides time granted earlier: a parent locking the television now
+        // means now, not once the last fifteen minutes have run out.
+        memory.pausedUntilMs = 0
+        handler.removeCallbacks(resumeManual)
         show(reason)
+    }
+
+    /**
+     * A parent granted time, so the lock comes off — and comes back when the time is up.
+     *
+     * The budget half is the caller's bonus: the next verdict is no longer SPENT and the lock
+     * lifts on its own. This is the other half, and the one that was missing. A lock a parent
+     * put up ignored a grant entirely, so tapping "+15 min" added minutes to a budget and left
+     * the television covered; with no daily limit at all it did nothing whatsoever. Yet a
+     * parent tapping that button has said yes, whatever the lock was for.
+     *
+     * It stands down rather than ending, because "+15 min" has to mean fifteen minutes. The
+     * deadline goes to device-encrypted storage so a reboot does not hand over the evening.
+     */
+    fun standDownFor(seconds: Long) {
+        if (!lockedManually) return
+
+        val millis = seconds * MILLIS_PER_SECOND
+        memory.pausedUntilMs = System.currentTimeMillis() + millis
+        handler.removeCallbacks(resumeManual)
+        handler.postDelayed(resumeManual, millis)
+        Log.i(EnforcerService.TAG, "lock: standing down for ${seconds}s of granted time")
+
+        // Hidden here only when the budget is not also holding it up. When it is, the
+        // caller's bonus flips that verdict and applyVerdict does the hiding.
+        if (!lockedByBudget) hide()
     }
 
     /**
@@ -112,8 +159,16 @@ class LockController(
         when (memory.cause) {
             LockCause.MANUAL -> {
                 lockedManually = true
-                Log.i(EnforcerService.TAG, "lock restored from before the reboot: manual")
-                show(null)
+                val remaining = memory.pausedUntilMs - System.currentTimeMillis()
+                if (remaining > 0) {
+                    // Granted time survives a reboot too. Showing the lock here would take
+                    // back minutes a parent had already given.
+                    Log.i(EnforcerService.TAG, "lock restored: manual, standing down ${remaining}ms")
+                    handler.postDelayed(resumeManual, remaining)
+                } else {
+                    Log.i(EnforcerService.TAG, "lock restored from before the reboot: manual")
+                    show(null)
+                }
             }
 
             LockCause.BUDGET -> {
@@ -135,6 +190,8 @@ class LockController(
      */
     fun unlockManually() {
         lockedManually = false
+        memory.pausedUntilMs = 0
+        handler.removeCallbacks(resumeManual)
         if (lockedByBudget) {
             Log.i(EnforcerService.TAG, "unlock ignored: the budget is spent, grant time instead")
             return
@@ -155,7 +212,7 @@ class LockController(
 
         if (verdict == BudgetVerdict.SPENT) {
             lockedByBudget = true
-            if (!lockedManually) memory.cause = LockCause.BUDGET
+            if (!manualInForce) memory.cause = LockCause.BUDGET
             banner.hide()
             // No subtitle: the title already says the day is done, and a reason that
             // repeats it prints the same sentence twice.
@@ -168,10 +225,10 @@ class LockController(
         // grant of a few minutes: there was time again, a warning about it was on screen, and
         // the television stayed covered.
         lockedByBudget = false
-        if (!lockedManually) hide()
+        if (!manualInForce) hide()
 
         if (verdict == BudgetVerdict.WARN) {
-            banner.show(warningFor(remainingSeconds))
+            banner.show(context.warningFor(remainingSeconds))
         } else {
             banner.hide()
         }
@@ -291,19 +348,10 @@ class LockController(
     fun stop() {
         handler.removeCallbacks(sweep)
         handler.removeCallbacks(displaceAgain)
+        handler.removeCallbacks(resumeManual)
         banner.hide()
         overlay.hide()
         audio.release()
-    }
-
-    private fun warningFor(remainingSeconds: Int?): String {
-        // Rounded up, and never below one: "one minute left" while thirty seconds remain is
-        // friendlier than "zero minutes left", and closer to what somebody would say.
-        val minutes = remainingSeconds
-            ?.let { ceil(it / SECONDS_PER_MINUTE).toInt() }
-            ?.coerceAtLeast(1)
-            ?: 1
-        return context.resources.getQuantityString(R.plurals.warn_minutes_left, minutes, minutes)
     }
 
     private fun show(reason: String?) {
@@ -328,7 +376,12 @@ class LockController(
         if (!overlay.isShowing) return
         handler.removeCallbacks(sweep)
         handler.removeCallbacks(displaceAgain)
-        memory.cause = LockCause.NONE
+        // Not always NONE. A manual lock standing down for granted time is still a manual
+        // lock, and writing NONE here threw that away: the screen came off, the memory said
+        // there was nothing to restore, and a restart during those fifteen minutes — or after
+        // the lock had already come back — left the television unlocked for the evening. A
+        // child only has to notice it once.
+        memory.cause = if (lockedManually) LockCause.MANUAL else LockCause.NONE
         overlay.hide()
         // Given back, so the television is exactly as usable as it was. Nothing resumes by
         // itself, which is deliberate — see AudioFocusHold.
@@ -337,7 +390,6 @@ class LockController(
     }
 
     private companion object {
-        const val SECONDS_PER_MINUTE = 60.0
 
         /**
          * Long enough that a stubborn app cannot turn this into a tight loop, short enough
@@ -345,9 +397,27 @@ class LockController(
          * Requests arriving inside it are deferred to its end rather than dropped, so the
          * television always gets the last word.
          */
+        const val MILLIS_PER_SECOND = 1_000L
+
         const val DISPLACE_COOLDOWN_MS = 2_000L
 
         /** How often the lock asks what is in front of it. */
         const val SWEEP_INTERVAL_MS = 2_000L
     }
 }
+
+/**
+ * How the warning reads, kept at file level so the controller holds only behaviour.
+ *
+ * Rounded up and never below one: "one minute left" with thirty seconds to go is friendlier
+ * than "zero minutes left", and closer to what somebody would actually say.
+ */
+private fun Context.warningFor(remainingSeconds: Int?): String {
+    val minutes = remainingSeconds
+        ?.let { ceil(it / SECONDS_IN_A_MINUTE).toInt() }
+        ?.coerceAtLeast(1)
+        ?: 1
+    return resources.getQuantityString(R.plurals.warn_minutes_left, minutes, minutes)
+}
+
+private const val SECONDS_IN_A_MINUTE = 60.0

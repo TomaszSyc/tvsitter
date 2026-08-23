@@ -40,10 +40,36 @@ class TimeRequester(
     private val onGranted: (Long) -> Unit,
     private val say: (String) -> Unit,
 ) {
+    /** What the screen is currently counting down to, if anything. */
+    private enum class Waiting { NONE, ANSWER, ALLOWANCE }
+
     private var history = RequestHistory()
     private var scope: CoroutineScope? = null
     private val handler = Handler(Looper.getMainLooper())
     private val giveUp = Runnable { expireIfDue() }
+
+    private var waitingFor = Waiting.NONE
+    private var waitingUntilMs = 0L
+
+    /**
+     * Re-says the message while there is something to count down to.
+     *
+     * A number worked out once and left on screen goes stale, and the only way a child can
+     * refresh it is to press the button again — which is exactly what the allowance is there
+     * to discourage. Every fifteen seconds keeps a minute-granular figure honest.
+     */
+    private val tick = object : Runnable {
+        override fun run() {
+            if (waitingFor == Waiting.NONE) return
+            val remaining = waitingUntilMs - System.currentTimeMillis()
+            if (remaining <= 0) {
+                stopWaiting(announce = waitingFor == Waiting.ALLOWANCE)
+                return
+            }
+            say(waitingMessage(remaining))
+            handler.postDelayed(this, TICK_MS)
+        }
+    }
 
     fun start(scope: CoroutineScope) {
         this.scope = scope
@@ -67,8 +93,14 @@ class TimeRequester(
         history = result.history
         persist()
 
+        // Every verdict, not only the ones that go out. Without this a refusal looks
+        // exactly like a dead button from outside — which is how twenty minutes went on
+        // deciding whether a press had arrived at all.
+        Log.i(EnforcerService.TAG, "request: ${result.verdict}")
+
         when (val verdict = result.verdict) {
             is AskVerdict.Allowed -> {
+                startWaiting(Waiting.ANSWER, nowMs + RequestPolicy.EXPIRY_MS)
                 send(
                     TimeRequest(
                         id = verdict.request.id,
@@ -83,9 +115,16 @@ class TimeRequester(
                 scheduleGiveUp(verdict.request)
             }
 
-            is AskVerdict.AlreadyWaiting -> say(context.getString(R.string.request_waiting))
-            is AskVerdict.TooSoon -> say(waitMessage(verdict.secondsRemaining))
-            is AskVerdict.TooMany -> say(waitMessage(verdict.secondsRemaining))
+            is AskVerdict.AlreadyWaiting -> startWaiting(
+                Waiting.ANSWER,
+                nowMs + verdict.secondsRemaining * MILLIS_PER_SECOND,
+            )
+
+            is AskVerdict.TooSoon ->
+                startWaiting(Waiting.ALLOWANCE, nowMs + verdict.secondsRemaining * MILLIS_PER_SECOND)
+
+            is AskVerdict.TooMany ->
+                startWaiting(Waiting.ALLOWANCE, nowMs + verdict.secondsRemaining * MILLIS_PER_SECOND)
         }
     }
 
@@ -101,12 +140,14 @@ class TimeRequester(
         when (val answer = result.answer) {
             is Answer.Granted -> {
                 handler.removeCallbacks(giveUp)
+                stopWaiting(announce = false)
                 onGranted(answer.minutes * SECONDS_PER_MINUTE)
                 say(minutesMessage(R.plurals.request_granted, answer.minutes))
             }
 
             Answer.Refused -> {
                 handler.removeCallbacks(giveUp)
+                stopWaiting(announce = false)
                 say(context.getString(R.string.request_refused))
             }
 
@@ -119,13 +160,41 @@ class TimeRequester(
 
     fun stop() {
         handler.removeCallbacks(giveUp)
+        handler.removeCallbacks(tick)
         scope = null
+    }
+
+    /** Puts a countdown on screen and keeps it moving. */
+    private fun startWaiting(kind: Waiting, untilMs: Long) {
+        waitingFor = kind
+        waitingUntilMs = untilMs
+        handler.removeCallbacks(tick)
+        handler.post(tick)
+    }
+
+    private fun stopWaiting(announce: Boolean) {
+        waitingFor = Waiting.NONE
+        waitingUntilMs = 0
+        handler.removeCallbacks(tick)
+        // Only the allowance running out is worth saying out loud. A question giving up
+        // already has its own message, and saying both would contradict itself.
+        if (announce) say(context.getString(R.string.request_can_ask))
+    }
+
+    private fun waitingMessage(remainingMs: Long): String {
+        val minutes = minutesFrom(remainingMs / MILLIS_PER_SECOND)
+        val plural = when (waitingFor) {
+            Waiting.ALLOWANCE -> R.plurals.request_wait
+            else -> R.plurals.request_waiting_minutes
+        }
+        return minutesMessage(plural, minutes)
     }
 
     private fun expireIfDue() {
         val result = RequestPolicy.expireIfDue(history, System.currentTimeMillis()) ?: return
         history = result.history
         persist()
+        stopWaiting(announce = false)
         Log.i(EnforcerService.TAG, "request expired with no answer")
         say(context.getString(R.string.request_expired))
     }
@@ -152,8 +221,6 @@ class TimeRequester(
      */
     private fun newId(): String = UUID.randomUUID().toString().take(ID_LENGTH)
 
-    private fun waitMessage(seconds: Long): String = minutesMessage(R.plurals.request_wait, minutesFrom(seconds))
-
     private fun minutesMessage(plural: Int, minutes: Int): String =
         context.resources.getQuantityString(plural, minutes, minutes)
 
@@ -168,6 +235,10 @@ class TimeRequester(
         const val ASK_MINUTES = 15
 
         const val SECONDS_PER_MINUTE = 60L
+        const val MILLIS_PER_SECOND = 1_000L
         const val ID_LENGTH = 8
+
+        /** Often enough that a minute-granular countdown is never more than this stale. */
+        const val TICK_MS = 15_000L
     }
 }
