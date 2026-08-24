@@ -1,7 +1,7 @@
 # Development and CI tooling only. The integration itself declares no requirements and
 # gets its dependencies from Home Assistant at runtime.
 ruff==0.16.4
-pytest==9.0.3
+pytest==9.1.1
 
 # Home Assistant is here so CI can import the integration against the real thing. That is
 # what catches an API symbol disappearing under us — the failure mode that otherwise waits
