@@ -13,6 +13,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import TvSitterConfigEntry
+from .const import RULE_DAILY_LIMIT
 from .coordinator import TvSitterClient
 from .entity import TvSitterEntity
 
@@ -48,11 +49,7 @@ class ClearLimitButton(TvSitterEntity, ButtonEntity):
         Sending an empty object would change nothing, and sending a whole rules object
         would mean knowing every rule in force — which this cannot and should not.
         """
-        snapshot = self._client.snapshot
-        revision = (snapshot.rules_rev if snapshot else 0) + 1
-        await self._client.async_send(
-            {"op": "set_rules", "rev": revision, "rules": {"daily_limit_s": None}}
-        )
+        await self._client.async_set_rules({RULE_DAILY_LIMIT: None})
 
 
 class ClearPinButton(TvSitterEntity, ButtonEntity):

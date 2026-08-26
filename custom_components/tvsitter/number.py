@@ -13,6 +13,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import TvSitterConfigEntry
+from .const import RULE_DAILY_LIMIT
 from .coordinator import TvSitterClient
 from .entity import TvSitterEntity
 
@@ -68,17 +69,12 @@ class DailyLimitNumber(TvSitterEntity, NumberEntity):
     async def async_set_native_value(self, value: float) -> None:
         """Send a new limit to the TV.
 
-        The revision is the TV's own, incremented. It comes back in the next state
-        payload, so the two sides can be seen to agree rather than assumed to. Nothing
-        is stored here: this entity is unavailable while the TV is, so a limit cannot be
-        set for a television that never heard it.
+        The revision comes back in the next state payload, so the two sides can be seen
+        to agree rather than assumed to. Nothing is stored here: this entity is
+        unavailable while the TV is, so a limit cannot be set for a television
+        that never
+        heard it.
         """
-        snapshot = self._client.snapshot
-        revision = (snapshot.rules_rev if snapshot else 0) + 1
-        await self._client.async_send(
-            {
-                "op": "set_rules",
-                "rev": revision,
-                "rules": {"daily_limit_s": int(value * SECONDS_PER_MINUTE)},
-            }
+        await self._client.async_set_rules(
+            {RULE_DAILY_LIMIT: int(value * SECONDS_PER_MINUTE)}
         )

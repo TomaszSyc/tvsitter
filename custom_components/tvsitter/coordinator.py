@@ -16,6 +16,7 @@ from homeassistant.components import mqtt
 from homeassistant.core import HomeAssistant, callback
 
 from .const import (
+    OP_SET_RULES,
     PAYLOAD_ONLINE,
     SCHEMA_VERSION,
     TOPIC_AVAILABILITY,
@@ -42,6 +43,7 @@ class TvSitterClient:
         self._prefix = topic_prefix
         self.name = name
         self.snapshot: StateSnapshot | None = None
+        self._sent_rev = 0
         self.available = False
         # The last request the TV made, so an answer can be addressed without the caller
         # having to carry the id around. A blueprint answering a notification does carry
@@ -104,6 +106,33 @@ class TvSitterClient:
             qos=1,
             retain=False,
         )
+
+    async def async_set_rules(self, rules: dict[str, Any]) -> None:
+        """Change some rules, leaving the ones nobody named alone.
+
+        The one way rules are written, because the revision has to come from one place.
+        The TV ignores a `set_rules` whose revision is not higher than the one
+        it already
+        has — that is what stops a redelivered message rolling the rules back — and the
+        revision used to be derived from the last state payload at each call site. Two
+        changes made before the TV had republished its state therefore computed the same
+        number, and the second was dropped on arrival with nothing said anywhere (#72).
+
+        So the highest revision sent from here is remembered, and a burst keeps climbing
+        without waiting for a round trip. The TV's own number still wins when
+        it is ahead,
+        which is what happens after a restart of Home Assistant, or when something else
+        has been writing rules.
+        """
+        await self.async_send(
+            {"op": OP_SET_RULES, "rev": self._next_revision(), "rules": rules}
+        )
+
+    def _next_revision(self) -> int:
+        """Work out the next revision, from the TV's number and our own."""
+        seen = self.snapshot.rules_rev if self.snapshot else 0
+        self._sent_rev = max(seen, self._sent_rev) + 1
+        return self._sent_rev
 
     @callback
     def async_stop(self) -> None:

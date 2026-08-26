@@ -62,6 +62,16 @@ PAYLOAD_OFFLINE: Final = "offline"
 
 # The only kind of request there is so far. Named rather than assumed, because the field
 # exists precisely so that a second kind can be added without a schema bump.
+# Commands. Named here rather than spelled out at each call site: every one of them is a
+# word in docs/mqtt-contract.md, and a typo in one would be a command the TV silently
+# ignores.
+OP_SET_RULES: Final = "set_rules"
+
+# Rule keys, same reason. `rules` is deliberately opaque in the contract, so these are
+# the
+# only record on this side of what the engine understands.
+RULE_DAILY_LIMIT: Final = "daily_limit_s"
+
 KIND_MORE_TIME: Final = "more_time"
 
 SERVICE_GRANT_TIME: Final = "grant_time"
