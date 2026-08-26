@@ -7,6 +7,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 from __future__ import annotations
 
+from datetime import timedelta
 import json
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -16,8 +17,14 @@ from pytest_homeassistant_custom_component.common import mock_restore_cache
 
 from custom_components.tvsitter.coordinator import TvSitterClient
 from custom_components.tvsitter.models import StateSnapshot
-from custom_components.tvsitter.switch import LockSwitch
+from custom_components.tvsitter.switch import (
+    ATTR_PENDING,
+    ATTR_PENDING_UNTIL,
+    PENDING_UNLOCK_TTL,
+    LockSwitch,
+)
 from homeassistant.core import HomeAssistant, State
+from homeassistant.util import dt as dt_util
 
 PREFIX = "tvsitter/salon"
 ENTITY_ID = "switch.tv_salon_lock"
@@ -189,13 +196,36 @@ async def test_the_intention_is_sent_once(hass: HomeAssistant) -> None:
     publish.assert_called_once()
 
 
-async def test_an_intention_the_tv_already_agrees_with_is_not_queued(
+async def test_locking_one_that_is_already_locked_is_not_queued(
     hass: HomeAssistant,
 ) -> None:
-    """A stale unlock is not harmless.
+    """It is already up, and it cannot go further up."""
+    client = make_client(hass)
+    client.snapshot = snapshot(locked=True)
+    client.available = False
+    switch = await attached(hass, client)
 
-    Arriving at a television that woke up locked by its own budget, it sets the daily
-    limit aside for the rest of the day — from a switch nobody moved since last night.
+    with (
+        patch("homeassistant.components.mqtt.async_publish") as publish,
+        patch.object(LockSwitch, "async_write_ha_state"),
+    ):
+        await switch.async_turn_on()
+
+        comes_back(client, locked=True)
+        await hass.async_block_till_done()
+
+    publish.assert_not_called()
+    assert switch.extra_state_attributes is None
+
+
+async def test_unlocking_one_that_went_to_sleep_unlocked_is_still_queued(
+    hass: HomeAssistant,
+) -> None:
+    """#89, and the point of the whole deadline.
+
+    A television asleep and unlocked very often wakes up locked, by its own budget or by
+    a lock restored from before the reboot. A parent pressing unlock a minute before
+    switching it on is asking about that lock, not about the state it went to sleep in.
     """
     client = make_client(hass)
     client.snapshot = snapshot(locked=False)
@@ -208,11 +238,138 @@ async def test_an_intention_the_tv_already_agrees_with_is_not_queued(
     ):
         await switch.async_turn_off()
 
-        comes_back(client)
-        await hass.async_block_till_done()
+    publish.assert_not_called()
+    assert switch.is_on is False
+    assert switch.extra_state_attributes[ATTR_PENDING] == "off"
+    assert switch.extra_state_attributes[ATTR_PENDING_UNTIL] is not None
+
+
+async def test_the_waiting_unlock_lands_on_a_television_that_woke_up_locked(
+    hass: HomeAssistant,
+) -> None:
+    """The lock the parent was actually asking about."""
+    client = make_client(hass)
+    client.snapshot = snapshot(locked=False)
+    client.available = False
+    switch = await attached(hass, client)
+
+    with patch.object(LockSwitch, "async_write_ha_state"):
+        await switch.async_turn_off()
+
+        with patch("homeassistant.components.mqtt.async_publish") as publish:
+            comes_back(client, locked=True)
+            await hass.async_block_till_done()
+
+    assert json.loads(publish.call_args.args[2]) == {"op": "unlock"}
+    assert switch.extra_state_attributes is None
+
+
+async def test_a_television_that_woke_up_unlocked_is_left_alone(
+    hass: HomeAssistant,
+) -> None:
+    """Sending it anyway sets the daily limit aside for a lock that never appeared."""
+    client = make_client(hass)
+    client.snapshot = snapshot(locked=False)
+    client.available = False
+    switch = await attached(hass, client)
+
+    with patch.object(LockSwitch, "async_write_ha_state"):
+        await switch.async_turn_off()
+
+        with patch("homeassistant.components.mqtt.async_publish") as publish:
+            comes_back(client, locked=False)
+            await hass.async_block_till_done()
 
     publish.assert_not_called()
     assert switch.extra_state_attributes is None
+
+
+async def test_an_unlock_nobody_followed_through_on_lapses(
+    hass: HomeAssistant,
+) -> None:
+    """The other half of #89.
+
+    One pressed and forgotten last night must not hand over this evening the moment the
+    television is switched on.
+    """
+    client = make_client(hass)
+    client.snapshot = snapshot(locked=False)
+    client.available = False
+    switch = await attached(hass, client)
+
+    with patch.object(LockSwitch, "async_write_ha_state"):
+        await switch.async_turn_off()
+
+        later = dt_util.utcnow() + PENDING_UNLOCK_TTL + timedelta(seconds=1)
+        with (
+            patch("homeassistant.components.mqtt.async_publish") as publish,
+            patch(
+                "custom_components.tvsitter.switch.dt_util.utcnow", return_value=later
+            ),
+        ):
+            assert switch.extra_state_attributes is None, "and it says so first"
+            comes_back(client, locked=True)
+            await hass.async_block_till_done()
+
+    publish.assert_not_called()
+
+
+async def test_a_waiting_lock_never_lapses(hass: HomeAssistant) -> None:
+    """The asymmetry is the point: a late lock can be lifted, a late unlock cannot."""
+    client = make_client(hass)
+    client.snapshot = snapshot(locked=False)
+    client.available = False
+    switch = await attached(hass, client)
+
+    with patch.object(LockSwitch, "async_write_ha_state"):
+        await switch.async_turn_on()
+
+        assert switch.extra_state_attributes == {ATTR_PENDING: "on"}
+        later = dt_util.utcnow() + timedelta(days=1)
+        with (
+            patch("homeassistant.components.mqtt.async_publish") as publish,
+            patch(
+                "custom_components.tvsitter.switch.dt_util.utcnow", return_value=later
+            ),
+        ):
+            comes_back(client, locked=False)
+            await hass.async_block_till_done()
+
+    assert json.loads(publish.call_args.args[2]) == {"op": "lock"}
+
+
+async def test_a_restored_unlock_without_a_deadline_is_dropped(
+    hass: HomeAssistant,
+) -> None:
+    """From a build that had none. Honouring it for ever is the case being prevented."""
+    mock_restore_cache(hass, (State(ENTITY_ID, "off", {"pending": "off"}),))
+
+    client = make_client(hass)
+    client.snapshot = snapshot(locked=True)
+    client.available = False
+    switch = await attached(hass, client)
+
+    assert switch.extra_state_attributes is None
+    assert switch.is_on is True, "back to what the TV last said"
+
+
+async def test_a_restored_unlock_keeps_the_deadline_it_was_given(
+    hass: HomeAssistant,
+) -> None:
+    """A restart in the middle of those fifteen minutes is not a decision to forget."""
+    deadline = (dt_util.utcnow() + timedelta(minutes=10)).isoformat()
+    mock_restore_cache(
+        hass,
+        (State(ENTITY_ID, "off", {"pending": "off", "pending_until": deadline}),),
+    )
+
+    client = make_client(hass)
+    client.snapshot = snapshot(locked=True)
+    client.available = False
+    switch = await attached(hass, client)
+
+    assert switch.is_on is False
+    assert switch.extra_state_attributes[ATTR_PENDING] == "off"
 
 
 async def test_an_intention_survives_a_restart_of_home_assistant(

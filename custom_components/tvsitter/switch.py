@@ -7,6 +7,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 import logging
 from typing import Any
 
@@ -15,6 +16,7 @@ from homeassistant.const import STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
+from homeassistant.util import dt as dt_util
 
 from . import TvSitterConfigEntry
 from .coordinator import TvSitterClient
@@ -26,6 +28,18 @@ OP_LOCK = {"op": "lock"}
 OP_UNLOCK = {"op": "unlock"}
 
 ATTR_PENDING = "pending"
+ATTR_PENDING_UNTIL = "pending_until"
+
+# How long a remembered unlock is worth acting on.
+#
+# Long enough for "I am about to switch it on", short enough that one forgotten last
+# night
+# cannot hand over this evening. A remembered lock has no deadline and needs none: a
+# lock
+# that arrives late can be lifted, and an unlock that arrives late has already given
+# away
+# the thing it was guarding.
+PENDING_UNLOCK_TTL = timedelta(minutes=15)
 
 
 async def async_setup_entry(
@@ -62,6 +76,7 @@ class LockSwitch(TvSitterEntity, SwitchEntity, RestoreEntity):
         """Create the lock switch."""
         super().__init__(client, "lock")
         self._pending: bool | None = None
+        self._pending_until: datetime | None = None
 
     @property
     def available(self) -> bool:
@@ -81,17 +96,39 @@ class LockSwitch(TvSitterEntity, SwitchEntity, RestoreEntity):
         television that is not running cannot change whether it is locked, and "unknown"
         on a toggle is worse than a fact that is a few hours old.
         """
-        if self._pending is not None:
-            return self._pending
+        pending = self._live_pending()
+        if pending is not None:
+            return pending
         snapshot = self._client.snapshot
         return None if snapshot is None else snapshot.locked
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
         """Say when the switch is showing an intention rather than a fact."""
+        pending = self._live_pending()
+        if pending is None:
+            return None
+        attributes: dict[str, Any] = {ATTR_PENDING: STATE_ON if pending else STATE_OFF}
+        if self._pending_until is not None:
+            attributes[ATTR_PENDING_UNTIL] = self._pending_until.isoformat()
+        return attributes
+
+    def _live_pending(self) -> bool | None:
+        """Return the remembered intention, unless it has run out of time.
+
+        Checked when read rather than on a timer. A lapsed intention nobody looks at
+        changes nothing, and a timer firing in an empty house wakes the box for nothing.
+        """
         if self._pending is None:
             return None
-        return {ATTR_PENDING: STATE_ON if self._pending else STATE_OFF}
+        if self._pending_until is not None and dt_util.utcnow() >= self._pending_until:
+            _LOGGER.debug(
+                "%s: the unlock that was waiting has lapsed", self._client.name
+            )
+            self._pending = None
+            self._pending_until = None
+            return None
+        return self._pending
 
     async def async_added_to_hass(self) -> None:
         """Listen for the TV, and pick up an intention left over from a restart."""
@@ -102,11 +139,32 @@ class LockSwitch(TvSitterEntity, SwitchEntity, RestoreEntity):
         if last is None:
             return
         pending = last.attributes.get(ATTR_PENDING)
-        if pending in (STATE_ON, STATE_OFF):
-            # Restarting Home Assistant while the TV is off must not quietly drop a
-            # decision somebody made about tonight.
-            self._pending = pending == STATE_ON
-            _LOGGER.debug("%s: restored a pending %s", self._client.name, pending)
+        if pending not in (STATE_ON, STATE_OFF):
+            return
+
+        # Restarting Home Assistant while the TV is off must not quietly drop a decision
+        # somebody made about tonight.
+        if pending == STATE_ON:
+            self._pending = True
+            _LOGGER.debug("%s: restored a pending lock", self._client.name)
+            return
+
+        deadline = dt_util.parse_datetime(
+            str(last.attributes.get(ATTR_PENDING_UNTIL) or "")
+        )
+        if deadline is None:
+            # An unlock with no deadline is one from a build that had none, or a state
+            # written without it. Dropped rather than honoured for ever: that is exactly
+            # the stale unlock the deadline exists to prevent.
+            _LOGGER.debug(
+                "%s: dropped a restored unlock with no deadline", self._client.name
+            )
+            return
+        self._pending = False
+        self._pending_until = deadline
+        _LOGGER.debug(
+            "%s: restored a pending unlock until %s", self._client.name, deadline
+        )
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Put the lock screen up, now or as soon as the TV is listening."""
@@ -119,19 +177,30 @@ class LockSwitch(TvSitterEntity, SwitchEntity, RestoreEntity):
     async def _ask_for(self, locked: bool) -> None:
         if self._client.available and self._client.snapshot is not None:
             self._pending = None
+            self._pending_until = None
             await self._client.async_send(OP_LOCK if locked else OP_UNLOCK)
             return
 
         snapshot = self._client.snapshot
-        if snapshot is not None and snapshot.locked == locked:
-            # Nothing to ask for. Queuing it anyway would mean an `unlock` arriving on a
-            # television that woke up locked by its own budget, which sets the daily
-            # limit aside for the rest of the day — from a switch nobody moved.
+        if locked and snapshot is not None and snapshot.locked:
+            # Nothing to ask for: it is already up, and it cannot go further up.
             self._pending = None
+            self._pending_until = None
             self.async_write_ha_state()
             return
 
+        # An unlock is queued even when the last state agrees with it, which is the
+        # whole
+        # of #89. A television asleep and unlocked will very often wake up locked — by
+        # its
+        # own budget, or by a lock restored from before the reboot — and a parent
+        # pressing
+        # unlock a minute before switching it on is asking about that lock, not about
+        # the
+        # state it went to sleep in. The deadline is what keeps that different from an
+        # unlock forgotten overnight.
         self._pending = locked
+        self._pending_until = None if locked else dt_util.utcnow() + PENDING_UNLOCK_TTL
         self.async_write_ha_state()
         _LOGGER.debug(
             "%s is not listening; will %s as soon as it is",
@@ -148,13 +217,29 @@ class LockSwitch(TvSitterEntity, SwitchEntity, RestoreEntity):
         again — which also means an answer the TV declines, such as unlocking while the
         budget is spent, cannot turn into a command resent for ever.
         """
-        if self._pending is None:
+        locked = self._live_pending()
+        if locked is None:
             return
-        if not self._client.available or self._client.snapshot is None:
+        snapshot = self._client.snapshot
+        if not self._client.available or snapshot is None:
             return
 
-        locked = self._pending
+        if not locked and not snapshot.locked:
+            # It came back with nothing to lift. Sending the unlock anyway would set the
+            # daily limit aside for the rest of the day, which is not what the parent
+            # was
+            # asking for — they were asking about a lock that never appeared.
+            _LOGGER.debug(
+                "%s came back unlocked; the waiting unlock is not needed",
+                self._client.name,
+            )
+            self._pending = None
+            self._pending_until = None
+            self.async_write_ha_state()
+            return
+
         self._pending = None
+        self._pending_until = None
         _LOGGER.info(
             "%s is back; sending the %s that was waiting",
             self._client.name,

@@ -32,3 +32,4 @@ ha/secrets.yaml
 
 # The TV address, which belongs to one household rather than the repository.
 tools/device.local
+bin/
