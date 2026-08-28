@@ -48,17 +48,15 @@ class ActiveAppSensor(TvSitterEntity, SensorEntity):
 
     @property
     def native_value(self) -> str | None:
-        """Return the app's display name, or nothing while the TV is not reporting.
+        """Return the app's display name, including the last one before it went quiet.
 
-        The last app is not the current app once the television has gone. Naming a
-        programme that is not playing is the worse kind of wrong here, so this says it
-        does not know — the package id stays in the attributes for anyone who wants to
-        see what it was.
+        Not a claim that it is playing. "Screen: off" and "Reporting: no" sit beside
+        this one, so what it reads as is what was last on — a thing worth knowing, and
+        one that unknown threw away (#91). Whether the television is running is a
+        question those two answer; answering it here as well only loses the name.
         """
         snapshot = self._client.snapshot
-        if snapshot is None or not self._client.available:
-            return None
-        return snapshot.app_name
+        return None if snapshot is None else snapshot.app_name
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:

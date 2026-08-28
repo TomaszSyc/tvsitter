@@ -79,14 +79,18 @@ async def test_the_screen_is_off_when_nothing_is_reporting(
     assert screen.is_on is False
 
 
-async def test_the_app_is_unknown_rather_than_the_last_one(
+async def test_the_last_app_is_kept_rather_than_thrown_away(
     hass: HomeAssistant,
 ) -> None:
-    """Naming a programme that is not playing is the worse kind of wrong."""
+    """#91. What were they watching before it went off is worth knowing.
+
+    Not a claim that it is playing: the screen and the reporting entity beside it both
+    say the set is not running, which is what makes this readable as the last one.
+    """
     app = ActiveAppSensor(asleep(hass))
 
     assert app.available is True
-    assert app.native_value is None
+    assert app.native_value == "Netflix"
     assert app.extra_state_attributes["app_id"] == "com.netflix.ninja"
 
 
