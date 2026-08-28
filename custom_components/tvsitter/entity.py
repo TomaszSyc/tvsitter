@@ -34,12 +34,20 @@ class TvSitterEntity(Entity):
 
     @property
     def available(self) -> bool:
-        """Follow the TV's own availability topic.
+        """Have something to show, rather than have a television awake to show it.
 
-        A crashed app must not look like a TV that simply has nothing to report,
-        which is why the Last Will exists on the other side.
+        Most of what is published stays true while the set sleeps — time used today, the
+        limit in force, whether a parent PIN exists. A television that is not running
+        cannot change any of them, and they are what a parent looks at in the evening,
+        after it has been switched off. Following the availability topic took the whole
+        device out at exactly that moment (#90).
+
+        The two readings that are only true while it runs — the screen and the app in
+        front — answer for themselves instead. What the availability topic says has not
+        been thrown away: it is its own entity now, which is the honest place for "is
+        this thing actually running", and what #83 will alarm on.
         """
-        return self._client.available and self._client.snapshot is not None
+        return self._client.snapshot is not None
 
     async def async_added_to_hass(self) -> None:
         """Start listening for pushes from the client."""

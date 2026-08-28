@@ -21,8 +21,14 @@ PREFIX = "tvsitter/salon"
 
 
 def make_client(hass: HomeAssistant) -> TvSitterClient:
-    """Build a client with nothing subscribed; these tests only publish."""
-    return TvSitterClient(hass, name="TV Salon", topic_prefix=PREFIX)
+    """Build a client with nothing subscribed; these tests only publish.
+
+    Marked as listening, because that is what these tests are about. Writing to a
+    television that is not is refused on purpose (#90), and has its own tests.
+    """
+    client = TvSitterClient(hass, name="TV Salon", topic_prefix=PREFIX)
+    client.available = True
+    return client
 
 
 def snapshot(**overrides: object) -> StateSnapshot:

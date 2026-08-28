@@ -72,4 +72,10 @@ class ParentPinText(TvSitterEntity, TextEntity):
             # Reached only by a caller bypassing the pattern, but the alternative is
             # storing a hash of something nobody can type on a television.
             raise ServiceValidationError(f"a PIN is {LENGTH} digits")
+        if not self._client.available:
+            # Worse than most: a parent who believes the television has a new PIN, and
+            # finds out in front of the lock screen that it never arrived.
+            raise ServiceValidationError(
+                f"{self._client.name} is not listening; the PIN would not arrive"
+            )
         await self._client.async_send({"op": "set_pin", "hash": hash_pin(value)})

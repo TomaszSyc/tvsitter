@@ -10,6 +10,7 @@ from __future__ import annotations
 from homeassistant.components.button import ButtonEntity
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import TvSitterConfigEntry
@@ -49,6 +50,10 @@ class ClearLimitButton(TvSitterEntity, ButtonEntity):
         Sending an empty object would change nothing, and sending a whole rules object
         would mean knowing every rule in force — which this cannot and should not.
         """
+        if not self._client.available:
+            raise ServiceValidationError(
+                f"{self._client.name} is not listening; the change would go nowhere"
+            )
         await self._client.async_set_rules({RULE_DAILY_LIMIT: None})
 
 
@@ -76,4 +81,8 @@ class ClearPinButton(TvSitterEntity, ButtonEntity):
         with no `hash` key at all, so that a truncated command cannot quietly strip the
         PIN off a television.
         """
+        if not self._client.available:
+            raise ServiceValidationError(
+                f"{self._client.name} is not listening; the PIN would stay as it is"
+            )
         await self._client.async_send({"op": "set_pin", "hash": None})

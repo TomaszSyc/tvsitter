@@ -70,6 +70,9 @@
       },
       "pin_set": {
         "name": "Parent PIN set"
+      },
+      "reporting": {
+        "name": "Reporting"
       }
     },
     "sensor": {

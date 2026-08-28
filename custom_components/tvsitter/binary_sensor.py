@@ -9,7 +9,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from homeassistant.components.binary_sensor import BinarySensorEntity
+from homeassistant.components.binary_sensor import (
+    BinarySensorDeviceClass,
+    BinarySensorEntity,
+)
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -27,7 +30,9 @@ async def async_setup_entry(
 ) -> None:
     """Set up the binary sensors for one TV."""
     client = entry.runtime_data
-    async_add_entities([ScreenOnSensor(client), ParentPinSetSensor(client)])
+    async_add_entities(
+        [ScreenOnSensor(client), ParentPinSetSensor(client), ReportingSensor(client)]
+    )
 
 
 class ScreenOnSensor(TvSitterEntity, BinarySensorEntity):
@@ -44,9 +49,20 @@ class ScreenOnSensor(TvSitterEntity, BinarySensorEntity):
 
     @property
     def is_on(self) -> bool | None:
-        """Return True while the screen is on."""
+        """Return True while the screen is on.
+
+        A television we cannot reach is not showing anything. On this hardware the set
+        drops off the network *because* it went to standby, so reading the last value
+        would leave "on" beside a television that is off, all night.
+
+        Wrong in one case: the network dropping while somebody is watching. That case is
+        worth catching for its own sake rather than by leaving this ambiguous — the
+        connectivity entity says the reporting stopped, and #83 is the alarm for it.
+        """
         snapshot = self._client.snapshot
-        return None if snapshot is None else snapshot.screen_on
+        if snapshot is None:
+            return None
+        return snapshot.screen_on and self._client.available
 
 
 class ParentPinSetSensor(TvSitterEntity, BinarySensorEntity):
@@ -94,3 +110,31 @@ class ParentPinSetSensor(TvSitterEntity, BinarySensorEntity):
             ),
             "changed_by": snapshot.pin_changed_by,
         }
+
+
+class ReportingSensor(TvSitterEntity, BinarySensorEntity):
+    """Whether the TV is reporting in at all.
+
+    What the availability topic used to say by taking every entity away. It is a real
+    question — is the app running, is the set reachable — and it deserves an entity that
+    answers it rather than an absence that could mean anything.
+
+    Always available, because "no" is the answer it exists to give.
+    """
+
+    _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, client: TvSitterClient) -> None:
+        """Create the reporting sensor."""
+        super().__init__(client, "reporting")
+
+    @property
+    def available(self) -> bool:
+        """Always, unlike the rest."""
+        return True
+
+    @property
+    def is_on(self) -> bool:
+        """Return True while the TV is online."""
+        return self._client.available

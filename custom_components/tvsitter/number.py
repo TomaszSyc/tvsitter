@@ -10,6 +10,7 @@ from __future__ import annotations
 from homeassistant.components.number import NumberDeviceClass, NumberEntity, NumberMode
 from homeassistant.const import UnitOfTime
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import TvSitterConfigEntry
@@ -70,11 +71,17 @@ class DailyLimitNumber(TvSitterEntity, NumberEntity):
         """Send a new limit to the TV.
 
         The revision comes back in the next state payload, so the two sides can be seen
-        to agree rather than assumed to. Nothing is stored here: this entity is
-        unavailable while the TV is, so a limit cannot be set for a television
-        that never
-        heard it.
+        to agree rather than assumed to.
+
+        Refused outright while the TV is not listening. This entity stays readable then,
+        because the limit in force is still the limit in force (#90) — but commands are
+        never retained, so a limit set now would go nowhere and the box would show a
+        number nobody is enforcing. Saying so beats accepting it.
         """
+        if not self._client.available:
+            raise ServiceValidationError(
+                f"{self._client.name} is not listening; the limit would go nowhere"
+            )
         await self._client.async_set_rules(
             {RULE_DAILY_LIMIT: int(value * SECONDS_PER_MINUTE)}
         )
