@@ -10,209 +10,254 @@
 # The per-app rows are the apps this television has actually opened, so yours will differ. Delete
 # the ones you do not have and add the ones you do — the entity is named after the app.
 #
-# The viewing hours come from a schedule helper. Make one — Settings, Devices & services, Helpers,
-# Create helper, Schedule — draw the week on it, then run `tvsitter.use_schedule` once against
-# this television's rules sensor. Every later edit to the grid follows on its own. Point the
-# schedule tile below at whichever helper you made.
+# The viewing hours come from a schedule helper, because Home Assistant already has a weekly grid
+# with a proper editor. Make one — Settings, Devices & services, Helpers, Create helper, Schedule
+# — draw the week on it, then run `tvsitter.use_schedule` once against this television's rules
+# sensor. Every later edit follows on its own. Point the schedule tile at whichever helper you
+# made; here it is `schedule.viewing_hours`.
+#
+# Seven sections rather than three, and half-width tiles rather than full: a sections view lays
+# out as many columns as it has room for, and cards that are all twelve columns wide in three big
+# sections turn that into one long scroll (#120).
 #
 # TV Sitter — parental control for Android TV / Google TV.
 # Copyright (C) 2026 Tomasz Syc
 # SPDX-License-Identifier: AGPL-3.0-only
 views:
-  - title: Television
-    path: television
-    type: sections
-    icon: mdi:television-play
-    max_columns: 3
-    badges:
-      - type: entity
-        entity: binary_sensor.tv_lounge_screen
-        show_state: true
-      - type: entity
-        entity: sensor.tv_lounge_active_app
-        show_state: true
-      - type: entity
-        entity: binary_sensor.tv_lounge_reporting
-        show_state: true
-    sections:
-      # What is happening, and the one control worth reaching for in a hurry.
-      - type: grid
-        cards:
-          - type: heading
-            heading: Right now
-            icon: mdi:television-play
-          - type: tile
-            entity: switch.tv_lounge_lock
-            name: Lock the television
-            features:
-              - type: toggle
-            grid_options:
-              columns: 12
-          - type: tile
-            entity: sensor.tv_lounge_remaining_today
-            name: Left today
-            grid_options:
-              columns: 6
-          - type: tile
-            entity: sensor.tv_lounge_used_today
-            name: Watched today
-            grid_options:
-              columns: 6
-
-      # What he is watching, in proportion. A distribution card rather than a row of numbers:
-      # the question is which app the day went into, and that is a shape rather than a list.
-      - type: grid
-        cards:
-          - type: heading
-            heading: Today, by app
-            icon: mdi:chart-donut
-          - type: distribution
-            entities:
-              - sensor.tv_lounge_youtube
-              - sensor.tv_lounge_netflix
-              - sensor.tv_lounge_spotify
-              - sensor.tv_lounge_google_tv
-            grid_options:
-              columns: full
-          - type: statistics-graph
-            title: The last week
-            chart_type: bar
-            period: day
-            days_to_show: 7
-            stat_types:
-              - max
-            entities:
-              - entity: sensor.tv_lounge_used_today
-                name: Watched
-            grid_options:
-              columns: full
-              rows: 4
-
-      # The rules, which are the reason the rest of it behaves the way it does.
-      - type: grid
-        cards:
-          - type: heading
-            heading: Rules
-            icon: mdi:script-text
-          - type: tile
-            entity: number.tv_lounge_daily_limit
-            features:
-              - type: numeric-input
-                style: buttons
-            grid_options:
-              columns: 12
-          - type: tile
-            entity: number.tv_lounge_sleep_timer
-            features:
-              - type: numeric-input
-                style: buttons
-            grid_options:
-              columns: 12
-          - type: tile
-            entity: number.tv_lounge_warn_before
-            features:
-              - type: numeric-input
-                style: buttons
-            grid_options:
-              columns: 12
-          - type: tile
-            entity: switch.tv_lounge_block_settings
-            features:
-              - type: toggle
-            grid_options:
-              columns: 12
-          - type: tile
-            entity: button.tv_lounge_clear_limit
-            features:
-              - type: button
-            grid_options:
-              columns: 12
-          # Zero blocks the app outright, which is the same convention the daily limit has:
-          # zero is a real setting, not the absence of one.
-          # Each day of the week is one number, so each is a control. The week as a whole
-          # is not, which is what `tvsitter.set_schedule` is for: leaving the minutes out
-          # removes an override, and a number has no way to say "nothing".
-          - type: heading
-            heading: A day of its own
-            heading_style: subtitle
-          - type: tile
-            entity: number.tv_lounge_monday
-            features:
-              - type: numeric-input
-                style: buttons
-            grid_options:
-              columns: 12
-          - type: tile
-            entity: number.tv_lounge_saturday
-            features:
-              - type: numeric-input
-                style: buttons
-            grid_options:
-              columns: 12
-          - type: tile
-            entity: number.tv_lounge_sunday
-            features:
-              - type: numeric-input
-                style: buttons
-            grid_options:
-              columns: 12
-
-          # The hours come from a schedule helper, because Home Assistant already has a
-          # weekly grid with a proper editor and this would otherwise be a second one.
-          # Tapping the tile opens that editor; `tvsitter.use_schedule` points the
-          # television at it once, and every later edit follows on its own.
-          - type: heading
-            heading: When viewing is allowed
-            heading_style: subtitle
-          - type: tile
-            entity: schedule.viewing_hours
-            name: Viewing hours
-            tap_action:
-              action: more-info
-            grid_options:
-              columns: 12
-
-          - type: heading
-            heading: A budget of its own
-            heading_style: subtitle
-          - type: tile
-            entity: number.tv_lounge_youtube_limit
-            features:
-              - type: numeric-input
-                style: buttons
-            grid_options:
-              columns: 12
-          - type: tile
-            entity: number.tv_lounge_netflix_limit
-            features:
-              - type: numeric-input
-                style: buttons
-            grid_options:
-              columns: 12
-
-      # Last, because it is only interesting when something is wrong.
-      - type: grid
-        cards:
-          - type: heading
-            heading: Is it working
-            icon: mdi:stethoscope
-          - type: tile
-            entity: binary_sensor.tv_lounge_reporting_stopped
-            name: Stopped reporting
-            grid_options:
-              columns: 6
-          - type: tile
-            entity: sensor.tv_lounge_last_reported
-            name: Last heard from
-            grid_options:
-              columns: 6
-          - type: tile
-            entity: binary_sensor.tv_lounge_parent_pin_set
-            name: Parent PIN
-            grid_options:
-              columns: 6
-          - type: tile
-            entity: sensor.tv_lounge_rules
-            name: Rules revision
-            grid_options:
-              columns: 6
+- title: Television
+  path: television
+  type: sections
+  icon: mdi:television-play
+  max_columns: 3
+  badges:
+  - type: entity
+    entity: binary_sensor.tv_lounge_screen
+    show_state: true
+  - type: entity
+    entity: sensor.tv_lounge_active_app
+    show_state: true
+  - type: entity
+    entity: binary_sensor.tv_lounge_reporting
+    show_state: true
+  sections:
+  - type: grid
+    cards:
+    - type: heading
+      heading: Right now
+      icon: mdi:television-play
+    - type: tile
+      entity: switch.tv_lounge_lock
+      name: Lock the television
+      features:
+      - type: toggle
+      grid_options:
+        columns: 12
+    - type: tile
+      entity: sensor.tv_lounge_remaining_today
+      name: Left today
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.tv_lounge_used_today
+      name: Watched today
+      grid_options:
+        columns: 6
+  - type: grid
+    cards:
+    - type: heading
+      heading: Today, by app
+      icon: mdi:chart-donut
+    - type: distribution
+      entities:
+      - sensor.tv_lounge_youtube
+      - sensor.tv_lounge_netflix
+      - sensor.tv_lounge_spotify
+      - sensor.tv_lounge_google_tv
+      grid_options:
+        columns: full
+    - type: statistics-graph
+      title: The last week
+      chart_type: bar
+      period: day
+      days_to_show: 7
+      stat_types:
+      - max
+      entities:
+      - entity: sensor.tv_lounge_used_today
+        name: Watched today
+      grid_options:
+        columns: full
+        rows: 4
+  - type: grid
+    cards:
+    - type: heading
+      heading: Rules
+      icon: mdi:script-text
+    - type: tile
+      entity: number.tv_lounge_daily_limit
+      features:
+      - type: numeric-input
+        style: buttons
+      grid_options:
+        columns: 12
+    - type: tile
+      entity: number.tv_lounge_sleep_timer
+      features:
+      - type: numeric-input
+        style: buttons
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: number.tv_lounge_warn_before
+      features:
+      - type: numeric-input
+        style: buttons
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: switch.tv_lounge_block_settings
+      features:
+      - type: toggle
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: button.tv_lounge_clear_limit
+      features:
+      - type: button
+      grid_options:
+        columns: 6
+  - type: grid
+    cards:
+    - type: heading
+      heading: A day of its own
+      icon: mdi:calendar-week
+    - type: tile
+      entity: number.tv_lounge_monday_limit
+      name: Monday
+      features:
+      - type: numeric-input
+        style: buttons
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: number.tv_lounge_tuesday_limit
+      name: Tuesday
+      features:
+      - type: numeric-input
+        style: buttons
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: number.tv_lounge_wednesday_limit
+      name: Wednesday
+      features:
+      - type: numeric-input
+        style: buttons
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: number.tv_lounge_thursday_limit
+      name: Thursday
+      features:
+      - type: numeric-input
+        style: buttons
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: number.tv_lounge_friday_limit
+      name: Friday
+      features:
+      - type: numeric-input
+        style: buttons
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: number.tv_lounge_saturday_limit
+      name: Saturday
+      features:
+      - type: numeric-input
+        style: buttons
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: number.tv_lounge_sunday_limit
+      name: Sunday
+      features:
+      - type: numeric-input
+        style: buttons
+      grid_options:
+        columns: 6
+  - type: grid
+    cards:
+    - type: heading
+      heading: When viewing is allowed
+      icon: mdi:calendar-clock
+    - type: tile
+      entity: schedule.viewing_hours
+      name: Viewing hours
+      tap_action:
+        action: more-info
+      grid_options:
+        columns: 12
+    - type: markdown
+      text_only: true
+      content: Tap the tile, then the gear — the weekly grid is there. The television follows it on
+        its own.
+  - type: grid
+    cards:
+    - type: heading
+      heading: A budget of its own
+      icon: mdi:timer-lock-outline
+    - type: tile
+      entity: number.tv_lounge_youtube_limit
+      features:
+      - type: numeric-input
+        style: buttons
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: number.tv_lounge_netflix_limit
+      features:
+      - type: numeric-input
+        style: buttons
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: number.tv_lounge_spotify_limit
+      features:
+      - type: numeric-input
+        style: buttons
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: number.tv_lounge_google_tv_limit
+      features:
+      - type: numeric-input
+        style: buttons
+      grid_options:
+        columns: 6
+  - type: grid
+    cards:
+    - type: heading
+      heading: Is it working
+      icon: mdi:stethoscope
+    - type: tile
+      entity: binary_sensor.tv_lounge_reporting_stopped
+      name: Stopped reporting
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.tv_lounge_last_reported
+      name: Last heard from
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: binary_sensor.tv_lounge_parent_pin_set
+      name: Parent PIN
+      grid_options:
+        columns: 6
+    - type: tile
+      entity: sensor.tv_lounge_rules
+      name: Rules revision
+      grid_options:
+        columns: 6

@@ -218,6 +218,9 @@ and run `tvsitter.use_schedule` once against this TV's rules sensor. The helper 
 every later edit to the grid reaches the television by itself, and an edit made while the set is
 asleep goes out when it wakes.
 
+The grid itself lives one tap further in than it looks: tapping the schedule tile opens more-info,
+which shows state and history, and the editor is behind the gear in that dialog.
+
 Blocks that share their hours become one window rather than seven, a block drawn on every day
 loses its `days` key altogether, and a block running to the end of the day closes at midnight —
 so the rules stay something you can read when a lock surprises you.
