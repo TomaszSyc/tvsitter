@@ -57,6 +57,39 @@ TOPIC_STATE: Final = "state"
 TOPIC_REQUEST: Final = "request"
 TOPIC_RULES: Final = "rules"
 TOPIC_DAY: Final = "day"
+TOPIC_ALERT: Final = "alert"
+
+# The tamper signals, as the television names them. Listed so the event entity can
+# declare
+# its types; one it has never heard of is still shown rather than refused, because a
+# newer
+# television must be able to raise an alarm an older integration can pass on.
+ALERT_KINDS: Final = (
+    "pin_lockout",
+    "clock_changed",
+    "overlay_lost",
+    "usage_lost",
+    "unclean_restart",
+    "source_fight",
+)
+
+# What an alarm this build has never heard of is filed under. An event entity can only
+# fire
+# a type it declared, so a newer television's alarm is shown under a name rather than
+# dropped — losing it would lose exactly the message somebody needs.
+ALERT_UNKNOWN: Final = "unknown"
+
+# Four heartbeats. The television publishes state every 60 s, so this is 240 s — long
+# enough
+# to ride out the reboot gap D22 measured at about a minute, short enough that an app
+# killed
+# at bedtime is noticed the same evening.
+QUIET_AFTER_SECONDS: Final = 240
+
+# How often that is checked. One heartbeat: checking faster cannot make the answer
+# arrive
+# sooner, and checking slower would add its own delay to a four-minute one.
+SILENCE_CHECK_SECONDS: Final = 60
 TOPIC_COMMAND: Final = "cmd"
 
 PAYLOAD_ONLINE: Final = "online"

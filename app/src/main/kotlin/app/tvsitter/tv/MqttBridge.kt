@@ -6,6 +6,7 @@
 package app.tvsitter.tv
 
 import android.util.Log
+import app.tvsitter.rules.contract.Alert
 import app.tvsitter.rules.contract.Command
 import app.tvsitter.rules.contract.Contract
 import app.tvsitter.rules.contract.ContractCodec
@@ -228,6 +229,30 @@ class MqttBridge(
             .qos(MqttQos.AT_LEAST_ONCE)
             .retain(true)
             .send()
+    }
+
+    /**
+     * Raises an alarm. Never retained, and loud when it cannot go out.
+     *
+     * A retained alarm would be replayed after every broker restart, which teaches a parent to
+     * ignore it. And an alarm that failed to send is the one failure worth a line in the log:
+     * the whole point of it is that somebody finds out.
+     */
+    fun publish(alert: Alert) {
+        val active = client?.takeIf { it.state.isConnected }
+        if (active == null) {
+            Log.w(EnforcerService.TAG, "mqtt: not connected, alert ${alert.kind} could not be sent")
+            return
+        }
+        active.publishWith()
+            .topic(topics.alert)
+            .payload(ContractCodec.encode(alert).toByteArray())
+            .qos(MqttQos.AT_LEAST_ONCE)
+            .retain(false)
+            .send()
+            .whenComplete { _, error ->
+                if (error != null) Log.w(EnforcerService.TAG, "mqtt: alert publish failed", error)
+            }
     }
 
     fun publish(request: TimeRequest) {

@@ -31,7 +31,12 @@ async def async_setup_entry(
     """Set up the binary sensors for one TV."""
     client = entry.runtime_data
     async_add_entities(
-        [ScreenOnSensor(client), ParentPinSetSensor(client), ReportingSensor(client)]
+        [
+            ScreenOnSensor(client),
+            ParentPinSetSensor(client),
+            ReportingSensor(client),
+            ReportingStoppedSensor(client),
+        ]
     )
 
 
@@ -138,3 +143,45 @@ class ReportingSensor(TvSitterEntity, BinarySensorEntity):
     def is_on(self) -> bool:
         """Return True while the TV is online."""
         return self._client.available
+
+
+class ReportingStoppedSensor(TvSitterEntity, BinarySensorEntity):
+    """On when nothing has arrived from the television for four heartbeats.
+
+    The alarm this milestone is named for, and the half that can be built here.
+    Availability
+    cannot raise it: it is the Last Will, and D24 measured what that means — a
+    set going to
+    standby holds the network for a minute or two before it flips, so "the app
+    was killed"
+    and "the television is asleep" look identical from there.
+
+    This says only that the reporting stopped. Whether the set is powered is a
+    question for
+    the household's own witness — philips_js, or whatever media_player is in
+    that house — and
+    the comparison belongs in a blueprint rather than in here, because the
+    integration has no
+    business guessing which entity that is.
+
+    Always available, and deliberately does not blank its neighbours: a quiet
+    television still
+    has a last known state worth reading, and hiding it would hide the evidence.
+    """
+
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, client: TvSitterClient) -> None:
+        """Create the silence sensor."""
+        super().__init__(client, "reporting_stopped")
+
+    @property
+    def available(self) -> bool:
+        """Always, like the reporting sensor: silence is the answer it gives."""
+        return True
+
+    @property
+    def is_on(self) -> bool:
+        """Return True while the television has gone quiet."""
+        return self._client.reporting_stopped

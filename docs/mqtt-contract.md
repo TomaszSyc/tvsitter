@@ -177,6 +177,31 @@ One day only. The archive belongs to whoever is listening — the recorder now, 
 server later (D25) — and a television that keeps a month of history is a television with a
 database on it.
 
+## `<p>/alert`
+
+Something a parent should hear about. QoS 1, **not** retained.
+
+```json
+{ "schema": 1, "id": "a1b2c3d4", "kind": "pin_lockout", "ts": 1787490000000,
+  "detail": { "failures": 5, "seconds": 300 } }
+```
+
+Retained `state` is the wrong shape for these: a counter in it rewrites the payload on every wrong
+keypress, and a value cannot say *when*. A request is the right shape and the wrong subject. So
+every tamper signal is a `kind` here, and `detail` is free per kind — "five wrong guesses, shut for
+five minutes" and "the clock moved four hours" have nothing in common but their shape.
+
+Never retained: an alarm replayed after every broker restart is one a parent learns to ignore.
+`id` is stable for one occurrence, so a redelivered alert is not a second alarm.
+
+Kinds are registered as they are built: `pin_lockout`, `clock_changed`, `overlay_lost`,
+`usage_lost`, `unclean_restart`, `source_fight`. A receiver that meets one it does not know shows
+it rather than refusing it — a newer television must be able to raise an alarm an older
+integration can still pass on.
+
+Never the PIN, never its hash, never what was typed. An alarm that leaked any of those would be a
+worse hole than the one it reports.
+
 ## `<p>/cmd`
 
 ```json

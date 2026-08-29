@@ -7,12 +7,15 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 from __future__ import annotations
 
+from datetime import timedelta
 import json
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 
+from custom_components.tvsitter.const import QUIET_AFTER_SECONDS
 from custom_components.tvsitter.coordinator import TvSitterClient
 from custom_components.tvsitter.models import StateSnapshot
 from custom_components.tvsitter.sensor import (
@@ -26,6 +29,7 @@ from custom_components.tvsitter.sensor import (
 )
 from homeassistant.components.sensor import SensorStateClass
 from homeassistant.core import HomeAssistant
+from homeassistant.util import dt as dt_util
 
 PREFIX = "tvsitter/salon"
 
@@ -259,3 +263,75 @@ async def test_before_the_first_rollover_there_is_no_yesterday(
 
     assert sensor.native_value is None
     assert sensor.extra_state_attributes is None
+
+
+ALERT = json.dumps(
+    {
+        "schema": 1,
+        "id": "a1b2c3d4",
+        "kind": "pin_lockout",
+        "ts": 1787490000000,
+        "detail": {"failures": 5, "seconds": 300},
+    }
+)
+
+
+async def test_a_keypad_that_shut_reaches_home_assistant(hass: HomeAssistant) -> None:
+    """#41 and #77. Working through PINs was invisible until one of them worked."""
+    client = make_client(hass)
+    seen: list[object] = []
+    client.async_add_alert_listener(seen.append)
+
+    client._handle_alert(SimpleNamespace(topic=f"{PREFIX}/alert", payload=ALERT))
+
+    assert len(seen) == 1
+    assert client.last_alert.kind == "pin_lockout"
+    assert client.last_alert.detail["failures"] == 5
+
+
+async def test_an_alarm_that_cannot_be_read_is_not_an_alarm(
+    hass: HomeAssistant,
+) -> None:
+    """An exception inside an MQTT callback takes the subscription down with it."""
+    client = make_client(hass)
+    seen: list[object] = []
+    client.async_add_alert_listener(seen.append)
+
+    client._handle_alert(SimpleNamespace(topic=f"{PREFIX}/alert", payload="not json"))
+    payload = json.dumps({"schema": 1, "id": "", "kind": "pin_lockout"})
+    client._handle_alert(SimpleNamespace(topic=f"{PREFIX}/alert", payload=payload))
+
+    assert seen == []
+    assert client.last_alert is None
+
+
+async def test_silence_is_noticed_without_blanking_anything(
+    hass: HomeAssistant,
+) -> None:
+    """#83. A quiet television still has a last known state worth reading."""
+    client = make_client(hass)
+
+    stale = dt_util.utcnow() + timedelta(seconds=QUIET_AFTER_SECONDS + 60)
+    with patch(
+        "custom_components.tvsitter.coordinator.dt_util.utcnow", return_value=stale
+    ):
+        client._check_for_silence(stale)
+
+    assert client.reporting_stopped is True
+    assert UsedTodaySensor(client).available is True, "the evidence stays visible"
+    assert UsedTodaySensor(client).native_value == 4800
+
+
+async def test_a_television_reporting_normally_is_not_a_problem(
+    hass: HomeAssistant,
+) -> None:
+    """The heartbeat is 60 s, so four of them is the bar rather than one missed tick."""
+    client = make_client(hass)
+
+    fresh = dt_util.utc_from_timestamp(1787490000 + 90)
+    with patch(
+        "custom_components.tvsitter.coordinator.dt_util.utcnow", return_value=fresh
+    ):
+        client._check_for_silence(fresh)
+
+    assert client.reporting_stopped is False

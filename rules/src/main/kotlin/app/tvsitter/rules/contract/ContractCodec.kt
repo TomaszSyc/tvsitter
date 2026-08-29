@@ -51,6 +51,13 @@ object ContractCodec {
         return json.decodeFromString(payload)
     }
 
+    fun encode(alert: Alert): String = json.encodeToString(alert)
+
+    fun decodeAlert(payload: String): Alert {
+        requireSupportedSchema(payload)
+        return json.decodeFromString(payload)
+    }
+
     fun decodeCommand(payload: String): Command = json.decodeFromString(payload)
 
     /**

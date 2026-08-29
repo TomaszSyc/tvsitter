@@ -26,3 +26,9 @@ complexity:
     threshold: 80
   TooManyFunctions:
     thresholdInClasses: 15
+    # Objects get the same allowance as classes. The default is lower for no reason that
+    # applies here: ContractCodec is an encode/decode pair per payload type, so its size
+    # tracks the contract's size, and five ways to spell `encode` is one idea rather than
+    # five. Splitting it by direction would put the schema check somewhere other than the
+    # decoders it guards.
+    thresholdInObjects: 15

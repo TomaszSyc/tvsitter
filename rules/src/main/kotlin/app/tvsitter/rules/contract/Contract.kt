@@ -41,6 +41,13 @@ object Contract {
      * only — the archive is the recorder's job, not the television's.
      */
     const val TOPIC_DAY: String = "day"
+
+    /**
+     * Something a parent should hear about: a keypad that shut, a clock that moved, a
+     * permission that went away. Never retained — an alarm replayed after every broker
+     * restart is an alarm nobody reads twice.
+     */
+    const val TOPIC_ALERT: String = "alert"
     const val TOPIC_COMMAND: String = "cmd"
 
     const val PAYLOAD_ONLINE: String = "online"
@@ -74,6 +81,7 @@ class Topics(prefix: String) {
     val request: String get() = "$prefix/${Contract.TOPIC_REQUEST}"
     val rules: String get() = "$prefix/${Contract.TOPIC_RULES}"
     val day: String get() = "$prefix/${Contract.TOPIC_DAY}"
+    val alert: String get() = "$prefix/${Contract.TOPIC_ALERT}"
     val command: String get() = "$prefix/${Contract.TOPIC_COMMAND}"
 
     override fun equals(other: Any?): Boolean = other is Topics && other.prefix == prefix

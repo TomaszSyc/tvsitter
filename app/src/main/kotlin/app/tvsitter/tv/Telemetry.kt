@@ -7,6 +7,7 @@ package app.tvsitter.tv
 
 import android.content.Context
 import android.util.Log
+import app.tvsitter.rules.contract.Alert
 import app.tvsitter.rules.contract.Command
 import app.tvsitter.rules.contract.DaySummary
 import app.tvsitter.rules.contract.StateSnapshot
@@ -143,6 +144,23 @@ class Telemetry(
         val active = bridge ?: return
         runCatching { active.publish(day) }
             .onFailure { Log.w(EnforcerService.TAG, "telemetry: day publish failed", it) }
+    }
+
+    /**
+     * Raises an alarm, through here rather than straight into the bridge.
+     *
+     * Everything that leaves the television goes through this class, which is what makes "is
+     * it publishing" a question with one answer. It also means an alarm raised before the
+     * broker is up is dropped in one place, with one log line, rather than at each caller.
+     */
+    fun publish(alert: Alert) {
+        val active = bridge
+        if (active == null) {
+            Log.w(EnforcerService.TAG, "telemetry: no broker, alert ${alert.kind} not sent")
+            return
+        }
+        runCatching { active.publish(alert) }
+            .onFailure { Log.w(EnforcerService.TAG, "telemetry: alert publish failed", it) }
     }
 
     private fun publishNow() {

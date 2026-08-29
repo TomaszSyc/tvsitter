@@ -36,3 +36,20 @@ repos:
       - id: ruff-check
         args: [--fix]
       - id: ruff-format
+
+  # Kotlin formatting, which nothing else here checked — so a badly placed comment could be
+  # committed and pushed, and was. Three times in one day the same mistake: an insertion
+  # landing between a KDoc and the declaration it documents, which ktlint refuses and no
+  # Python hook could ever see.
+  #
+  # Runs only when Kotlin is staged, and only spotless: detekt and the tests belong in CI,
+  # where waiting is free. This is the check that catches a whole class of edit mistake at
+  # the moment it is made rather than after it has travelled.
+  - repo: local
+    hooks:
+      - id: spotless
+        name: spotless (Kotlin formatting)
+        entry: ./gradlew --quiet spotlessCheck
+        language: system
+        files: \.(kt|kts)$
+        pass_filenames: false

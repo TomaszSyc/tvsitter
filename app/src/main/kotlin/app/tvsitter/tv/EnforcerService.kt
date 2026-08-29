@@ -11,6 +11,8 @@ import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import app.tvsitter.rules.Rules
+import app.tvsitter.rules.contract.Alert
+import app.tvsitter.rules.contract.AlertKind
 import app.tvsitter.rules.contract.Command
 import app.tvsitter.rules.contract.StateSnapshot
 import app.tvsitter.rules.pairing.PairRequest
@@ -23,6 +25,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import java.util.UUID
 
 /**
  * The heart of the app: it watches what is on screen, counts the time, and puts the lock up.
@@ -164,6 +169,9 @@ class EnforcerService : Service() {
         // process last died, so it goes back up. Gating this on locked storage meant it never
         // ran on this television, where the user is already unlocked when the early broadcast
         // arrives — and a lock a parent had put up was quietly forgotten by a reboot.
+        // Somebody working through PINs on the lock screen is invisible until they get one
+        // right, which is the wrong way round (#41).
+        parentPin?.onLockout = { tries, until -> telemetry?.publish(pinLockoutAlert(tries, until)) }
         requests?.tally = dayTally
         locks?.tally = dayTally
         locks?.restoreFromMemory()
@@ -399,6 +407,9 @@ class EnforcerService : Service() {
     companion object {
         const val TAG = "TVSitter"
 
+        /** Long enough to tell two alarms apart, short enough to read out loud. */
+        const val ALERT_ID_LENGTH = 8
+
         const val ACTION_LOCK = "app.tvsitter.tv.action.LOCK"
         const val ACTION_UNLOCK = "app.tvsitter.tv.action.UNLOCK"
         const val ACTION_PUBLISH = "app.tvsitter.tv.action.PUBLISH"
@@ -416,3 +427,25 @@ class EnforcerService : Service() {
         }
     }
 }
+
+/**
+ * The alarm raised when the keypad shuts.
+ *
+ * At file level so the service holds wiring rather than wording, and so onCreate stays short
+ * enough to read in one go.
+ *
+ * Carries what was tried and until when, and nothing else: never the PIN, never its hash, never
+ * what was typed. An alarm that leaked any of those would be a worse hole than the one it reports.
+ */
+private fun pinLockoutAlert(failures: Int, untilMs: Long): Alert = Alert(
+    id = UUID.randomUUID().toString().take(EnforcerService.ALERT_ID_LENGTH),
+    kind = AlertKind.PIN_LOCKOUT,
+    ts = System.currentTimeMillis(),
+    detail = buildJsonObject {
+        put("failures", JsonPrimitive(failures))
+        put("until", JsonPrimitive(untilMs))
+        put("seconds", JsonPrimitive((untilMs - System.currentTimeMillis()) / MILLIS_IN_A_SECOND))
+    },
+)
+
+private const val MILLIS_IN_A_SECOND = 1_000L

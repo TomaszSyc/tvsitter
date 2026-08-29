@@ -111,6 +111,7 @@ Measured on the television it runs on, rather than guessed:
 | M5 | statistics and anti-tamper | history, Settings lockout, alarm when the app dies | next |
 | M6 | interface and graphics | screens designed for a ten-foot view, real artwork, the words a child reads | |
 | M7 | going public | documentation, release, HACS submission | |
+| M8 | parent add-on | the weekly schedule, per-app budgets and history in a page of their own, through Ingress | |
 
 ## License
 

@@ -40,6 +40,15 @@ class PinKeeper(context: Context) {
     val changedBy: String? get() = store.changedBy
 
     /**
+     * Raised when the keypad shuts, so somebody working through PINs is not invisible.
+     *
+     * Set after construction: this class is the one thing that must keep working with no
+     * broker, no network and no Home Assistant, and it is not going to start depending on
+     * one to check a PIN.
+     */
+    var onLockout: ((failures: Int, untilMs: Long) -> Unit)? = null
+
+    /**
      * Checks [pin] and answers on the main thread.
      *
      * Off-thread because the derivation is slow on purpose and this television is not fast:
@@ -72,8 +81,14 @@ class PinKeeper(context: Context) {
     /** Checks [pin] against the stored hash, spending an attempt if it is wrong. */
     private fun verify(pin: String): PinOutcome {
         val startedAtMs = System.currentTimeMillis()
+        val wasShut = store.lockout.lockedUntilMs > startedAtMs
         val attempt = PinCheck.verify(pin, store.hash, store.lockout, startedAtMs)
         store.lockout = attempt.lockout
+        // Once per lockout, not once per press: the alarm is that the keypad shut, and five
+        // messages for five guesses is how a parent learns to swipe them away.
+        if (!wasShut && attempt.lockout.lockedUntilMs > startedAtMs) {
+            onLockout?.invoke(attempt.lockout.failures, attempt.lockout.lockedUntilMs)
+        }
         // The elapsed time is here because the hash is deliberately expensive and this runs on
         // the main thread: if a television takes long enough over it to be felt, that shows up
         // as a number rather than as a hunch.

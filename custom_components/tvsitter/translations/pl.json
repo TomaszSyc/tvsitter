@@ -73,6 +73,9 @@
       },
       "reporting": {
         "name": "Raportuje"
+      },
+      "reporting_stopped": {
+        "name": "Przestał raportować"
       }
     },
     "sensor": {
@@ -133,6 +136,9 @@
     "event": {
       "time_request": {
         "name": "Prośba o czas"
+      },
+      "tamper": {
+        "name": "Manipulacja"
       }
     }
   },

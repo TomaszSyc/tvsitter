@@ -13,6 +13,7 @@ from typing import ClassVar
 import voluptuous as vol
 
 from homeassistant.components.event import EventEntity
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
@@ -21,6 +22,8 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import TvSitterConfigEntry
 from .const import (
+    ALERT_KINDS,
+    ALERT_UNKNOWN,
     ATTR_MINUTES,
     ATTR_REQUEST_ID,
     KIND_MORE_TIME,
@@ -29,7 +32,7 @@ from .const import (
 )
 from .coordinator import TvSitterClient
 from .entity import TvSitterEntity
-from .models import TimeRequest
+from .models import Alert, TimeRequest
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -44,7 +47,9 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up the request event for one TV, and the actions that answer it."""
-    async_add_entities([TimeRequestEvent(entry.runtime_data)])
+    async_add_entities(
+        [TimeRequestEvent(entry.runtime_data), TamperEvent(entry.runtime_data)]
+    )
 
     platform = entity_platform.async_get_current_platform()
     platform.async_register_entity_service(
@@ -147,3 +152,44 @@ class TimeRequestEvent(TvSitterEntity, EventEntity):
                 f"{self._client.name} has not asked for more time"
             )
         return last.id
+
+
+class TamperEvent(TvSitterEntity, EventEntity):
+    """Fires when the television reports that somebody has been at it.
+
+    Every tamper signal is one kind on one entity rather than an entity each:
+    they are rare,
+    they are all the same shape, and a parent wants one automation that says "something
+    happened" rather than six that each watch for one thing.
+
+    A kind this build has never heard of still fires. A newer television must be able to
+    raise an alarm an older integration can pass on — refusing it would drop exactly the
+    message somebody needs.
+    """
+
+    _attr_event_types: ClassVar[list[str]] = list(ALERT_KINDS)
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, client: TvSitterClient) -> None:
+        """Create the tamper event."""
+        super().__init__(client, "tamper")
+
+    async def async_added_to_hass(self) -> None:
+        """Listen for alarms as well as for state."""
+        await super().async_added_to_hass()
+        self.async_on_remove(self._client.async_add_alert_listener(self._handle_alert))
+
+    @callback
+    def _handle_alert(self, alert: Alert) -> None:
+        """Turn one alarm into an event."""
+        kind = alert.kind
+        if kind not in self.event_types:
+            # Shown rather than refused, but under a name this build does understand,
+            # because
+            # an event entity can only fire a type it declared.
+            _LOGGER.warning(
+                "%s raised %s, which this build does not know", self._client.name, kind
+            )
+            kind = ALERT_UNKNOWN
+        self._trigger_event(kind, {"id": alert.id, "kind": alert.kind, **alert.detail})
+        self.async_write_ha_state()

@@ -7,6 +7,7 @@ package app.tvsitter.rules.contract
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 
 /**
  * What the TV publishes on `<prefix>/state`, retained.
@@ -98,4 +99,51 @@ data class TimeRequest(
     companion object {
         const val KIND_MORE_TIME: String = "more_time"
     }
+}
+
+/**
+ * Something happened that a parent should hear about, and that no state field can carry.
+ *
+ * Retained state is the wrong shape for these: a counter in it rewrites the payload on every
+ * wrong keypress, and a value cannot say *when*. A request is the right shape and the wrong
+ * subject. So this is its own topic, and every tamper signal is a [kind] on it.
+ *
+ * [id] is stable for one occurrence, so a redelivered alert is not a second alarm — the same
+ * reason a time request carries one. [detail] is free per kind, because "five wrong guesses,
+ * locked until 21:14" and "the clock moved four hours" have nothing in common but their shape.
+ */
+@Serializable
+data class Alert(
+    val schema: Int = Contract.SCHEMA_VERSION,
+    val id: String,
+    val kind: String,
+    val ts: Long,
+    val detail: JsonObject = JsonObject(emptyMap()),
+)
+
+/**
+ * The kinds, registered as they are built.
+ *
+ * Strings rather than an enum because Home Assistant has to understand one it has never seen —
+ * a newer television must be able to raise an alarm an older integration can still show, rather
+ * than one it refuses to decode.
+ */
+object AlertKind {
+    /** The keypad shut after too many wrong guesses. */
+    const val PIN_LOCKOUT: String = "pin_lockout"
+
+    /** The television's clock moved by more than sleep and drift explain. */
+    const val CLOCK_CHANGED: String = "clock_changed"
+
+    /** Permission to draw over other apps is gone, so the lock cannot appear. */
+    const val OVERLAY_LOST: String = "overlay_lost"
+
+    /** Usage access is gone, so nothing can be counted or displaced. */
+    const val USAGE_LOST: String = "usage_lost"
+
+    /** The service came back without having been asked to stop. */
+    const val UNCLEAN_RESTART: String = "unclean_restart"
+
+    /** Something keeps coming back in front of the lock. */
+    const val SOURCE_FIGHT: String = "source_fight"
 }

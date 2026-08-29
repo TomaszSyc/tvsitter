@@ -8,17 +8,23 @@ SPDX-License-Identifier: AGPL-3.0-only
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import datetime, timedelta
 import json
 import logging
 from typing import Any
 
 from homeassistant.components import mqtt
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.util import dt as dt_util
 
 from .const import (
     OP_SET_RULES,
     PAYLOAD_ONLINE,
+    QUIET_AFTER_SECONDS,
     SCHEMA_VERSION,
+    SILENCE_CHECK_SECONDS,
+    TOPIC_ALERT,
     TOPIC_AVAILABILITY,
     TOPIC_COMMAND,
     TOPIC_DAY,
@@ -26,7 +32,13 @@ from .const import (
     TOPIC_RULES,
     TOPIC_STATE,
 )
-from .models import DaySummary, StateSnapshot, TimeRequest, UnsupportedSchemaError
+from .models import (
+    Alert,
+    DaySummary,
+    StateSnapshot,
+    TimeRequest,
+    UnsupportedSchemaError,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -47,6 +59,10 @@ class TvSitterClient:
         self.snapshot: StateSnapshot | None = None
         self.rules: dict[str, Any] | None = None
         self.day: DaySummary | None = None
+        self.last_alert: Alert | None = None
+        self.reporting_stopped = False
+        self._alert_listeners: list[Callable[[Alert], None]] = []
+        self._quiet_timer: Callable[[], None] | None = None
         self._sent_rev = 0
         self.available = False
         # The last request the TV made, so an answer can be addressed without the caller
@@ -96,6 +112,14 @@ class TvSitterClient:
         self._unsubscribers.append(
             await mqtt.async_subscribe(
                 self._hass,
+                f"{self._prefix}/{TOPIC_ALERT}",
+                self._handle_alert,
+                qos=1,
+            )
+        )
+        self._unsubscribers.append(
+            await mqtt.async_subscribe(
+                self._hass,
                 f"{self._prefix}/{TOPIC_DAY}",
                 self._handle_day,
                 qos=1,
@@ -108,6 +132,18 @@ class TvSitterClient:
                 self._handle_rules,
                 qos=1,
             )
+        )
+        # Nothing else watches the clock. Availability is the Last Will, and D24
+        # measured what
+        # that means: a set going to standby holds the network for a minute or two
+        # before it
+        # flips, so "the app was killed" and "the television is asleep" look identical
+        # from
+        # there. This is the other half of telling them apart.
+        self._quiet_timer = async_track_time_interval(
+            self._hass,
+            self._check_for_silence,
+            timedelta(seconds=SILENCE_CHECK_SECONDS),
         )
         _LOGGER.debug("Subscribed to %s/#", self._prefix)
 
@@ -234,6 +270,65 @@ class TvSitterClient:
         self.last_request = request
         for handle in list(self._request_listeners):
             handle(request)
+
+    @callback
+    def _handle_alert(self, message: mqtt.ReceiveMessage) -> None:
+        """Take an alarm and pass it on once."""
+        try:
+            alert = Alert.from_payload(message.payload)
+        except UnsupportedSchemaError as newer:
+            _LOGGER.warning("%s raised an alarm from schema %s", self.name, newer.found)
+            return
+        except ValueError, TypeError:
+            _LOGGER.warning("%s raised an alarm that cannot be read", self.name)
+            return
+
+        _LOGGER.info("%s raised %s", self.name, alert.kind)
+        self.last_alert = alert
+        for handle in list(self._alert_listeners):
+            handle(alert)
+
+    @callback
+    def async_add_alert_listener(
+        self, handle: Callable[[Alert], None]
+    ) -> Callable[[], None]:
+        """Listen for alarms.
+
+        A moment, like a request, rather than a value an entity re-reads.
+        """
+        self._alert_listeners.append(handle)
+
+        @callback
+        def remove() -> None:
+            self._alert_listeners.remove(handle)
+
+        return remove
+
+    @callback
+    def _check_for_silence(self, _now: datetime) -> None:
+        """Notice that the television has stopped saying anything.
+
+        Deliberately does not touch availability: a quiet set still has a
+        last known state
+        worth showing, and blanking every entity would hide the very
+        evidence somebody is
+        looking at.
+        """
+        snapshot = self.snapshot
+        quiet = False
+        if snapshot is not None and snapshot.ts:
+            age = dt_util.utcnow().timestamp() - snapshot.ts / 1000
+            quiet = age > QUIET_AFTER_SECONDS
+        if quiet == self.reporting_stopped:
+            return
+        self.reporting_stopped = quiet
+        _LOGGER.log(
+            logging.WARNING if quiet else logging.INFO,
+            "%s has %s",
+            self.name,
+            "stopped reporting" if quiet else "started reporting again",
+        )
+        self._notify()
 
     @callback
     def _handle_day(self, message: mqtt.ReceiveMessage) -> None:

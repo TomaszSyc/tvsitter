@@ -178,3 +178,39 @@ class DaySummary:
             requests=dict(data.get("requests") or {}),
             ts=int(data.get("ts") or 0),
         )
+
+
+@dataclass(frozen=True, slots=True)
+class Alert:
+    """Something a parent should hear about, that no state field can carry.
+
+    A counter in retained state rewrites the payload on every wrong keypress and
+    still cannot
+    say when it happened. This is a moment, so it arrives like a request rather
+    than a value.
+    """
+
+    id: str
+    kind: str
+    ts: int = 0
+    detail: dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_payload(cls, payload: str) -> Alert:
+        """Parse an alert, refusing anything from a newer schema."""
+        data: dict[str, Any] = json.loads(payload)
+        schema = data.get("schema", SCHEMA_VERSION)
+        if isinstance(schema, int) and schema > SCHEMA_VERSION:
+            raise UnsupportedSchemaError(schema)
+
+        alert_id = str(data.get("id") or "").strip()
+        kind = str(data.get("kind") or "").strip()
+        if not alert_id or not kind:
+            raise ValueError("an alert needs an id and a kind")
+
+        return cls(
+            id=alert_id,
+            kind=kind,
+            ts=int(data.get("ts") or 0),
+            detail=dict(data.get("detail") or {}),
+        )
