@@ -15,6 +15,7 @@ import pytest
 from custom_components.tvsitter.coordinator import TvSitterClient
 from custom_components.tvsitter.models import StateSnapshot
 from custom_components.tvsitter.sensor import (
+    AppUsageSensor,
     BonusTodaySensor,
     LastReportedSensor,
     LimitTodaySensor,
@@ -126,3 +127,61 @@ def test_every_entity_name_is_translated() -> None:
     for language in ("en", "pl"):
         translations = package / "translations" / f"{language}.json"
         assert keys(json.loads(translations.read_text())) == expected, language
+
+
+def apps(hass: HomeAssistant, per_app: dict[str, int], names: dict[str, str]):
+    """Build a client whose TV has charged time to some packages."""
+    return make_client(hass, per_app=per_app, per_app_names=names)
+
+
+async def test_an_app_is_named_by_the_television(hass: HomeAssistant) -> None:
+    """#82. The labels live on the set and nowhere else.
+
+    Without them a graph of what a child watches is a graph of package ids.
+    """
+    client = apps(hass, {"com.netflix.ninja": 890}, {"com.netflix.ninja": "Netflix"})
+
+    sensor = AppUsageSensor(client, "com.netflix.ninja")
+
+    assert sensor.name == "Netflix"
+    assert sensor.native_value == 890
+    assert sensor.state_class is SensorStateClass.TOTAL_INCREASING
+
+
+async def test_an_app_without_a_label_keeps_its_package_id(
+    hass: HomeAssistant,
+) -> None:
+    """An id on a graph beats a row that is not there."""
+    client = apps(hass, {"com.mystery.app": 60}, {})
+
+    assert AppUsageSensor(client, "com.mystery.app").name == "com.mystery.app"
+
+
+async def test_a_label_arriving_later_fixes_the_name(hass: HomeAssistant) -> None:
+    """Read on every update rather than fixed at creation."""
+    client = apps(hass, {"com.netflix.ninja": 60}, {})
+    sensor = AppUsageSensor(client, "com.netflix.ninja")
+
+    client.snapshot = apps(
+        hass, {"com.netflix.ninja": 120}, {"com.netflix.ninja": "Netflix"}
+    ).snapshot
+
+    assert sensor.name == "Netflix"
+
+
+async def test_a_day_that_rolled_over_reads_zero_rather_than_unknown(
+    hass: HomeAssistant,
+) -> None:
+    """It resets with the budget day, which is not the same as having no answer."""
+    client = apps(hass, {}, {})
+
+    assert AppUsageSensor(client, "com.netflix.ninja").native_value == 0
+
+
+async def test_an_app_on_a_television_that_has_not_reported_says_nothing(
+    hass: HomeAssistant,
+) -> None:
+    """Zero here would claim a day with no television in it."""
+    client = TvSitterClient(hass, name="TV Salon", topic_prefix=PREFIX)
+
+    assert AppUsageSensor(client, "com.netflix.ninja").native_value is None

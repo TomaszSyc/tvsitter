@@ -333,6 +333,11 @@ class EnforcerService : Service() {
             usedTodaySeconds = screenTime?.usedSeconds ?: 0,
             bonusTodaySeconds = screenTime?.bonusSeconds ?: 0,
             perApp = screenTime?.perAppSeconds ?: emptyMap(),
+            // Named here because the labels exist here and nowhere else. Only the packages
+            // that have time against them: a list of everything installed is a different
+            // thing, and one Play would ask harder questions about (#14).
+            perAppNames = screenTime?.perAppSeconds.orEmpty().keys
+                .associateWith { appLabels?.labelOf(it) ?: it },
             // Published rather than assumed: this TV keeps its own rules and enforces them
             // offline (D3), so it is the only thing that knows what is actually in force.
             limitTodaySeconds = screenTime?.limitTodaySeconds(),

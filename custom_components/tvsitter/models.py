@@ -44,6 +44,7 @@ class StateSnapshot:
     remaining_seconds: int | None = None
     bonus_seconds: int = 0
     per_app: dict[str, int] = field(default_factory=dict)
+    per_app_names: dict[str, str] = field(default_factory=dict)
     active_window: str | None = None
     lock_reason: str | None = None
     until_seconds: int | None = None
@@ -76,6 +77,7 @@ class StateSnapshot:
             remaining_seconds=data.get("remaining_today_s"),
             bonus_seconds=int(data.get("bonus_today_s") or 0),
             per_app=dict(data.get("per_app") or {}),
+            per_app_names=dict(data.get("per_app_names") or {}),
             active_window=data.get("active_window"),
             lock_reason=data.get("lock_reason"),
             until_seconds=data.get("until_s"),

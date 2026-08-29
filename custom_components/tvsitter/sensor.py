@@ -8,6 +8,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 from __future__ import annotations
 
 from datetime import datetime
+import logging
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -16,13 +17,19 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.const import EntityCategory, UnitOfTime
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util import dt as dt_util
 
 from . import TvSitterConfigEntry
 from .coordinator import TvSitterClient
 from .entity import TvSitterEntity
+
+_LOGGER = logging.getLogger(__name__)
+
+# Twelve. Enough for what a child actually opens, few enough that a television with a
+# shopful of apps installed does not fill the recorder with rows nobody reads.
+MAX_APP_SENSORS = 12
 
 
 async def async_setup_entry(
@@ -32,6 +39,44 @@ async def async_setup_entry(
 ) -> None:
     """Set up the sensors for one TV."""
     client = entry.runtime_data
+    known_apps: set[str] = set()
+
+    @callback
+    def add_apps_that_appeared() -> None:
+        """Give a sensor to each package the TV has charged time to.
+
+        Created as they turn up rather than declared in advance, because the list is
+        whatever the child opens. The retained state payload arrives before
+        this runs on a
+        restart, so it is called once immediately as well as on every update
+        — waiting for
+        a change would leave a television that has been quiet all evening with no app
+        sensors at all.
+        """
+        snapshot = client.snapshot
+        if snapshot is None:
+            return
+        fresh = [package for package in snapshot.per_app if package not in known_apps]
+        if not fresh:
+            return
+
+        room = MAX_APP_SENSORS - len(known_apps)
+        taking, dropped = fresh[:room], fresh[room:]
+        if taking:
+            known_apps.update(taking)
+            async_add_entities([AppUsageSensor(client, package) for package in taking])
+        if dropped:
+            # Said out loud rather than dropped quietly: a television with fifty apps
+            # must
+            # not put fifty rows in the recorder, and somebody looking for a missing app
+            # should find the reason here instead of assuming it is not being counted.
+            _LOGGER.warning(
+                "%s: not adding sensors for %s, already at %s apps",
+                client.name,
+                ", ".join(dropped),
+                MAX_APP_SENSORS,
+            )
+
     async_add_entities(
         [
             ActiveAppSensor(client),
@@ -43,6 +88,9 @@ async def async_setup_entry(
             LastReportedSensor(client),
         ]
     )
+
+    add_apps_that_appeared()
+    entry.async_on_unload(client.async_add_listener(add_apps_that_appeared))
 
 
 class ActiveAppSensor(TvSitterEntity, SensorEntity):
@@ -259,3 +307,53 @@ class LastReportedSensor(TvSitterEntity, SensorEntity):
         if snapshot is None or not snapshot.ts:
             return None
         return dt_util.utc_from_timestamp(snapshot.ts / 1000)
+
+
+class AppUsageSensor(TvSitterEntity, SensorEntity):
+    """How long one app has been watched in this budget day.
+
+    One per package rather than a dictionary on another sensor, because
+    attributes are not
+    recorded as statistics — and "what is he watching all week" is the question a parent
+    actually asks, which a graph answers and a tooltip does not.
+
+    The name comes from the television, which is the only thing that can turn a
+    package id
+    into "YouTube". Read on every update rather than fixed at creation, so a
+    label arriving
+    later corrects a sensor that was born with an id for a name.
+    """
+
+    _attr_device_class = SensorDeviceClass.DURATION
+    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
+    _attr_suggested_unit_of_measurement = UnitOfTime.MINUTES
+    _attr_suggested_display_precision = 0
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+
+    def __init__(self, client: TvSitterClient, package: str) -> None:
+        """Create a sensor for one package."""
+        super().__init__(client, f"app_{package}")
+        self._package = package
+        # Named rather than translated: there is no translation for "Netflix", and the
+        # television is the only side that knows what to call it.
+        self._attr_translation_key = None
+
+    @property
+    def name(self) -> str:
+        """Return the app's label, falling back to its package id."""
+        snapshot = self._client.snapshot
+        if snapshot is None:
+            return self._package
+        return snapshot.per_app_names.get(self._package, self._package)
+
+    @property
+    def native_value(self) -> int | None:
+        """Return the seconds watched today, and zero once the day has rolled over."""
+        snapshot = self._client.snapshot
+        if snapshot is None:
+            return None
+        # Absent means the day rolled over and this app has not been opened since,
+        # which is
+        # zero rather than unknown — the sensor resets with the budget day like its
+        # siblings.
+        return snapshot.per_app.get(self._package, 0)

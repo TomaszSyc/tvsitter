@@ -46,6 +46,7 @@ Three rules the correctness of the whole thing rests on:
   "remaining_today_s": 1190,
   "bonus_today_s": 900,
   "per_app": { "com.google.android.youtube.tv": 3600, "com.netflix.ninja": 610 },
+  "per_app_names": { "com.google.android.youtube.tv": "YouTube", "com.netflix.ninja": "Netflix" },
   "active_window": "weekday_afternoon",
   "lock_reason": "daily_limit",
   "until_s": 1190,
@@ -65,6 +66,10 @@ Three rules the correctness of the whole thing rests on:
   Assistant would have to remember what it last sent and hope, which is how a dashboard ends
   up disagreeing with the television.
 - `remaining_today_s` — `null` means "no limit", not zero.
+- `per_app_names` — friendly names for the packages in `per_app`, and only those. The labels
+  exist on the television and nowhere else, so a consumer without them can only graph
+  `com.google.android.youtube.tv`. Deliberately not a list of everything installed: that is a
+  different thing and one Play reviews harder (#14).
 - `active_window` — identifier of the rule window in force, so that "why did it block me
   right now" is answerable.
 - `lock_reason` — why the screen is covered, or `null` when it is not. One of `daily_limit`,

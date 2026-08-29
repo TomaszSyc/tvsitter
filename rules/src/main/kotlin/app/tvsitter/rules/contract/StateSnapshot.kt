@@ -32,6 +32,14 @@ data class StateSnapshot(
     @SerialName("remaining_today_s") val remainingTodaySeconds: Int? = null,
     @SerialName("bonus_today_s") val bonusTodaySeconds: Int = 0,
     @SerialName("per_app") val perApp: Map<String, Int> = emptyMap(),
+    /**
+     * Friendly names for the packages in [perApp], and only those.
+     *
+     * The labels live on the television and nowhere else, so without this a graph of what a
+     * child watches is a graph of `com.google.android.youtube.tv`. Sent beside the numbers
+     * rather than resolved on the other side, because only the set that has them can.
+     */
+    @SerialName("per_app_names") val perAppNames: Map<String, String> = emptyMap(),
     /** Identifier of the rule window in force, so "why did it block me now" is answerable. */
     @SerialName("active_window") val activeWindow: String? = null,
     /** Why the screen is covered, or null when it is not. `manual` for a parent's own lock. */
