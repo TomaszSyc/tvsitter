@@ -96,4 +96,29 @@
     <string name="pair_offline">Paired, but not reaching Home Assistant at the moment. Check
         that Home Assistant and its MQTT broker are running.</string>
     <string name="pair_again">Pair again</string>
+    <string name="setup_today">Today</string>
+    <string name="setup_used">Watched</string>
+    <string name="setup_limit">Limit</string>
+    <string name="setup_left">Left</string>
+    <string name="setup_no_limit">—</string>
+    <string name="setup_locked_now">The television is locked right now.</string>
+    <string name="setup_attention">Needs attention</string>
+    <string name="setup_all_well">Everything it needs, it has.</string>
+    <string name="setup_fix_overlay">It cannot draw over other apps, so the lock will not appear. Settings, then Apps, then TV Sitter.</string>
+    <string name="setup_fix_usage">It cannot see which app is open, so nothing is being counted. Settings, then Apps, then special access.</string>
+    <string name="setup_fix_service">The service is not running. Open this screen again, or restart the television.</string>
+    <string name="setup_fix_reporting">No connection to Home Assistant. The rules still hold; only the reporting is missing.</string>
+    <string name="setup_minutes">%1$d min</string>
+    <string name="setup_hours">%1$d:%2$02d</string>
+    <string name="setup_set_aside">set aside</string>
+    <string name="nav_today">Today</string>
+    <string name="nav_statistics">Statistics</string>
+    <string name="nav_settings">Settings</string>
+    <string name="dur_minutes">%1$d min</string>
+    <string name="dur_hours">%1$d h %2$d min</string>
+    <string name="stats_today">Today, by app</string>
+    <string name="stats_yesterday">Yesterday</string>
+    <string name="stats_nothing">Nothing has been watched yet today.</string>
+    <string name="stats_no_yesterday">No day has finished yet.</string>
+    <string name="stats_yesterday_line">%1$s watched of %2$s, %3$d locks</string>
 </resources>

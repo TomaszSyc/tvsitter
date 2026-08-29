@@ -83,6 +83,9 @@ dependencies {
     implementation(project(":rules"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.annotation)
+    // For OnBackPressedDispatcher: lint refuses both onBackPressed and intercepting the key,
+    // and it is right that callbacks are the current answer even on a set with no gestures.
+    implementation(libs.androidx.activity)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)

@@ -1,0 +1,11 @@
+<!-- Sliders rather than a gear: it is what this screen actually is, and it survives 24dp. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FFFFFFFF" android:pathData="M3,6h18v2h-18z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M3,16h18v2h-18z" />
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M8,7m-3,0a3,3 0 1,0 6,0a3,3 0 1,0 -6,0" />
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M16,17m-3,0a3,3 0 1,0 6,0a3,3 0 1,0 -6,0" />
+</vector>

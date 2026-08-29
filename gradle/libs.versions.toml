@@ -15,10 +15,12 @@ spotless = "8.10.0"
 # deprecated and removed in Gradle 10, so this needs a 2.x bump before that upgrade.
 detekt = "1.23.8"
 ktlint = "1.8.0"
+activity = "1.12.0"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
 androidx-annotation = { module = "androidx.annotation:annotation", version.ref = "annotation" }
+androidx-activity = { module = "androidx.activity:activity", version.ref = "activity" }
 androidx-lifecycle-service = { module = "androidx.lifecycle:lifecycle-service", version.ref = "lifecycle" }
 androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }

@@ -5,45 +5,42 @@
  */
 package app.tvsitter.tv
 
-import android.app.Activity
-import android.app.AppOpsManager
-import android.content.Intent
-import android.graphics.Color
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.os.Process
-import android.util.TypedValue
-import android.view.Gravity
 import android.view.View
-import android.widget.Button
+import android.widget.FrameLayout
 import android.widget.LinearLayout
-import android.widget.TextView
-import android.provider.Settings as AndroidSettings
+import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 
 /**
- * The first screen anybody meets, so it does two jobs: it pairs the television with Home
- * Assistant, and it says what state everything is in when something is not working.
+ * The shell: a rail down the side, one destination at a time beside it.
  *
- * Opening it also starts the enforcer. Nothing else does until the next reboot — a foreground
- * service is not started by installing the app, where the accessibility service this replaced
- * was started by the system the moment it was enabled.
+ * It used to be everything in one column — a few facts, two buttons, then more facts — which is
+ * what somebody using it called chaos, and they were right (#108, #109). The platform's guidance
+ * is specific about the alternative: a permanently visible rail, five or six destinations at
+ * most, a fixed start destination, and back that always returns to the previous one and never
+ * gates the exit.
+ *
+ * Three destinations, which is comfortably under the ceiling: what is happening now, what has
+ * been watched, and what can be changed.
  */
-class SetupActivity : Activity() {
-
-    private lateinit var heading: TextView
-    private lateinit var pin: TextView
-    private lateinit var pinNote: TextView
-    private lateinit var pairButton: Button
-    private lateinit var pinButton: Button
-    private lateinit var report: TextView
+class SetupActivity : ComponentActivity() {
 
     /**
      * Reads device-encrypted storage, so it answers whether there is a PIN even before the
      * service has started.
      */
     private val parentPin by lazy { PinKeeper(this) }
+
+    private lateinit var rail: NavigationRail
+    private lateinit var content: FrameLayout
+    private lateinit var today: TodayPanel
+    private lateinit var stats: StatsPanel
+    private lateinit var settings: SettingsPanel
+
+    private var showing = Destination.TODAY
 
     private val refresh = Handler(Looper.getMainLooper())
     private val tick = object : Runnable {
@@ -56,47 +53,34 @@ class SetupActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        heading = textView(sizeSp = 30f, color = Color.WHITE)
-        // Read from a sofa, several metres away, so the code is the largest thing on screen.
-        pin = textView(sizeSp = 72f, color = ACCENT)
-        pinNote = textView(sizeSp = 16f, color = MUTED)
-        report = textView(sizeSp = 15f, color = MUTED)
-        pairButton = Button(this).apply {
-            text = getString(R.string.pair_start)
-            // Through the PIN screen, which opens the window itself once the PIN is right, or
-            // straight away when there is no PIN to ask for. A pairing code is on a fifty-inch
-            // screen in front of the person the PIN exists to keep out, and after pairing the
-            // television takes its commands — unlock included — from whichever broker answered
-            // (#98).
-            setOnClickListener {
-                startActivity(
-                    Intent(this@SetupActivity, PinActivity::class.java)
-                        .putExtra(PinActivity.EXTRA_FOR_PAIRING, true),
-                )
-            }
-        }
-        // Only ever offered when a PIN already exists: the change screen asks for the current
-        // one, and there is no first PIN to be had at the television.
-        pinButton = Button(this).apply {
-            text = getString(R.string.pin_change)
-            setOnClickListener { startActivity(Intent(this@SetupActivity, PinActivity::class.java)) }
-        }
+        today = TodayPanel(this)
+        stats = StatsPanel(this)
+        settings = SettingsPanel(this, parentPin)
+        content = FrameLayout(this)
+        rail = NavigationRail(this) { go(it) }
 
         setContentView(
             LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                gravity = Gravity.START
-                setBackgroundColor(BACKDROP)
-                setPadding(PADDING, PADDING, PADDING, PADDING)
-                addView(textView(sizeSp = 22f, color = MUTED).apply { text = getString(R.string.app_name) })
-                addView(heading)
-                addView(pin)
-                addView(pinNote)
-                addView(pairButton)
-                addView(pinButton)
-                addView(report)
+                orientation = LinearLayout.HORIZONTAL
+                setBackgroundColor(TvStyle.BACKDROP)
+                addView(
+                    rail,
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                    ),
+                )
+                addView(
+                    content,
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                    ),
+                )
             },
         )
+        onBackPressedDispatcher.addCallback(this, goBack)
+        go(Destination.TODAY)
     }
 
     override fun onResume() {
@@ -110,156 +94,55 @@ class SetupActivity : Activity() {
         super.onPause()
     }
 
-    private fun render() {
-        val copy = pairingCopy(EnforcerService.instance)
-
-        heading.text = copy.heading
-        pinNote.text = copy.note
-        pin.text = copy.pin.orEmpty()
-        pin.visibility = if (copy.pin != null) View.VISIBLE else View.GONE
-        pairButton.text = copy.buttonLabel.orEmpty()
-        pairButton.visibility = if (copy.buttonLabel != null) View.VISIBLE else View.GONE
-        pinButton.visibility = if (parentPin.isSet) View.VISIBLE else View.GONE
-
-        report.text = buildReport()
-    }
-
-    /** What the screen says, as a table rather than as branches that each set four fields. */
-    private data class Copy(
-        val heading: String,
-        val note: String,
-        val pin: String? = null,
-        val buttonLabel: String? = null,
-    )
-
     /**
-     * Four states, where there used to be two.
+     * Back, in the order the guidance asks for.
      *
-     * A successful pairing used to drop straight back to "press the button to pair", because
-     * the only thing the screen looked at was whether a PIN existed — so the one screen anybody
-     * sees said nothing about having worked. A window that failed to open looked identical.
+     * From the content, back is a step out to the rail rather than out of the app — somebody
+     * deep in Settings has somewhere to go that is not the home screen. From the rail, back goes
+     * to the start destination, and from the start destination it leaves. Nothing asks "are you
+     * sure": never gate an exit.
      */
-    private fun pairingCopy(service: EnforcerService?): Copy {
-        // Only while there is time left on it. The window closes itself now, but a second of
-        // timer jitter should not put a dead code on a fifty-inch screen either.
-        val code = service?.pairingPin?.takeIf { service.pairingSeconds > 0 }
-        return when {
-            service == null -> invitation()
-
-            code != null -> Copy(
-                heading = getString(R.string.pair_heading),
-                note = getString(R.string.pair_instructions) + "\n" +
-                    getString(R.string.pair_expires, service.pairingSeconds),
-                pin = code.chunked(PIN_GROUP).joinToString(separator = " "),
-            )
-
-            // Ahead of the paired state on purpose. Somebody pressed a button and nothing
-            // happened, which is the worse of the two things to be silent about — but the
-            // heading still says "Paired" when it is, because that stayed true.
-            service.lastPairingFailed -> Copy(
-                heading = getString(
-                    if (service.isPaired) R.string.pair_paired else R.string.pair_heading,
-                ),
-                note = getString(R.string.pair_failed),
-                buttonLabel = getString(
-                    if (service.isPaired) R.string.pair_again else R.string.pair_start,
-                ),
-            )
-
-            // Offer to pair again regardless: a broker moves, and a paired TV is exactly the
-            // one that needs to be told about it.
-            service.isPaired -> Copy(
-                heading = getString(R.string.pair_paired),
-                note = getString(
-                    if (service.isReporting) R.string.pair_done else R.string.pair_offline,
-                ),
-                buttonLabel = getString(R.string.pair_again),
-            )
-
-            else -> invitation()
+    private val goBack = object : OnBackPressedCallback(true) {
+        override fun handleOnBackPressed() {
+            when {
+                content.hasFocus() -> rail.focusCurrent()
+                showing != Destination.TODAY -> go(Destination.TODAY)
+                else -> {
+                    // Nothing left to step back through, so leave. Never gate an exit.
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                }
+            }
         }
     }
 
-    private fun invitation() = Copy(
-        heading = getString(R.string.pair_heading),
-        note = getString(R.string.pair_instructions),
-        buttonLabel = getString(R.string.pair_start),
-    )
-
-    private fun buildReport(): String {
-        val service = EnforcerService.instance
-        val yes = getString(R.string.setup_yes)
-        val no = getString(R.string.setup_no)
-        return buildString {
-            appendLine()
-            appendLine(
-                getString(
-                    R.string.setup_device,
-                    Build.MANUFACTURER,
-                    Build.MODEL,
-                    Build.VERSION.SDK_INT,
-                ),
-            )
-            appendLine(getString(R.string.setup_version, BuildConfig.VERSION_NAME))
-            appendLine(getString(R.string.setup_service_running, if (service != null) yes else no))
-            appendLine(
-                getString(
-                    R.string.setup_overlay,
-                    if (AndroidSettings.canDrawOverlays(this@SetupActivity)) yes else no,
-                ),
-            )
-            appendLine(getString(R.string.setup_usage_access, if (hasUsageStatsAccess()) yes else no))
-            appendLine(
-                getString(
-                    R.string.setup_foreground,
-                    service?.foregroundPackage ?: getString(R.string.setup_unknown),
-                ),
-            )
-            appendLine(getString(R.string.setup_locked, if (service?.isLocked == true) yes else no))
-            appendLine(
-                getString(R.string.setup_reporting, if (service?.isReporting == true) yes else no),
-            )
-            // Said out loud because the answer matters most on the evening Home Assistant is
-            // unreachable, and that is the worst moment to find out it is "no".
-            appendLine(getString(R.string.setup_pin, if (parentPin.isSet) yes else no))
-        }
+    private fun go(destination: Destination) {
+        showing = destination
+        rail.select(destination)
+        content.removeAllViews()
+        content.addView(
+            when (destination) {
+                Destination.TODAY -> today.view
+                Destination.STATISTICS -> stats.view
+                Destination.SETTINGS -> settings.view
+            },
+        )
+        render()
+        // Into the content, because somebody who chose a destination wants to be in it. The rail
+        // is one press of back away, which is where they came from.
+        if (destination == Destination.SETTINGS) settings.focusFirst() else rail.focusCurrent()
     }
 
-    /**
-     * There is no single app-ops call that spans the supported range: `unsafeCheckOpNoThrow`
-     * only exists from API 29, and `checkOpNoThrow` is deprecated from that same release.
-     * Calling the former unconditionally would throw NoSuchMethodError on Android 8 and 9.
-     */
-    @Suppress("DEPRECATION")
-    private fun hasUsageStatsAccess(): Boolean {
-        val appOps = getSystemService(AppOpsManager::class.java) ?: return false
-        val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            appOps.unsafeCheckOpNoThrow(
-                AppOpsManager.OPSTR_GET_USAGE_STATS,
-                Process.myUid(),
-                packageName,
-            )
-        } else {
-            appOps.checkOpNoThrow(
-                AppOpsManager.OPSTR_GET_USAGE_STATS,
-                Process.myUid(),
-                packageName,
-            )
+    private fun render() {
+        when (showing) {
+            Destination.TODAY -> today.refresh()
+            Destination.STATISTICS -> stats.refresh()
+            Destination.SETTINGS -> settings.refresh()
         }
-        return mode == AppOpsManager.MODE_ALLOWED
-    }
-
-    private fun textView(sizeSp: Float, color: Int) = TextView(this).apply {
-        setTextColor(color)
-        setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp)
     }
 
     private companion object {
-        const val PADDING = 48
-        const val REFRESH_MS = 1000L
-        const val PIN_GROUP = 3
-        const val BACKDROP = 0xFF0B1017.toInt()
-        const val ACCENT = 0xFF4CC2A5.toInt()
-        const val MUTED = 0xFFB9C6D2.toInt()
+        /** Often enough that a pairing countdown moves, rarely enough to be free. */
+        const val REFRESH_MS = 1_000L
     }
 }
