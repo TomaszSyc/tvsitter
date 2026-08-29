@@ -101,13 +101,7 @@ class RuleEngine(private val clock: BudgetClock) {
      * whoever lifts that lock has to clear the deadline as well, or it comes straight back —
      * the same trap the suspended-limit rule below exists to avoid.
      */
-    fun judge(
-        rules: Rules,
-        state: BudgetState,
-        appId: String?,
-        nowMs: Long,
-        sleepAtMs: Long? = null,
-    ): Judgement {
+    fun judge(rules: Rules, state: BudgetState, appId: String?, nowMs: Long, sleepAtMs: Long? = null): Judgement {
         val moment = Instant.ofEpochMilli(nowMs)
         val day = clock.budgetDay(moment).dayOfWeek
         val second = secondOfBudgetDay(moment.atZone(clock.zone).toLocalTime())
@@ -196,6 +190,10 @@ class RuleEngine(private val clock: BudgetClock) {
         .minByOrNull { secondOfBudgetDay(it.from) }
         ?.from
 
+    /** Rounded up, and never below zero: a deadline already past is nothing left, not a debt. */
+    private fun secondsUntil(deadlineMs: Long, nowMs: Long): Long =
+        ((deadlineMs - nowMs + MILLIS_PER_SECOND - 1) / MILLIS_PER_SECOND).coerceAtLeast(0)
+
     /**
      * Where a wall-clock time falls in the budget day, in seconds from its start.
      *
@@ -203,10 +201,6 @@ class RuleEngine(private val clock: BudgetClock) {
      * which day they are in: at 00:30 the counter is still charging yesterday's allowance, and a
      * window that ends at 01:00 has to still be open.
      */
-    /** Rounded up, and never below zero: a deadline already past is nothing left, not a debt. */
-    private fun secondsUntil(deadlineMs: Long, nowMs: Long): Long =
-        ((deadlineMs - nowMs + MILLIS_PER_SECOND - 1) / MILLIS_PER_SECOND).coerceAtLeast(0)
-
     private fun secondOfBudgetDay(time: LocalTime): Int {
         val fromMidnight = time.toSecondOfDay()
         val dayStart = clock.dayStartHour * SECONDS_PER_HOUR
