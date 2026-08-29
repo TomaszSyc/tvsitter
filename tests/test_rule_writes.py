@@ -357,3 +357,16 @@ async def test_a_rule_change_needs_a_television_that_is_listening(
         await RulesSensor(client).async_set_windows([])
     with pytest.raises(ServiceValidationError):
         await AppLimitNumber(client, "com.netflix.ninja").async_set_native_value(30)
+
+
+async def test_an_app_limit_can_be_taken_away(hass: HomeAssistant) -> None:
+    """The one thing a number cannot say: zero blocks, absent is no budget at all."""
+    client = make_client(hass)
+    sensor = RulesSensor(client)
+
+    assert await written(sensor.async_set_app_limit("com.netflix.ninja")) == {
+        "app_limits_s": {"com.netflix.ninja": None}
+    }
+    assert await written(sensor.async_set_app_limit("com.disney.disneyplus", 45)) == {
+        "app_limits_s": {"com.disney.disneyplus": 2700}
+    }

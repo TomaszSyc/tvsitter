@@ -193,6 +193,20 @@
           "description": "A list of windows, each with an id, a from and a to time, and optionally the days it applies on."
         }
       }
+    },
+    "set_app_limit": {
+      "name": "Give one app its own budget",
+      "description": "Gives one app a daily budget of its own, or removes it. Zero blocks the app outright; leaving the minutes out removes the budget and hands the app back to the day's.",
+      "fields": {
+        "package": {
+          "name": "Package",
+          "description": "The app's package id, as shown on its sensor."
+        },
+        "minutes": {
+          "name": "Minutes",
+          "description": "How long that app may be watched. Zero blocks it."
+        }
+      }
     }
   }
 }

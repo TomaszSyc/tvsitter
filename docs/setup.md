@@ -200,6 +200,7 @@ Two rules are not one number each, and those are actions aimed at `sensor.…_ru
 |---|---|
 | `tvsitter.set_schedule` | One day of the week's own allowance. Leave `minutes` out to remove the override and hand the day back to the daily limit; zero means no viewing that day. |
 | `tvsitter.set_windows` | When viewing is allowed at all. Send the whole list every time — windows have no key to merge onto — and an empty list allows any hour. |
+| `tvsitter.set_app_limit` | An app's own budget, by package id. For the two things the number cannot say: an app the television has never opened, and taking a budget away — zero there is a block, not an absence. |
 
 `sensor.…_rules` shows what the TV says it is enforcing, as attributes, and its state is the
 revision the two sides agree on. The revision is why every write goes through one place: the

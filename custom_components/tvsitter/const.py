@@ -118,10 +118,12 @@ SERVICE_GRANT_TIME: Final = "grant_time"
 SERVICE_DENY_TIME: Final = "deny_time"
 SERVICE_SET_SCHEDULE: Final = "set_schedule"
 SERVICE_SET_WINDOWS: Final = "set_windows"
+SERVICE_SET_APP_LIMIT: Final = "set_app_limit"
 ATTR_MINUTES: Final = "minutes"
 ATTR_REQUEST_ID: Final = "req_id"
 ATTR_DAY: Final = "day"
 ATTR_WINDOWS: Final = "windows"
+ATTR_PACKAGE: Final = "package"
 
 # The wire spelling of the days, which is what the rules object uses. Short and lower
 # case because that is what the engine parses; the interface translates them.

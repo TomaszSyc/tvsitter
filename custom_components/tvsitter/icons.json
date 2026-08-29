@@ -3,62 +3,107 @@
     "binary_sensor": {
       "screen": {
         "default": "mdi:television-off",
-        "state": { "on": "mdi:television-play" }
+        "state": {
+          "on": "mdi:television-play"
+        }
       },
       "pin_set": {
         "default": "mdi:lock-open-alert",
-        "state": { "on": "mdi:form-textbox-password" }
+        "state": {
+          "on": "mdi:form-textbox-password"
+        }
       },
       "reporting": {
         "default": "mdi:lan-disconnect",
-        "state": { "on": "mdi:lan-connect" }
+        "state": {
+          "on": "mdi:lan-connect"
+        }
       },
       "reporting_stopped": {
         "default": "mdi:check-network",
-        "state": { "on": "mdi:alert-network" }
+        "state": {
+          "on": "mdi:alert-network"
+        }
       }
     },
     "sensor": {
-      "active_app": { "default": "mdi:apps" },
-      "used_today": { "default": "mdi:timer-sand-full" },
-      "remaining_today": { "default": "mdi:timer-sand" },
-      "rules": { "default": "mdi:script-text" },
-      "bonus_today": { "default": "mdi:timer-plus" },
-      "limit_today": { "default": "mdi:timer-cog" },
-      "last_reported": { "default": "mdi:clock-check" },
-      "used_yesterday": { "default": "mdi:calendar-clock" }
+      "active_app": {
+        "default": "mdi:apps"
+      },
+      "used_today": {
+        "default": "mdi:timer-sand-full"
+      },
+      "remaining_today": {
+        "default": "mdi:timer-sand"
+      },
+      "rules": {
+        "default": "mdi:script-text"
+      },
+      "bonus_today": {
+        "default": "mdi:timer-plus"
+      },
+      "limit_today": {
+        "default": "mdi:timer-cog"
+      },
+      "last_reported": {
+        "default": "mdi:clock-check"
+      },
+      "used_yesterday": {
+        "default": "mdi:calendar-clock"
+      }
     },
     "switch": {
       "lock": {
         "default": "mdi:lock-open-variant",
-        "state": { "on": "mdi:lock" }
+        "state": {
+          "on": "mdi:lock"
+        }
       },
       "block_settings": {
         "default": "mdi:cog",
-        "state": { "on": "mdi:cog-off" }
+        "state": {
+          "on": "mdi:cog-off"
+        }
       }
     },
     "number": {
-      "daily_limit": { "default": "mdi:timer-cog-outline" },
-      "warn_before": { "default": "mdi:bell-alert-outline" },
-      "sleep_timer": { "default": "mdi:sleep" }
+      "daily_limit": {
+        "default": "mdi:timer-cog-outline"
+      },
+      "warn_before": {
+        "default": "mdi:bell-alert-outline"
+      },
+      "sleep_timer": {
+        "default": "mdi:sleep"
+      }
     },
     "button": {
-      "clear_limit": { "default": "mdi:timer-off-outline" },
-      "clear_pin": { "default": "mdi:lock-reset" }
+      "clear_limit": {
+        "default": "mdi:timer-off-outline"
+      },
+      "clear_pin": {
+        "default": "mdi:lock-reset"
+      }
     },
     "text": {
-      "parent_pin": { "default": "mdi:form-textbox-password" }
+      "parent_pin": {
+        "default": "mdi:form-textbox-password"
+      }
     },
     "event": {
-      "time_request": { "default": "mdi:hand-wave" },
-      "tamper": { "default": "mdi:shield-alert" }
+      "time_request": {
+        "default": "mdi:hand-wave"
+      },
+      "tamper": {
+        "default": "mdi:shield-alert"
+      }
     }
   },
   "services": {
     "grant_time": "mdi:timer-plus",
     "deny_time": "mdi:timer-remove",
     "set_schedule": "mdi:calendar-week",
-    "set_windows": "mdi:calendar-clock"
+    "set_windows": "mdi:calendar-clock",
+    "set_app_limit": "mdi:timer-lock-outline"
   }
 }

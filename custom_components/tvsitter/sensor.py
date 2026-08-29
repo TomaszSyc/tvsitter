@@ -30,9 +30,12 @@ from . import TvSitterConfigEntry
 from .const import (
     ATTR_DAY,
     ATTR_MINUTES,
+    ATTR_PACKAGE,
     ATTR_WINDOWS,
+    RULE_APP_LIMITS,
     RULE_DAYS,
     RULE_WINDOWS,
+    SERVICE_SET_APP_LIMIT,
     SERVICE_SET_SCHEDULE,
     SERVICE_SET_WINDOWS,
     WIRE_DAYS,
@@ -145,6 +148,19 @@ async def async_setup_entry(
         SERVICE_SET_WINDOWS,
         {vol.Required(ATTR_WINDOWS): vol.All(cv.ensure_list, [WINDOW_SCHEMA])},
         "async_set_windows",
+    )
+    # The everyday way to give an app a budget is the number beside its sensor. This
+    # is for the two things a number cannot say: a budget for an app the television
+    # has never opened, and taking a budget away — zero is a block, not an absence.
+    platform.async_register_entity_service(
+        SERVICE_SET_APP_LIMIT,
+        {
+            vol.Required(ATTR_PACKAGE): cv.string,
+            vol.Optional(ATTR_MINUTES): vol.Any(
+                None, vol.All(vol.Coerce(float), vol.Range(min=0, max=MAX_DAY_MINUTES))
+            ),
+        },
+        "async_set_app_limit",
     )
 
 
@@ -304,6 +320,19 @@ class RulesSensor(TvSitterEntity, SensorEntity):
         """
         self._require_a_listening_tv()
         await self._client.async_set_rules({RULE_WINDOWS: list(windows)})
+
+    async def async_set_app_limit(
+        self, package: str, minutes: float | None = None
+    ) -> None:
+        """Give one app its own budget, or take the budget away.
+
+        Leaving the minutes out removes it, which is the one thing the per-app number
+        cannot express: zero there means blocked, and blocked is not the same as
+        running on the day's allowance.
+        """
+        self._require_a_listening_tv()
+        seconds = None if minutes is None else int(minutes * SECONDS_PER_MINUTE)
+        await self._client.async_set_rules({RULE_APP_LIMITS: {package: seconds}})
 
     def _require_a_listening_tv(self) -> None:
         """Refuse rather than write into the dark."""

@@ -78,3 +78,26 @@ set_windows:
           "days": ["mon", "tue", "wed", "thu", "fri"]}]
       selector:
         object:
+
+# The everyday way to give an app a budget is the number entity beside its sensor. This is for
+# the two things a number cannot say: an app the television has never opened, and taking a
+# budget away again — zero is a block, not an absence.
+set_app_limit:
+  target:
+    entity:
+      integration: tvsitter
+      domain: sensor
+  fields:
+    package:
+      required: true
+      example: com.netflix.ninja
+      selector:
+        text:
+    minutes:
+      required: false
+      example: 30
+      selector:
+        number:
+          min: 0
+          max: 720
+          unit_of_measurement: min

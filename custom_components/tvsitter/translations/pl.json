@@ -193,6 +193,20 @@
           "description": "Lista okien; każde ma id, godzinę od i do, opcjonalnie dni, w których obowiązuje."
         }
       }
+    },
+    "set_app_limit": {
+      "name": "Nadaj aplikacji własny limit",
+      "description": "Nadaje jednej aplikacji własny limit dzienny albo go usuwa. Zero blokuje aplikację; pominięcie minut usuwa limit i oddaje aplikację limitowi dnia.",
+      "fields": {
+        "package": {
+          "name": "Pakiet",
+          "description": "Identyfikator pakietu aplikacji, taki jak na jej sensorze."
+        },
+        "minutes": {
+          "name": "Minuty",
+          "description": "Ile wolno oglądać tę aplikację. Zero blokuje."
+        }
+      }
     }
   }
 }
