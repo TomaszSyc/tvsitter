@@ -86,6 +86,7 @@ async def async_setup_entry(
             BonusTodaySensor(client),
             LimitTodaySensor(client),
             LastReportedSensor(client),
+            UsedYesterdaySensor(client),
         ]
     )
 
@@ -357,3 +358,48 @@ class AppUsageSensor(TvSitterEntity, SensorEntity):
         # zero rather than unknown — the sensor resets with the budget day like its
         # siblings.
         return snapshot.per_app.get(self._package, 0)
+
+
+class UsedYesterdaySensor(TvSitterEntity, SensorEntity):
+    """How long the last closed budget day came to, with the rest of it in attributes.
+
+    So that "yesterday: 2 h 14 of 2 h 30, asked twice, locked once" can be said in one
+    template rather than assembled from a recorder query. The graphs come off today's
+    numbers; this is for telling somebody about a day that is over.
+
+    A measurement rather than a total, because it is one finished number rather than a
+    counter climbing towards a reset.
+    """
+
+    _attr_device_class = SensorDeviceClass.DURATION
+    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
+    _attr_suggested_unit_of_measurement = UnitOfTime.MINUTES
+    _attr_suggested_display_precision = 0
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, client: TvSitterClient) -> None:
+        """Create the yesterday sensor."""
+        super().__init__(client, "used_yesterday")
+
+    @property
+    def native_value(self) -> int | None:
+        """Return the seconds watched in the last closed day."""
+        day = self._client.day
+        return None if day is None else day.used_seconds
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Everything else about that day, so one template can say a sentence."""
+        day = self._client.day
+        if day is None:
+            return None
+        return {
+            "day": day.day,
+            "limit_s": day.limit_seconds,
+            "bonus_s": day.bonus_seconds,
+            "granted_s": day.granted_seconds,
+            "lock_count": day.lock_count,
+            "per_app": day.per_app,
+            "per_app_names": day.per_app_names,
+            "requests": day.requests,
+        }

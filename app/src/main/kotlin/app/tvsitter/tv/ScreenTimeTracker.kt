@@ -35,7 +35,8 @@ class ScreenTimeTracker(
     private val rules: () -> Rules = { Rules.NONE },
     /** Tonight's deadline, epoch millis, or zero for none. Asked for on every sample. */
     private val sleepAtMs: () -> Long = { 0 },
-    private val onDayRolled: () -> Unit = {},
+    /** Given the day that just closed, before the counter forgets it. */
+    private val onDayRolled: (BudgetState) -> Unit = {},
     private val onJudgement: (Judgement) -> Unit = {},
     private val clock: BudgetClock = BudgetClock(ZoneId.systemDefault()),
 ) {
@@ -218,7 +219,7 @@ class ScreenTimeTracker(
         val rolled = previous.day != state.day
         if (rolled) {
             Log.i(EnforcerService.TAG, "counter: budget day is now ${state.day}")
-            onDayRolled()
+            onDayRolled(previous)
         }
 
         // Written when viewing stops, so the last slice is safe, and on a rollover. Not on

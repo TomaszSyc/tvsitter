@@ -96,6 +96,9 @@
       },
       "last_reported": {
         "name": "Ostatni raport"
+      },
+      "used_yesterday": {
+        "name": "Wykorzystane wczoraj"
       }
     },
     "switch": {

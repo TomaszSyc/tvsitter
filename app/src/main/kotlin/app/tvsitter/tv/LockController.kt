@@ -64,6 +64,9 @@ class LockController(
      */
     private var opensAt: LocalTime? = null
 
+    /** Set after construction, like the requester's. Counting is somebody else's interest. */
+    var tally: DayTally? = null
+
     private val handler = Handler(Looper.getMainLooper())
 
     private val resumeManual = Runnable {
@@ -313,6 +316,7 @@ class LockController(
         if (!wasShowing) {
             handler.removeCallbacks(sweep)
             handler.post(sweep)
+            tally?.recordLock()
             onChanged()
         }
     }

@@ -44,6 +44,12 @@ class TimeRequester(
     private enum class Waiting { NONE, ANSWER, ALLOWANCE }
 
     private var history = RequestHistory()
+
+    /**
+     * Set after construction rather than passed in: this class already takes six things, and
+     * counting is not one of its responsibilities so much as a side effect somebody else wants.
+     */
+    var tally: DayTally? = null
     private var scope: CoroutineScope? = null
     private val handler = Handler(Looper.getMainLooper())
     private val giveUp = Runnable { expireIfDue() }
@@ -97,6 +103,7 @@ class TimeRequester(
         // exactly like a dead button from outside — which is how twenty minutes went on
         // deciding whether a press had arrived at all.
         Log.i(EnforcerService.TAG, "request: ${result.verdict}")
+        if (result.verdict is AskVerdict.Allowed) tally?.recordAsked()
 
         when (val verdict = result.verdict) {
             is AskVerdict.Allowed -> {
@@ -148,6 +155,7 @@ class TimeRequester(
             }
 
             Answer.Refused -> {
+                tally?.recordDenied()
                 handler.removeCallbacks(giveUp)
                 stopWaiting(announce = false)
                 say(context.getString(R.string.request_refused))
@@ -198,6 +206,7 @@ class TimeRequester(
         persist()
         stopWaiting(announce = false)
         Log.i(EnforcerService.TAG, "request expired with no answer")
+        tally?.recordExpired()
         say(context.getString(R.string.request_expired))
     }
 

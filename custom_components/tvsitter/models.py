@@ -128,3 +128,53 @@ class TimeRequest:
             app_name=data.get("app_name"),
             ts=int(data.get("ts") or 0),
         )
+
+
+@dataclass(frozen=True, slots=True)
+class DaySummary:
+    """One budget day, closed, as the television describes it on its way out.
+
+    Retained, and only ever the last one: the archive belongs to whoever is
+    listening. This
+    exists so a sentence can be said about a day that is over — "yesterday: 2 h
+    14 of 2 h 30"
+    — without a recorder query, and so a Home Assistant that was down at four in
+    the morning
+    still learns what happened.
+    """
+
+    day: str
+    used_seconds: int
+    limit_seconds: int | None = None
+    bonus_seconds: int = 0
+    granted_seconds: int = 0
+    lock_count: int = 0
+    per_app: dict[str, int] = field(default_factory=dict)
+    per_app_names: dict[str, str] = field(default_factory=dict)
+    requests: dict[str, int] = field(default_factory=dict)
+    ts: int = 0
+
+    @classmethod
+    def from_payload(cls, payload: str) -> DaySummary:
+        """Parse a day summary, refusing anything from a newer schema."""
+        data: dict[str, Any] = json.loads(payload)
+        schema = data.get("schema", SCHEMA_VERSION)
+        if isinstance(schema, int) and schema > SCHEMA_VERSION:
+            raise UnsupportedSchemaError(schema)
+
+        day = str(data.get("day") or "").strip()
+        if not day:
+            raise ValueError("a day summary without a day is about nothing")
+
+        return cls(
+            day=day,
+            used_seconds=int(data.get("used_s") or 0),
+            limit_seconds=data.get("limit_s"),
+            bonus_seconds=int(data.get("bonus_s") or 0),
+            granted_seconds=int(data.get("granted_s") or 0),
+            lock_count=int(data.get("lock_count") or 0),
+            per_app=dict(data.get("per_app") or {}),
+            per_app_names=dict(data.get("per_app_names") or {}),
+            requests=dict(data.get("requests") or {}),
+            ts=int(data.get("ts") or 0),
+        )

@@ -143,6 +143,40 @@ the write failed. `rules_rev` in `state` says which revision this is.
 Retained, unlike `cmd`, and at least once, unlike `state`: rules change rarely, so a lost publish
 would leave a dashboard showing last week's schedule until somebody happened to edit something.
 
+## `<p>/day`
+
+The last closed budget day, retained, and nothing older.
+
+```json
+{
+  "schema": 1, "day": "2026-08-28",
+  "used_s": 8040, "limit_s": 9000, "bonus_s": 900, "granted_s": 900, "lock_count": 2,
+  "per_app": { "com.netflix.ninja": 3600 },
+  "per_app_names": { "com.netflix.ninja": "Netflix" },
+  "requests": { "asked": 3, "granted": 1, "denied": 1, "expired": 1 },
+  "ts": 1787490000000
+}
+```
+
+Published when the day rolls over at 04:00 and again on connect. Without it a day that ends leaves
+nothing behind: the counter wipes the per-app split, and Home Assistant only knows what it was
+told while it was listening — one that was down at four in the morning would have no yesterday at
+all.
+
+- `day` is the budget day as the counter names it, so one in the morning on a Saturday is still
+  Friday. That is why it is not simply a calendar date.
+- `limit_s` is what was **being enforced**, null when nothing was. Not what the rules said: a
+  limit set aside at nine is a day with no limit, and claiming one would make the used total read
+  as an overrun nobody allowed.
+- `granted_s` is what a parent actually handed over during the day, which is not the same as
+  `bonus_s` — that one is what was still unspent when the day closed.
+- `requests` and `lock_count` cannot be worked out from the counter afterwards: a refused request
+  leaves nothing behind, and neither does a lock that went up and came down.
+
+One day only. The archive belongs to whoever is listening — the recorder now, an add-on or a
+server later (D25) — and a television that keeps a month of history is a television with a
+database on it.
+
 ## `<p>/cmd`
 
 ```json

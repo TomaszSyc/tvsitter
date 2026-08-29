@@ -21,11 +21,12 @@ from .const import (
     SCHEMA_VERSION,
     TOPIC_AVAILABILITY,
     TOPIC_COMMAND,
+    TOPIC_DAY,
     TOPIC_REQUEST,
     TOPIC_RULES,
     TOPIC_STATE,
 )
-from .models import StateSnapshot, TimeRequest, UnsupportedSchemaError
+from .models import DaySummary, StateSnapshot, TimeRequest, UnsupportedSchemaError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,6 +46,7 @@ class TvSitterClient:
         self.name = name
         self.snapshot: StateSnapshot | None = None
         self.rules: dict[str, Any] | None = None
+        self.day: DaySummary | None = None
         self._sent_rev = 0
         self.available = False
         # The last request the TV made, so an answer can be addressed without the caller
@@ -88,6 +90,14 @@ class TvSitterClient:
                 self._hass,
                 f"{self._prefix}/{TOPIC_REQUEST}",
                 self._handle_request,
+                qos=1,
+            )
+        )
+        self._unsubscribers.append(
+            await mqtt.async_subscribe(
+                self._hass,
+                f"{self._prefix}/{TOPIC_DAY}",
+                self._handle_day,
                 qos=1,
             )
         )
@@ -224,6 +234,28 @@ class TvSitterClient:
         self.last_request = request
         for handle in list(self._request_listeners):
             handle(request)
+
+    @callback
+    def _handle_day(self, message: mqtt.ReceiveMessage) -> None:
+        """Take the last closed budget day.
+
+        Notified like state rather than like a request, because it is
+        retained: it arrives
+        again on every reconnect and an entity holds it, where a request is
+        a moment that
+        happens once.
+        """
+        try:
+            self.day = DaySummary.from_payload(message.payload)
+        except UnsupportedSchemaError as newer:
+            _LOGGER.warning(
+                "%s sent a day summary from schema %s", self.name, newer.found
+            )
+            return
+        except ValueError, TypeError:
+            _LOGGER.warning("%s sent a day summary that cannot be read", self.name)
+            return
+        self._notify()
 
     @callback
     def _handle_rules(self, message: mqtt.ReceiveMessage) -> None:

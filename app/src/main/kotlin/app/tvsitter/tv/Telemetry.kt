@@ -8,6 +8,7 @@ package app.tvsitter.tv
 import android.content.Context
 import android.util.Log
 import app.tvsitter.rules.contract.Command
+import app.tvsitter.rules.contract.DaySummary
 import app.tvsitter.rules.contract.StateSnapshot
 import app.tvsitter.rules.contract.TimeRequest
 import kotlinx.coroutines.CoroutineScope
@@ -58,6 +59,11 @@ class Telemetry(
         val fresh = MqttBridge(config, onCommand, onConnected = {
             publishNow()
             publishRules(rules())
+            // Retained on the broker already, but a broker that lost its store — or a fresh
+            // one after a move — would otherwise have no yesterday until tomorrow.
+            scope.launch {
+                Settings(context).lastDay()?.let { day -> bridge?.publishDay(day) }
+            }
         })
         bridge = fresh
         fresh.connect()
@@ -130,6 +136,13 @@ class Telemetry(
         val active = bridge ?: return
         runCatching { active.publishRules(json) }
             .onFailure { Log.w(EnforcerService.TAG, "telemetry: rules publish failed", it) }
+    }
+
+    /** Sends a day that has just closed. */
+    fun publish(day: DaySummary) {
+        val active = bridge ?: return
+        runCatching { active.publish(day) }
+            .onFailure { Log.w(EnforcerService.TAG, "telemetry: day publish failed", it) }
     }
 
     private fun publishNow() {

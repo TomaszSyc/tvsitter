@@ -18,6 +18,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import app.tvsitter.rules.BudgetState
 import app.tvsitter.rules.RequestHistory
 import app.tvsitter.rules.Rules
+import app.tvsitter.rules.contract.DayCounters
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -150,6 +151,27 @@ class Settings(private val context: Context) {
      * cooldown reset when the process dies, and force-stopping an app is something a child can
      * do from Settings.
      */
+    suspend fun dayCounters(): DayCounters {
+        val stored = context.dataStore.data.first()[KEY_DAY_COUNTERS] ?: return DayCounters()
+        return runCatching { Json.decodeFromString<DayCounters>(stored) }.getOrElse {
+            // Losing these loses one day's summary, and nothing else. Not worth refusing to
+            // count from here on for.
+            Log.w(EnforcerService.TAG, "unreadable day counters, starting again", it)
+            DayCounters()
+        }
+    }
+
+    suspend fun saveDayCounters(counters: DayCounters) {
+        context.dataStore.edit { prefs -> prefs[KEY_DAY_COUNTERS] = Json.encodeToString(counters) }
+    }
+
+    /** The last closed day as it went on the wire, so a reconnect can send it again. */
+    suspend fun lastDay(): String? = context.dataStore.data.first()[KEY_LAST_DAY]
+
+    suspend fun saveLastDay(payload: String) {
+        context.dataStore.edit { prefs -> prefs[KEY_LAST_DAY] = payload }
+    }
+
     suspend fun requests(): RequestHistory {
         val stored = context.dataStore.data.first()[KEY_REQUESTS] ?: return RequestHistory()
         return runCatching { Json.decodeFromString<RequestHistory>(stored) }.getOrElse {
@@ -199,6 +221,9 @@ class Settings(private val context: Context) {
         val KEY_BUDGET_LIMIT_SUSPENDED = booleanPreferencesKey("budget_limit_suspended")
 
         val KEY_REQUESTS = stringPreferencesKey("request_history")
+
+        val KEY_DAY_COUNTERS = stringPreferencesKey("day_counters")
+        val KEY_LAST_DAY = stringPreferencesKey("last_day")
 
         val KEY_RULES_JSON = stringPreferencesKey("rules_json")
         val KEY_RULES_REV = intPreferencesKey("rules_rev")

@@ -32,6 +32,15 @@ object Contract {
      * dashboard, which is the question a schedule invites.
      */
     const val TOPIC_RULES: String = "rules"
+
+    /**
+     * The last closed budget day, retained.
+     *
+     * A day that ends leaves nothing behind otherwise: the counter wipes the per-app split on
+     * rollover, and Home Assistant only knows what it was told while it was listening. One day
+     * only — the archive is the recorder's job, not the television's.
+     */
+    const val TOPIC_DAY: String = "day"
     const val TOPIC_COMMAND: String = "cmd"
 
     const val PAYLOAD_ONLINE: String = "online"
@@ -64,6 +73,7 @@ class Topics(prefix: String) {
     val state: String get() = "$prefix/${Contract.TOPIC_STATE}"
     val request: String get() = "$prefix/${Contract.TOPIC_REQUEST}"
     val rules: String get() = "$prefix/${Contract.TOPIC_RULES}"
+    val day: String get() = "$prefix/${Contract.TOPIC_DAY}"
     val command: String get() = "$prefix/${Contract.TOPIC_COMMAND}"
 
     override fun equals(other: Any?): Boolean = other is Topics && other.prefix == prefix

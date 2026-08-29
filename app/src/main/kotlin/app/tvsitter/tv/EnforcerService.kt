@@ -45,6 +45,7 @@ class EnforcerService : Service() {
     private var telemetry: Telemetry? = null
     private var screenTime: ScreenTimeTracker? = null
     private var activeRules: ActiveRules? = null
+    private var dayTally: DayTally? = null
     private var unlockGate: UnlockGate? = null
     private var pairing: PairingManager? = null
     private var parentPin: PinKeeper? = null
@@ -100,12 +101,14 @@ class EnforcerService : Service() {
         )
         appLabels = AppLabels(this)
         activeRules = ActiveRules(this)
+        dayTally = DayTally(this, scope)
         requests = TimeRequester(
             this,
             currentApp = { foregroundApps?.current },
             currentAppName = { foregroundApps?.current?.let { appLabels?.labelOf(it) } },
             send = { request -> telemetry?.publish(request) },
             onGranted = { seconds ->
+                dayTally?.recordGranted(seconds)
                 // The lock first, then the budget. Standing down before the bonus means the
                 // verdict that follows finds nothing manual holding the screen and lifts it;
                 // the other order leaves a covered television with time on the clock.
@@ -119,7 +122,16 @@ class EnforcerService : Service() {
             this,
             rules = { activeRules?.rules ?: Rules.NONE },
             sleepAtMs = { locks?.sleepAtMs ?: 0 },
-            onDayRolled = { telemetry?.publishSoon() },
+            // The day that just closed, before the counter forgets it. Published retained, so
+            // a Home Assistant that was down at four in the morning still gets yesterday.
+            onDayRolled = { closing ->
+                dayTally?.close(
+                    closing,
+                    screenTime?.limitTodaySeconds()?.toLong(),
+                    closing.perAppSeconds.keys.associateWith { appLabels?.labelOf(it) ?: it },
+                )?.let { telemetry?.publish(it) }
+                telemetry?.publishSoon()
+            },
             onJudgement = { judgement -> locks?.applyJudgement(judgement) },
         )
         // Commands arrive on an RxJava thread owned by the MQTT client, and acting on one
@@ -152,6 +164,8 @@ class EnforcerService : Service() {
         // process last died, so it goes back up. Gating this on locked storage meant it never
         // ran on this television, where the user is already unlocked when the early broadcast
         // arrives — and a lock a parent had put up was quietly forgotten by a reboot.
+        requests?.tally = dayTally
+        locks?.tally = dayTally
         locks?.restoreFromMemory()
 
         // Everything below reads credential-encrypted storage, which does not exist yet on a
@@ -160,6 +174,7 @@ class EnforcerService : Service() {
         gate.whenOpen {
             scope.launch {
                 activeRules?.load()
+                dayTally?.load()
                 startTelemetryOrOfferPairing()
             }
             screenTime?.start(

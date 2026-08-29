@@ -44,6 +44,13 @@ object ContractCodec {
         return json.decodeFromString(payload)
     }
 
+    fun encode(day: DaySummary): String = json.encodeToString(day)
+
+    fun decodeDay(payload: String): DaySummary {
+        requireSupportedSchema(payload)
+        return json.decodeFromString(payload)
+    }
+
     fun decodeCommand(payload: String): Command = json.decodeFromString(payload)
 
     /**

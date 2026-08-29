@@ -9,6 +9,7 @@ import android.util.Log
 import app.tvsitter.rules.contract.Command
 import app.tvsitter.rules.contract.Contract
 import app.tvsitter.rules.contract.ContractCodec
+import app.tvsitter.rules.contract.DaySummary
 import app.tvsitter.rules.contract.StateSnapshot
 import app.tvsitter.rules.contract.TimeRequest
 import app.tvsitter.rules.contract.Topics
@@ -202,6 +203,31 @@ class MqttBridge(
             .whenComplete { _, error ->
                 if (error != null) Log.w(EnforcerService.TAG, "mqtt: rules publish failed", error)
             }
+    }
+
+    /** The last closed day, retained: a consumer that arrives tomorrow still gets yesterday. */
+    fun publish(day: DaySummary) {
+        val active = client?.takeIf { it.state.isConnected } ?: return
+        active.publishWith()
+            .topic(topics.day)
+            .payload(ContractCodec.encode(day).toByteArray())
+            .qos(MqttQos.AT_LEAST_ONCE)
+            .retain(true)
+            .send()
+            .whenComplete { _, error ->
+                if (error != null) Log.w(EnforcerService.TAG, "mqtt: day publish failed", error)
+            }
+    }
+
+    /** The same thing from storage, for a reconnect after the broker forgot its retained set. */
+    fun publishDay(payload: String) {
+        val active = client?.takeIf { it.state.isConnected } ?: return
+        active.publishWith()
+            .topic(topics.day)
+            .payload(payload.toByteArray())
+            .qos(MqttQos.AT_LEAST_ONCE)
+            .retain(true)
+            .send()
     }
 
     fun publish(request: TimeRequest) {

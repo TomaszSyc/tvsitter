@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -21,6 +22,7 @@ from custom_components.tvsitter.sensor import (
     LimitTodaySensor,
     RemainingTodaySensor,
     UsedTodaySensor,
+    UsedYesterdaySensor,
 )
 from homeassistant.components.sensor import SensorStateClass
 from homeassistant.core import HomeAssistant
@@ -185,3 +187,75 @@ async def test_an_app_on_a_television_that_has_not_reported_says_nothing(
     client = TvSitterClient(hass, name="TV Salon", topic_prefix=PREFIX)
 
     assert AppUsageSensor(client, "com.netflix.ninja").native_value is None
+
+
+DAY = json.dumps(
+    {
+        "schema": 1,
+        "day": "2026-08-28",
+        "used_s": 8040,
+        "limit_s": 9000,
+        "bonus_s": 900,
+        "granted_s": 900,
+        "lock_count": 2,
+        "per_app": {"com.netflix.ninja": 3600},
+        "per_app_names": {"com.netflix.ninja": "Netflix"},
+        "requests": {"asked": 3, "granted": 1, "denied": 1, "expired": 1},
+        "ts": 1787490000000,
+    }
+)
+
+
+def yesterday(hass: HomeAssistant, payload: str = DAY) -> TvSitterClient:
+    """Build a client that has heard one closed day."""
+    client = make_client(hass)
+    client._handle_day(SimpleNamespace(topic=f"{PREFIX}/day", payload=payload))
+    return client
+
+
+async def test_yesterday_can_be_said_in_one_sentence(hass: HomeAssistant) -> None:
+    """#81. The whole point: a day that is over, without a recorder query."""
+    sensor = UsedYesterdaySensor(yesterday(hass))
+
+    assert sensor.native_value == 8040
+    attributes = sensor.extra_state_attributes
+    assert attributes["day"] == "2026-08-28"
+    assert attributes["limit_s"] == 9000
+    assert attributes["requests"]["denied"] == 1
+    assert attributes["lock_count"] == 2
+    assert attributes["per_app_names"]["com.netflix.ninja"] == "Netflix"
+
+
+async def test_a_day_from_a_newer_schema_is_refused(hass: HomeAssistant) -> None:
+    """The same rule as the state payload: guessing what fields mean is worse."""
+    payload = json.dumps({"schema": 99, "day": "2026-08-28", "used_s": 1})
+    client = yesterday(hass, payload)
+
+    assert client.day is None
+
+
+async def test_a_day_about_nothing_is_refused(hass: HomeAssistant) -> None:
+    """A summary with no day names no day, and would overwrite one that did."""
+    client = yesterday(hass, json.dumps({"schema": 1, "used_s": 60}))
+
+    assert client.day is None
+
+
+async def test_rubbish_leaves_the_last_good_day_alone(hass: HomeAssistant) -> None:
+    """Blanking it would read as a day with no television in it."""
+    client = yesterday(hass)
+
+    client._handle_day(SimpleNamespace(topic=f"{PREFIX}/day", payload="not json"))
+
+    assert client.day is not None
+    assert client.day.used_seconds == 8040
+
+
+async def test_before_the_first_rollover_there_is_no_yesterday(
+    hass: HomeAssistant,
+) -> None:
+    """A television installed this afternoon has not closed a day yet."""
+    sensor = UsedYesterdaySensor(make_client(hass))
+
+    assert sensor.native_value is None
+    assert sensor.extra_state_attributes is None
