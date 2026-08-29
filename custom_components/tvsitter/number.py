@@ -17,7 +17,13 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import TvSitterConfigEntry
-from .const import RULE_APP_LIMITS, RULE_DAILY_LIMIT, RULE_WARN_BEFORE
+from .const import (
+    RULE_APP_LIMITS,
+    RULE_DAILY_LIMIT,
+    RULE_DAYS,
+    RULE_WARN_BEFORE,
+    WIRE_DAYS,
+)
 from .coordinator import TvSitterClient
 from .entity import TvSitterEntity
 
@@ -54,6 +60,7 @@ async def async_setup_entry(
     client = entry.runtime_data
     async_add_entities(
         [DailyLimitNumber(client), WarnBeforeNumber(client), SleepTimerNumber(client)]
+        + [DayLimitNumber(client, day) for day in WIRE_DAYS]
     )
 
     known: set[str] = set()
@@ -317,4 +324,55 @@ class AppLimitNumber(TvSitterEntity, NumberEntity):
             )
         await self._client.async_set_rules(
             {RULE_APP_LIMITS: {self._package: int(value * SECONDS_PER_MINUTE)}}
+        )
+
+
+class DayLimitNumber(TvSitterEntity, NumberEntity):
+    """One day of the week's own allowance, instead of the plain daily limit.
+
+    Seven of them, declared rather than discovered: the week is the same seven days on
+    every television, so unlike the per-app limits there is nothing to wait and see.
+
+    A week is not one number, but a day is — the argument that gave every app a
+    control of its own, unchanged. The dashboard used to send a parent to an action
+    to give Saturday two hours, which is not what anybody opens a dashboard for (#119).
+
+    Nothing set means this day takes the plain daily limit, which is not the same as
+    zero — zero is a real setting and means no viewing that day. A number cannot say
+    "nothing", so removing an override stays with `tvsitter.set_schedule`.
+    """
+
+    _attr_native_min_value = 0
+    _attr_native_max_value = MAX_MINUTES
+    _attr_native_step = STEP_MINUTES
+    _attr_native_unit_of_measurement = UnitOfTime.MINUTES
+    _attr_device_class = NumberDeviceClass.DURATION
+    _attr_mode = NumberMode.BOX
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(self, client: TvSitterClient, day: str) -> None:
+        """Create the allowance for one day of the week."""
+        super().__init__(client, f"limit_{day}")
+        self._day = day
+
+    @property
+    def native_value(self) -> float | None:
+        """Return this day's own allowance, or nothing when it has none."""
+        rules = self._client.rules
+        if rules is None:
+            return None
+        days = rules.get(RULE_DAYS)
+        if not isinstance(days, dict):
+            return None
+        seconds = days.get(self._day)
+        return None if not isinstance(seconds, int) else seconds / SECONDS_PER_MINUTE
+
+    async def async_set_native_value(self, value: float) -> None:
+        """Give this day its own allowance."""
+        if not self._client.available:
+            raise ServiceValidationError(
+                f"{self._client.name} is not listening; the change would go nowhere"
+            )
+        await self._client.async_set_rules(
+            {RULE_DAYS: {self._day: int(value * SECONDS_PER_MINUTE)}}
         )

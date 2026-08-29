@@ -10,6 +10,11 @@
 # The per-app rows are the apps this television has actually opened, so yours will differ. Delete
 # the ones you do not have and add the ones you do — the entity is named after the app.
 #
+# The viewing hours come from a schedule helper. Make one — Settings, Devices & services, Helpers,
+# Create helper, Schedule — draw the week on it, then run `tvsitter.use_schedule` once against
+# this television's rules sensor. Every later edit to the grid follows on its own. Point the
+# schedule tile below at whichever helper you made.
+#
 # TV Sitter — parental control for Android TV / Google TV.
 # Copyright (C) 2026 Tomasz Syc
 # SPDX-License-Identifier: AGPL-3.0-only
@@ -124,6 +129,49 @@ views:
               columns: 12
           # Zero blocks the app outright, which is the same convention the daily limit has:
           # zero is a real setting, not the absence of one.
+          # Each day of the week is one number, so each is a control. The week as a whole
+          # is not, which is what `tvsitter.set_schedule` is for: leaving the minutes out
+          # removes an override, and a number has no way to say "nothing".
+          - type: heading
+            heading: A day of its own
+            heading_style: subtitle
+          - type: tile
+            entity: number.tv_lounge_monday
+            features:
+              - type: numeric-input
+                style: buttons
+            grid_options:
+              columns: 12
+          - type: tile
+            entity: number.tv_lounge_saturday
+            features:
+              - type: numeric-input
+                style: buttons
+            grid_options:
+              columns: 12
+          - type: tile
+            entity: number.tv_lounge_sunday
+            features:
+              - type: numeric-input
+                style: buttons
+            grid_options:
+              columns: 12
+
+          # The hours come from a schedule helper, because Home Assistant already has a
+          # weekly grid with a proper editor and this would otherwise be a second one.
+          # Tapping the tile opens that editor; `tvsitter.use_schedule` points the
+          # television at it once, and every later edit follows on its own.
+          - type: heading
+            heading: When viewing is allowed
+            heading_style: subtitle
+          - type: tile
+            entity: schedule.viewing_hours
+            name: Viewing hours
+            tap_action:
+              action: more-info
+            grid_options:
+              columns: 12
+
           - type: heading
             heading: A budget of its own
             heading_style: subtitle
@@ -168,9 +216,3 @@ views:
             name: Rules revision
             grid_options:
               columns: 6
-          - type: markdown
-            text_only: true
-            content: >-
-              The weekly schedule and the viewing hours are not one number each, so they are
-              actions rather than controls: `tvsitter.set_schedule` and `tvsitter.set_windows`,
-              both aimed at the rules sensor above.

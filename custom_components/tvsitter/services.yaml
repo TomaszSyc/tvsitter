@@ -101,3 +101,18 @@ set_app_limit:
           min: 0
           max: 720
           unit_of_measurement: min
+
+# The weekly grid Home Assistant already draws. The helper is remembered, so an edit to it
+# reaches the television by itself afterwards.
+use_schedule:
+  target:
+    entity:
+      integration: tvsitter
+      domain: sensor
+  fields:
+    schedule:
+      required: true
+      example: schedule.viewing_hours
+      selector:
+        entity:
+          domain: schedule

@@ -188,8 +188,8 @@ the same attempts.
 ## Changing the rules
 
 Most rules are one number, and each of those is a control you move: `number.…_daily_limit`,
-`number.…_warn_before`, `number.…_sleep_timer`, `switch.…_block_settings`, and one
-`number.…_limit` per app the TV has charged time to. Setting an app's limit to zero blocks it
+`number.…_warn_before`, `number.…_sleep_timer`, `switch.…_block_settings`, one per day of the
+week, and one `number.…_limit` per app the TV has charged time to. Setting an app's limit to zero blocks it
 outright — one mechanism rather than two, and the same convention as everywhere else here.
 An app's limit appears once the TV has seen the app; twelve is the ceiling, for the same
 reason the per-app sensors have one.
@@ -199,13 +199,28 @@ Two rules are not one number each, and those are actions aimed at `sensor.…_ru
 | Action | What it changes |
 |---|---|
 | `tvsitter.set_schedule` | One day of the week's own allowance. Leave `minutes` out to remove the override and hand the day back to the daily limit; zero means no viewing that day. |
-| `tvsitter.set_windows` | When viewing is allowed at all. Send the whole list every time — windows have no key to merge onto — and an empty list allows any hour. |
+| `tvsitter.set_windows` | When viewing is allowed at all, as a raw list. For hours that no schedule can express; ordinarily use the schedule below. |
 | `tvsitter.set_app_limit` | An app's own budget, by package id. For the two things the number cannot say: an app the television has never opened, and taking a budget away — zero there is a block, not an absence. |
 
 `sensor.…_rules` shows what the TV says it is enforcing, as attributes, and its state is the
 revision the two sides agree on. The revision is why every write goes through one place: the
 TV ignores a `set_rules` whose revision is not higher than the one it holds, so two changes
 in a row have to count up even before the TV has answered.
+
+### The hours viewing is allowed
+
+Home Assistant already has a weekly grid with a proper editor — the **Schedule** helper — and the
+rules already carry windows with the days they apply on. They are the same picture, so TV Sitter
+reads one and writes the other rather than shipping a second editor.
+
+Make a schedule helper (Settings, then Devices & services, then Helpers), draw the week on it,
+and run `tvsitter.use_schedule` once against this TV's rules sensor. The helper is remembered:
+every later edit to the grid reaches the television by itself, and an edit made while the set is
+asleep goes out when it wakes.
+
+Blocks that share their hours become one window rather than seven, a block drawn on every day
+loses its `days` key altogether, and a block running to the end of the day closes at midnight —
+so the rules stay something you can read when a lock surprises you.
 
 Editing a whole week by hand is what the add-on is for (#60). These are enough to set one
 without it.

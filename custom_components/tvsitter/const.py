@@ -112,6 +112,13 @@ RULE_APP_LIMITS: Final = "app_limits_s"
 RULE_DAYS: Final = "days"
 RULE_WINDOWS: Final = "windows"
 
+SERVICE_USE_SCHEDULE: Final = "use_schedule"
+ATTR_SCHEDULE: Final = "schedule"
+
+# Where the chosen schedule helper is remembered, so an edit to it still reaches the
+# television after a restart.
+CONF_SCHEDULE: Final = "schedule_entity"
+
 KIND_MORE_TIME: Final = "more_time"
 
 SERVICE_GRANT_TIME: Final = "grant_time"

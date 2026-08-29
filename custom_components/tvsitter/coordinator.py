@@ -14,14 +14,26 @@ import logging
 from typing import Any
 
 from homeassistant.components import mqtt
+from homeassistant.components.schedule.const import (
+    DOMAIN as SCHEDULE_DOMAIN,
+)
+from homeassistant.components.schedule.const import (
+    SERVICE_GET as SERVICE_GET_SCHEDULE,
+)
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.event import (
+    async_track_state_change_event,
+    async_track_time_interval,
+)
 from homeassistant.util import dt as dt_util
 
 from .const import (
+    CONF_SCHEDULE,
     OP_SET_RULES,
     PAYLOAD_ONLINE,
     QUIET_AFTER_SECONDS,
+    RULE_WINDOWS,
     SCHEMA_VERSION,
     SILENCE_CHECK_SECONDS,
     TOPIC_ALERT,
@@ -39,6 +51,7 @@ from .models import (
     TimeRequest,
     UnsupportedSchemaError,
 )
+from .schedules import windows_from
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -51,9 +64,20 @@ class TvSitterClient:
     than after a first refresh.
     """
 
-    def __init__(self, hass: HomeAssistant, name: str, topic_prefix: str) -> None:
-        """Prepare a client for the given topic prefix."""
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        name: str,
+        topic_prefix: str,
+        entry: ConfigEntry | None = None,
+    ) -> None:
+        """Prepare a client for the given topic prefix.
+
+        The entry is optional only so the tests can build a client without one; nothing
+        that needs it — remembering which schedule helper to follow — runs without it.
+        """
         self._hass = hass
+        self.entry = entry
         self._prefix = topic_prefix
         self.name = name
         self.snapshot: StateSnapshot | None = None
@@ -61,6 +85,7 @@ class TvSitterClient:
         self.day: DaySummary | None = None
         self.last_alert: Alert | None = None
         self.reporting_stopped = False
+        self._schedule_watch: Callable[[], None] | None = None
         self._alert_listeners: list[Callable[[Alert], None]] = []
         self._quiet_timer: Callable[[], None] | None = None
         self._sent_rev = 0
@@ -183,6 +208,72 @@ class TvSitterClient:
         await self.async_send(
             {"op": OP_SET_RULES, "rev": self._next_revision(), "rules": rules}
         )
+
+    async def async_follow_schedule(self, entity_id: str) -> None:
+        """Take the hours from a schedule helper now, and whenever it is edited.
+
+        The entity is remembered on the config entry rather than in memory, so an edit
+        made next week still reaches the television. A schedule imported once and left
+        to drift would be worse than none at all — the dashboard would show hours the
+        set is not enforcing, the failure this project keeps designing against.
+        """
+        if self.entry is not None:
+            self._hass.config_entries.async_update_entry(
+                self.entry, options={**self.entry.options, CONF_SCHEDULE: entity_id}
+            )
+        await self.async_import_schedule(entity_id)
+        self.watch_schedule(entity_id)
+
+    @callback
+    def watch_schedule(self, entity_id: str | None) -> None:
+        """Follow one schedule helper, replacing whatever was being followed before."""
+        if self._schedule_watch is not None:
+            self._schedule_watch()
+            self._schedule_watch = None
+        if entity_id is None:
+            return
+        self._schedule_watch = async_track_state_change_event(
+            self._hass, [entity_id], self._schedule_changed
+        )
+
+    @callback
+    def _schedule_changed(self, event: Any) -> None:
+        """Re-read the grid when the helper changes in any way."""
+        entity_id = event.data.get("entity_id")
+        if entity_id:
+            self._hass.async_create_task(self.async_import_schedule(entity_id))
+
+    async def async_import_schedule(self, entity_id: str) -> None:
+        """Read the helper's weekly blocks and send them, if they say anything new.
+
+        Nothing is sent when the television already holds these hours. The helper's
+        entity changes state at every block boundary — that is what it is for — and a
+        write on each would spend a revision to say nothing, several times a day.
+        """
+        answer = await self._hass.services.async_call(
+            SCHEDULE_DOMAIN,
+            SERVICE_GET_SCHEDULE,
+            {"entity_id": entity_id},
+            blocking=True,
+            return_response=True,
+        )
+        grid = (answer or {}).get(entity_id)
+        if not isinstance(grid, dict):
+            _LOGGER.warning("%s: %s had nothing to read", self.name, entity_id)
+            return
+
+        windows = windows_from(grid)
+        if self.rules is not None and self.rules.get(RULE_WINDOWS) == windows:
+            return
+        if not self.available:
+            _LOGGER.debug(
+                "%s: not listening, leaving %s for later", self.name, entity_id
+            )
+            return
+        _LOGGER.info(
+            "%s: taking %s windows from %s", self.name, len(windows), entity_id
+        )
+        await self.async_set_rules({RULE_WINDOWS: windows})
 
     def _next_revision(self) -> int:
         """Work out the next revision, from the TV's number and our own."""
@@ -373,8 +464,15 @@ class TvSitterClient:
 
     @callback
     def _handle_availability(self, message: mqtt.ReceiveMessage) -> None:
+        was = self.available
         self.available = message.payload.strip() == PAYLOAD_ONLINE
         _LOGGER.debug("%s is %s", self.name, "online" if self.available else "offline")
+        # A grid edited while the set was asleep is sent now. Without this the schedule
+        # and the television drift apart in silence, which is the failure the whole
+        # follow-the-helper arrangement exists to avoid.
+        followed = self.entry.options.get(CONF_SCHEDULE) if self.entry else None
+        if self.available and not was and followed:
+            self._hass.async_create_task(self.async_import_schedule(followed))
         self._notify()
 
     @callback

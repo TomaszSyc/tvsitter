@@ -19,7 +19,7 @@ from homeassistant.const import CONF_NAME
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 
-from .const import CONF_TOPIC_PREFIX, DEFAULT_NAME, PLATFORMS
+from .const import CONF_SCHEDULE, CONF_TOPIC_PREFIX, DEFAULT_NAME, PLATFORMS
 from .coordinator import TvSitterClient
 
 _LOGGER = logging.getLogger(__name__)
@@ -38,11 +38,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: TvSitterConfigEntry) -> 
         hass,
         name=entry.data.get(CONF_NAME, DEFAULT_NAME),
         topic_prefix=entry.data[CONF_TOPIC_PREFIX],
+        entry=entry,
     )
     await client.async_start()
     entry.runtime_data = client
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # Picked up again after a restart, so a grid edited next week still reaches the TV.
+    # After the platforms, because importing writes rules and the entities showing
+    # them should exist by the time it does.
+    client.watch_schedule(entry.options.get(CONF_SCHEDULE))
     return True
 
 
@@ -50,5 +56,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: TvSitterConfigEntry) ->
     """Tear down one TV."""
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unloaded:
+        entry.runtime_data.watch_schedule(None)
         entry.runtime_data.async_stop()
     return unloaded

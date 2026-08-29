@@ -75,6 +75,27 @@
       },
       "sleep_timer": {
         "default": "mdi:sleep"
+      },
+      "limit_mon": {
+        "default": "mdi:calendar-today"
+      },
+      "limit_tue": {
+        "default": "mdi:calendar-today"
+      },
+      "limit_wed": {
+        "default": "mdi:calendar-today"
+      },
+      "limit_thu": {
+        "default": "mdi:calendar-today"
+      },
+      "limit_fri": {
+        "default": "mdi:calendar-today"
+      },
+      "limit_sat": {
+        "default": "mdi:calendar-today"
+      },
+      "limit_sun": {
+        "default": "mdi:calendar-today"
       }
     },
     "button": {
@@ -104,6 +125,7 @@
     "deny_time": "mdi:timer-remove",
     "set_schedule": "mdi:calendar-week",
     "set_windows": "mdi:calendar-clock",
-    "set_app_limit": "mdi:timer-lock-outline"
+    "set_app_limit": "mdi:timer-lock-outline",
+    "use_schedule": "mdi:calendar-import"
   }
 }

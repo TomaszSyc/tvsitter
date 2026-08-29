@@ -121,6 +121,27 @@
       },
       "sleep_timer": {
         "name": "Sleep timer"
+      },
+      "limit_mon": {
+        "name": "Monday limit"
+      },
+      "limit_tue": {
+        "name": "Tuesday limit"
+      },
+      "limit_wed": {
+        "name": "Wednesday limit"
+      },
+      "limit_thu": {
+        "name": "Thursday limit"
+      },
+      "limit_fri": {
+        "name": "Friday limit"
+      },
+      "limit_sat": {
+        "name": "Saturday limit"
+      },
+      "limit_sun": {
+        "name": "Sunday limit"
       }
     },
     "button": {
@@ -205,6 +226,16 @@
         "minutes": {
           "name": "Minutes",
           "description": "How long that app may be watched. Zero blocks it."
+        }
+      }
+    },
+    "use_schedule": {
+      "name": "Take the hours from a schedule",
+      "description": "Uses a schedule helper's weekly grid as the hours viewing is allowed. The helper is remembered, so editing the grid later reaches the television on its own.",
+      "fields": {
+        "schedule": {
+          "name": "Schedule",
+          "description": "The schedule helper to follow."
         }
       }
     }

@@ -13,6 +13,7 @@ from typing import Any
 
 import voluptuous as vol
 
+from homeassistant.components.schedule.const import DOMAIN as SCHEDULE_DOMAIN
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
@@ -31,6 +32,7 @@ from .const import (
     ATTR_DAY,
     ATTR_MINUTES,
     ATTR_PACKAGE,
+    ATTR_SCHEDULE,
     ATTR_WINDOWS,
     RULE_APP_LIMITS,
     RULE_DAYS,
@@ -38,6 +40,7 @@ from .const import (
     SERVICE_SET_APP_LIMIT,
     SERVICE_SET_SCHEDULE,
     SERVICE_SET_WINDOWS,
+    SERVICE_USE_SCHEDULE,
     WIRE_DAYS,
 )
 from .coordinator import TvSitterClient
@@ -161,6 +164,13 @@ async def async_setup_entry(
             ),
         },
         "async_set_app_limit",
+    )
+    # The weekly grid a schedule helper already draws, rather than a second editor here.
+    # Home Assistant has the better one and it is built in (#119).
+    platform.async_register_entity_service(
+        SERVICE_USE_SCHEDULE,
+        {vol.Required(ATTR_SCHEDULE): cv.entity_domain(SCHEDULE_DOMAIN)},
+        "async_use_schedule",
     )
 
 
@@ -320,6 +330,21 @@ class RulesSensor(TvSitterEntity, SensorEntity):
         """
         self._require_a_listening_tv()
         await self._client.async_set_rules({RULE_WINDOWS: list(windows)})
+
+    async def async_use_schedule(self, schedule: str) -> None:
+        """Take the hours from a schedule helper, and keep taking them.
+
+        Home Assistant already has a weekly grid a parent can draw on, with a proper
+        editor and no card to install; the rules already carry windows with the days
+        they apply on. The two are the same picture, so this reads one and writes the
+        other rather than inventing a second editor (#119).
+
+        The helper is remembered, so a later edit to the grid reaches the television
+        by itself. A schedule imported once and left to drift would be worse than no
+        import at all: the dashboard would show hours the set is not enforcing.
+        """
+        self._require_a_listening_tv()
+        await self._client.async_follow_schedule(schedule)
 
     async def async_set_app_limit(
         self, package: str, minutes: float | None = None

@@ -1203,3 +1203,22 @@ panels and a keypad, all of which redraw from one `refresh()` a second.
 
 What the ten-foot view actually needed was a type scale, a focus treatment that survives a bright
 room, overscan margins and one place to keep them. That is `TvStyle`, and it is forty lines.
+
+### D33 — the viewing hours come from a schedule helper, not from a second editor
+
+Windows are the one rule that is not a number: a stretch of the day, on some days of the week,
+possibly several. Two clock faces and a switch were written and thrown away — they could describe
+one window applying every day and would have had to lie about anything else.
+
+Home Assistant ships the editor already. The **Schedule** helper is a weekly grid a parent draws
+on, and `schedule.get_schedule` is a documented action that hands back its blocks. That is the
+same picture the rules hold, written down twice, so the integration converts one into the other.
+
+The helper is remembered on the config entry and followed, rather than imported once: a schedule
+that drifts from what the television enforces is worse than no schedule at all, because the
+dashboard would then show hours nothing is applying. An edit made while the set is asleep is sent
+on the next reconnect, and an import that would change nothing is not sent — the helper's entity
+changes state at every block boundary, and a revision spent to say nothing is noise in the one
+number the two sides use to agree.
+
+`tvsitter.set_windows` stays for the shapes a weekly grid cannot draw.
