@@ -29,6 +29,13 @@ class StatsPanel(private val context: Context) {
 
     private val todayList = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
     private val yesterdayLine = text(TvStyle.BODY_SP, TvStyle.TEXT)
+
+    // Hidden until there is a day behind it. A label over nothing is the empty frame #111
+    // asked for instead of, and it read as a list that had failed to load.
+    private val yesterdayLabel = text(TvStyle.SMALL_SP, TvStyle.MUTED).apply {
+        setText(R.string.stats_yesterday_apps)
+        setPadding(0, TvStyle.GAP_PX, 0, 0)
+    }
     private val yesterdayList = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
 
     val view: View = ScrollView(context).apply {
@@ -41,12 +48,7 @@ class StatsPanel(private val context: Context) {
                 addView(todayList)
                 addView(heading(R.string.stats_yesterday))
                 addView(yesterdayLine)
-                addView(
-                    text(TvStyle.SMALL_SP, TvStyle.MUTED).apply {
-                        setText(R.string.stats_yesterday_apps)
-                        setPadding(0, TvStyle.GAP_PX, 0, 0)
-                    },
-                )
+                addView(yesterdayLabel)
                 addView(yesterdayList)
                 addView(
                     text(TvStyle.SMALL_SP, TvStyle.MUTED).apply {
@@ -76,7 +78,9 @@ class StatsPanel(private val context: Context) {
 
         // The names come with the closed day rather than from the resolver: an app uninstalled
         // overnight still has to be called what it was called when it was watched.
-        fill(yesterdayList, closed?.perApp.orEmpty(), service, null, closed?.perAppNames.orEmpty())
+        val split = closed?.perApp.orEmpty()
+        yesterdayLabel.visibility = if (split.isEmpty()) View.GONE else View.VISIBLE
+        fill(yesterdayList, split, service, null, closed?.perAppNames.orEmpty())
     }
 
     private fun fill(
