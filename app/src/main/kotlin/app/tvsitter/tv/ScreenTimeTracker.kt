@@ -92,6 +92,15 @@ class ScreenTimeTracker(
     /** Logged when it changes rather than every ten seconds, which would say nothing. */
     private var wasWatching: Boolean? = null
 
+    /**
+     * Which day of the week the allowance currently belongs to.
+     *
+     * From the same clock the counter uses, because at half past midnight the answer is
+     * yesterday — and a screen working that out for itself would be right about the limit and
+     * wrong about the hours, or the other way round.
+     */
+    val budgetDayOfWeek: java.time.DayOfWeek get() = clock.budgetDay(Instant.now()).dayOfWeek
+
     @Volatile
     var state: BudgetState = BudgetState(day = clock.budgetDay(Instant.now()))
         private set

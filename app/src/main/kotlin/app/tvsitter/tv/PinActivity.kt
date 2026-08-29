@@ -55,6 +55,15 @@ class PinActivity : Activity() {
      */
     private val forPairing: Boolean by lazy { intent?.getBooleanExtra(EXTRA_FOR_PAIRING, false) == true }
 
+    /**
+     * Whether the caller only wants to know that the person at the keypad is the parent.
+     *
+     * Nothing is changed and nothing is remembered — the answer goes back as a result, and the
+     * caller decides what it unlocks. That is what puts the rules on the settings screen behind
+     * the same door pairing already sits behind (#112).
+     */
+    private val toProve: Boolean by lazy { intent?.getBooleanExtra(EXTRA_TO_PROVE, false) == true }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Three questions in a row, each with a couple of seconds of hashing between them, is
@@ -67,6 +76,11 @@ class PinActivity : Activity() {
             // either, which is the first run and is meant to be open.
             if (forPairing) {
                 EnforcerService.instance?.requestPairing()
+                finish()
+                return
+            }
+            if (toProve) {
+                setResult(RESULT_OK)
                 finish()
                 return
             }
@@ -129,6 +143,11 @@ class PinActivity : Activity() {
                 // Nothing is remembered and nothing is hashed again: the question was only
                 // whether the person at the keypad is the one the PIN is for.
                 EnforcerService.instance?.requestPairing()
+                finish()
+                return@verify
+            }
+            if (toProve) {
+                setResult(RESULT_OK)
                 finish()
                 return@verify
             }
@@ -198,6 +217,7 @@ class PinActivity : Activity() {
             getString(
                 when {
                     next == Step.CURRENT && forPairing -> R.string.pin_step_pairing
+                    next == Step.CURRENT && toProve -> R.string.pin_step_prove
                     next == Step.CURRENT -> R.string.pin_step_current
                     next == Step.NEW -> R.string.pin_step_new
                     else -> R.string.pin_step_confirm
@@ -224,6 +244,9 @@ class PinActivity : Activity() {
     companion object {
         /** Ask for the PIN, then open a pairing window rather than changing anything. */
         const val EXTRA_FOR_PAIRING: String = "for_pairing"
+
+        /** Ask for the PIN and answer with a result, changing nothing at all. */
+        const val EXTRA_TO_PROVE: String = "to_prove"
 
         private const val BACKDROP = 0xFF0B1017.toInt()
         private const val NOTE_SP = 24f

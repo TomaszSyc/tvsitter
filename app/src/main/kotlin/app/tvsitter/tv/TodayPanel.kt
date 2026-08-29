@@ -9,6 +9,8 @@ import android.content.Context
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
+import app.tvsitter.rules.Window
+import java.time.format.DateTimeFormatter
 
 /**
  * The start destination, and the screen somebody walks up to the television for.
@@ -27,6 +29,9 @@ class TodayPanel(private val context: Context) {
     // is silent until the types happen to disagree.
     private val remaining = text(TvStyle.NUMBER_SP, TvStyle.ACCENT)
     private val inForce = text(TvStyle.BODY_SP, TvStyle.MUTED)
+    private val hours = text(TvStyle.BODY_SP, TvStyle.MUTED)
+    private val watching = text(TvStyle.BODY_SP, TvStyle.MUTED)
+    private val locked = text(TvStyle.HEADING_SP, TvStyle.WARN)
     private val attention = text(TvStyle.BODY_SP, TvStyle.WARN)
 
     val view: View = LinearLayout(context).apply {
@@ -45,7 +50,10 @@ class TodayPanel(private val context: Context) {
             },
         )
         addView(inForce)
-        addView(attention)
+        addView(hours)
+        addView(watching)
+        addView(locked.apply { setPadding(0, TvStyle.GAP_PX, 0, 0) })
+        addView(attention.apply { setPadding(0, TvStyle.GAP_PX, 0, 0) })
     }
 
     fun refresh() {
@@ -64,13 +72,58 @@ class TodayPanel(private val context: Context) {
         remaining.text = service?.remainingTodaySeconds?.let { TvStyle.length(context, it) }
             ?: context.getString(R.string.setup_no_limit)
 
-        inForce.text = context.getString(
-            if (service?.isReporting == true) R.string.pair_done else R.string.pair_offline,
-        )
+        showWhatIsInForce(service)
+
+        // The lock in the words the child is reading at that moment, rather than a second
+        // wording of the same fact one room away.
+        locked.text = service?.lockTitle?.let { context.getString(R.string.today_locked, it) }.orEmpty()
+        locked.visibility = if (service?.lockTitle != null) View.VISIBLE else View.GONE
 
         attention.text = trouble.joinToString(separator = "\n\n")
         attention.visibility = if (trouble.isEmpty()) View.GONE else View.VISIBLE
     }
+
+    /**
+     * What is being enforced today, as sentences rather than a table.
+     *
+     * The limit, whether it was set aside, and the hours if any window applies — the three
+     * things that answer "why did it stop" before it stops. This line used to repeat whether the
+     * television was reaching Home Assistant, which is a question about the plumbing and already
+     * has its own line below when it is going wrong.
+     */
+    private fun showWhatIsInForce(service: EnforcerService?) {
+        if (service == null) {
+            listOf(inForce, hours, watching).forEach { it.visibility = View.GONE }
+            return
+        }
+        listOf(inForce, hours).forEach { it.visibility = View.VISIBLE }
+
+        inForce.text = when {
+            service.limitSetAside -> context.getString(R.string.today_limit_aside)
+            service.limitTodaySeconds == null -> context.getString(R.string.today_limit_none)
+            else -> context.getString(
+                R.string.today_limit,
+                TvStyle.length(context, service.limitTodaySeconds),
+            )
+        }
+
+        // No window applying today is no restriction, not a closed day — the reading the engine
+        // has had since M4 (D27), said out loud so nobody has to infer it from an empty line.
+        val today = service.rules.windows.filter { it.appliesOn(service.budgetDay) }
+        hours.text = if (today.isEmpty()) {
+            context.getString(R.string.today_hours_any)
+        } else {
+            context.getString(R.string.today_hours, today.joinToString(", ") { span(it) })
+        }
+
+        val app = service.foregroundPackage?.let { service.labels?.labelOf(it) ?: it }
+        watching.text = app?.let { context.getString(R.string.today_watching, it) }.orEmpty()
+        watching.visibility = if (app == null) View.GONE else View.VISIBLE
+    }
+
+    /** `16:00–19:30`, with an en dash because it is a range rather than a subtraction. */
+    private fun span(window: Window): String =
+        "${window.from.format(HOUR_AND_MINUTE)}\u2013${window.to.format(HOUR_AND_MINUTE)}"
 
     private fun column(value: TextView, labelRes: Int) = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
@@ -82,6 +135,10 @@ class TodayPanel(private val context: Context) {
     private fun text(sizeSp: Float, colour: Int) = TextView(context).apply {
         setTextColor(colour)
         setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, sizeSp)
+    }
+
+    private companion object {
+        val HOUR_AND_MINUTE: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
     }
 }
 
@@ -102,6 +159,5 @@ object Trouble {
         if (service != null && !service.isReporting) {
             add(context.getString(R.string.setup_fix_reporting))
         }
-        if (service?.isLocked == true) add(context.getString(R.string.setup_locked_now))
     }
 }

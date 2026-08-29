@@ -31,6 +31,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import java.util.UUID
+import kotlin.math.ceil
 
 /**
  * The heart of the app: it watches what is on screen, counts the time, and puts the lock up.
@@ -69,6 +70,12 @@ class EnforcerService : Service() {
 
     val isLocked: Boolean get() = locks?.isLocked == true
 
+    /** What the lock calls itself right now, in the child's own words, or null when it is not up. */
+    val lockTitle: String? get() = locks?.lockTitle
+
+    /** The clock the counter keeps, so a screen asks which budget day it is rather than guessing. */
+    val budgetDay: java.time.DayOfWeek get() = screenTime?.budgetDayOfWeek ?: java.time.LocalDate.now().dayOfWeek
+
     /**
      * Today's numbers, for the one screen that can answer them with no Home Assistant.
      *
@@ -96,6 +103,21 @@ class EnforcerService : Service() {
 
     /** The rules in force, for a screen that shows what it is about to change. */
     val rules: Rules get() = activeRules?.rules ?: Rules.NONE
+
+    /**
+     * Minutes until the sleep timer covers the screen, and zero for none armed.
+     *
+     * A property with a setter rather than a method, like the readings above: this class is at
+     * its allowance. Minutes rather than a deadline because that is what a parent sets and what
+     * Home Assistant sends, and converting in two places is how the two come to disagree.
+     */
+    var sleepInMinutes: Int
+        get() = locks?.sleepAtMs?.takeIf { it > 0 }
+            ?.let { ceil((it - System.currentTimeMillis()) / MILLIS_PER_MINUTE).toInt().coerceAtLeast(0) }
+            ?: 0
+        set(minutes) {
+            locks?.sleepIn(minutes)
+        }
 
     /**
      * Changes rules from the television itself, by the same road Home Assistant uses.
@@ -515,6 +537,7 @@ class EnforcerService : Service() {
         const val EXTRA_REASON = "reason"
 
         private const val SECONDS_PER_MINUTE = 60L
+        private const val MILLIS_PER_MINUTE = 60_000.0
 
         @Volatile
         var instance: EnforcerService? = null

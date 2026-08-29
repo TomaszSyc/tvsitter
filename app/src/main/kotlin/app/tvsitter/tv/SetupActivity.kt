@@ -5,6 +5,7 @@
  */
 package app.tvsitter.tv
 
+import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -13,6 +14,7 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
 
 /**
  * The shell: a rail down the side, one destination at a time beside it.
@@ -42,6 +44,17 @@ class SetupActivity : ComponentActivity() {
 
     private var showing = Destination.TODAY
 
+    /**
+     * The parent PIN, asked once and answered as a result.
+     *
+     * Registered here rather than in the panel because a launcher has to exist before the
+     * activity is started, and the panel is built inside `onCreate` — which is late enough for
+     * the framework to refuse it.
+     */
+    private val askForPin = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == RESULT_OK) settings.unlock()
+    }
+
     private val refresh = Handler(Looper.getMainLooper())
     private val tick = object : Runnable {
         override fun run() {
@@ -55,7 +68,11 @@ class SetupActivity : ComponentActivity() {
 
         today = TodayPanel(this)
         stats = StatsPanel(this)
-        settings = SettingsPanel(this, parentPin)
+        settings = SettingsPanel(this, parentPin) {
+            askForPin.launch(
+                Intent(this, PinActivity::class.java).putExtra(PinActivity.EXTRA_TO_PROVE, true),
+            )
+        }
         content = FrameLayout(this)
         rail = NavigationRail(this) { go(it) }
 

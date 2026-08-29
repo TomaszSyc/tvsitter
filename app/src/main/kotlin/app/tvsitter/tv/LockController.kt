@@ -177,6 +177,16 @@ class LockController(
     }
 
     /**
+     * What the lock is calling itself, or null when it is not up.
+     *
+     * The same words the child is reading on the lock screen at that moment, rather than a
+     * second wording of the same fact: the setup screen saying "the television is locked" while
+     * the lock screen says "bedtime" is two answers to one question (#110).
+     */
+    val lockTitle: String? get() =
+        if (overlay.isShowing) context.lockTitleFor(state.cause, state.lastDecision?.reason) else null
+
+    /**
      * Tells the child something, wherever they can currently see it.
      *
      * On the lock screen it is the second line. Once the lock has gone it is the banner, which
@@ -404,7 +414,7 @@ private fun Context.warningFor(remainingSeconds: Long?, reason: LockReason?): St
  * that put the overlay up — a message arriving during an out-of-hours lock must not re-title the
  * screen "that is it for today".
  */
-private fun Context.lockTitleFor(cause: LockCause, reason: LockReason?): String = getString(
+internal fun Context.lockTitleFor(cause: LockCause, reason: LockReason?): String = getString(
     when {
         // A parent's decision outranks whatever the rules were saying at the time, and "that is
         // it for today" is simply untrue at four in the afternoon.

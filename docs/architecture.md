@@ -1169,3 +1169,18 @@ longer does so quietly, and that is the whole of what this milestone can honestl
 Everything the spike set out to answer is answered, in D9 through D13. What it turned up
 along the way is tracked as #16: the lock covers the screen but does not end the media
 session, and for an external HDMI source it likely cannot.
+
+### D31 — the television edits its own rules, by the same road Home Assistant uses
+
+D25 said the enforcing half has to work with Home Assistant switched off, and it does. The
+editing half did not: every rule could only be changed from the other side, so a house whose
+Home Assistant was down could enforce a limit and never change one.
+
+The settings screen now writes rules locally. It is not a second way of writing them — a local
+edit is a `set_rules` that never went over the wire. It merges by the same rules, takes the next
+revision, and is published, so Home Assistant learns what changed rather than being surprised by
+it later. Two ways of writing the same thing is how they come to disagree.
+
+The rules sit behind the parent PIN, the door pairing already sits behind (#98), and proving it
+covers the visit rather than each press: three questions in a row with two seconds of hashing
+between them is how a parent gives up halfway through.
