@@ -7,32 +7,49 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 from __future__ import annotations
 
+from collections.abc import Awaitable
 import json
 from unittest.mock import patch
+
+import pytest
 
 from custom_components.tvsitter.button import ClearLimitButton
 from custom_components.tvsitter.coordinator import TvSitterClient
 from custom_components.tvsitter.models import StateSnapshot
 from custom_components.tvsitter.number import (
+    AppLimitNumber,
     DailyLimitNumber,
     SleepTimerNumber,
     WarnBeforeNumber,
 )
+from custom_components.tvsitter.sensor import RulesSensor
 from custom_components.tvsitter.switch import BlockSettingsSwitch
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
 
 PREFIX = "tvsitter/salon"
 
 
-def make_client(hass: HomeAssistant) -> TvSitterClient:
+def make_client(hass: HomeAssistant, available: bool = True) -> TvSitterClient:
     """Build a client with nothing subscribed; these tests only publish.
 
     Marked as listening, because that is what these tests are about. Writing to a
     television that is not is refused on purpose (#90), and has its own tests.
     """
     client = TvSitterClient(hass, name="TV Salon", topic_prefix=PREFIX)
-    client.available = True
+    client.available = available
     return client
+
+
+async def written(change: Awaitable[None]) -> dict:
+    """Run one change and hand back the command that went out.
+
+    A helper rather than the revision list above, because these tests are about what
+    was written rather than about which revision carried it.
+    """
+    with patch("homeassistant.components.mqtt.async_publish") as publish:
+        await change
+    return json.loads(publish.call_args.args[2])["rules"]
 
 
 def snapshot(**overrides: object) -> StateSnapshot:
@@ -259,3 +276,84 @@ async def test_handing_settings_back_writes_false_rather_than_null(
         await BlockSettingsSwitch(client).async_turn_off()
 
     assert json.loads(publish.call_args.args[2])["rules"] == {"block_settings": False}
+
+
+async def test_one_app_gets_its_own_budget(hass: HomeAssistant) -> None:
+    """#114. Setting Netflix to half an hour has to be a control, not a payload."""
+    client = make_client(hass)
+    limit = AppLimitNumber(client, "com.netflix.ninja")
+
+    assert await written(limit.async_set_native_value(30)) == {
+        "app_limits_s": {"com.netflix.ninja": 1800}
+    }
+
+
+async def test_zero_minutes_is_the_block(hass: HomeAssistant) -> None:
+    """One mechanism rather than two: a blocked app is an app with no time."""
+    client = make_client(hass)
+
+    blocked = AppLimitNumber(client, "com.twitch.android.app")
+
+    assert await written(blocked.async_set_native_value(0)) == {
+        "app_limits_s": {"com.twitch.android.app": 0}
+    }
+
+
+async def test_an_app_without_a_budget_of_its_own_reads_as_nothing(
+    hass: HomeAssistant,
+) -> None:
+    """Unset is not zero: one runs on the day's allowance, the other cannot run."""
+    client = make_client(hass)
+    client.rules = {"app_limits_s": {"com.netflix.ninja": 1800}}
+
+    assert AppLimitNumber(client, "com.netflix.ninja").native_value == 30
+    assert AppLimitNumber(client, "com.youtube.tv").native_value is None
+
+
+async def test_a_day_of_the_week_gets_its_own_allowance(hass: HomeAssistant) -> None:
+    """#114. Saturday differs from Monday, and the week is not retyped to say so."""
+    client = make_client(hass)
+
+    assert await written(RulesSensor(client).async_set_schedule("sat", 120)) == {
+        "days": {"sat": 7200}
+    }
+
+
+async def test_leaving_the_minutes_out_removes_the_override(
+    hass: HomeAssistant,
+) -> None:
+    """A null removes the key at any depth, which hands the day back to the limit."""
+    client = make_client(hass)
+
+    assert await written(RulesSensor(client).async_set_schedule("sat")) == {
+        "days": {"sat": None}
+    }
+
+
+async def test_the_viewing_hours_are_sent_whole(hass: HomeAssistant) -> None:
+    """Windows have no key a parent names, so there is nothing to merge onto."""
+    client = make_client(hass)
+    windows = [{"id": "school", "from": "16:00", "to": "19:30", "days": ["mon"]}]
+
+    assert await written(RulesSensor(client).async_set_windows(windows)) == {
+        "windows": windows
+    }
+
+
+async def test_an_empty_list_is_no_restriction(hass: HomeAssistant) -> None:
+    """D27, on the wire as well as in the engine: no windows is not a closed day."""
+    client = make_client(hass)
+
+    assert await written(RulesSensor(client).async_set_windows([])) == {"windows": []}
+
+
+async def test_a_rule_change_needs_a_television_that_is_listening(
+    hass: HomeAssistant,
+) -> None:
+    """Refuse rather than write into the dark: a lost rule change is silent."""
+    client = make_client(hass, available=False)
+
+    with pytest.raises(ServiceValidationError):
+        await RulesSensor(client).async_set_windows([])
+    with pytest.raises(ServiceValidationError):
+        await AppLimitNumber(client, "com.netflix.ninja").async_set_native_value(30)

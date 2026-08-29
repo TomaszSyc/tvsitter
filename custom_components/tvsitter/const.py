@@ -108,10 +108,21 @@ OP_SET_RULES: Final = "set_rules"
 RULE_DAILY_LIMIT: Final = "daily_limit_s"
 RULE_WARN_BEFORE: Final = "warn_before_s"
 RULE_BLOCK_SETTINGS: Final = "block_settings"
+RULE_APP_LIMITS: Final = "app_limits_s"
+RULE_DAYS: Final = "days"
+RULE_WINDOWS: Final = "windows"
 
 KIND_MORE_TIME: Final = "more_time"
 
 SERVICE_GRANT_TIME: Final = "grant_time"
 SERVICE_DENY_TIME: Final = "deny_time"
+SERVICE_SET_SCHEDULE: Final = "set_schedule"
+SERVICE_SET_WINDOWS: Final = "set_windows"
 ATTR_MINUTES: Final = "minutes"
 ATTR_REQUEST_ID: Final = "req_id"
+ATTR_DAY: Final = "day"
+ATTR_WINDOWS: Final = "windows"
+
+# The wire spelling of the days, which is what the rules object uses. Short and lower
+# case because that is what the engine parses; the interface translates them.
+WIRE_DAYS: Final = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")

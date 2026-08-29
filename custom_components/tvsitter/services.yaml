@@ -31,3 +31,50 @@ deny_time:
       example: 8f14e45f
       selector:
         text:
+
+# One day of the week, because a week is seven numbers and an action that takes all of
+# them means retyping the six that are not changing. Leave the minutes out to hand the
+# day back to the plain daily limit; zero is a real setting and means no viewing.
+set_schedule:
+  target:
+    entity:
+      integration: tvsitter
+      domain: sensor
+  fields:
+    day:
+      required: true
+      example: sat
+      selector:
+        select:
+          options:
+            - mon
+            - tue
+            - wed
+            - thu
+            - fri
+            - sat
+            - sun
+    minutes:
+      required: false
+      example: 120
+      selector:
+        number:
+          min: 0
+          max: 720
+          unit_of_measurement: min
+
+# The whole list every time: windows have no key a parent names, so there is nothing to
+# merge onto. An empty list allows viewing at any hour.
+set_windows:
+  target:
+    entity:
+      integration: tvsitter
+      domain: sensor
+  fields:
+    windows:
+      required: true
+      example: >-
+        [{"id": "school", "from": "16:00", "to": "19:30",
+          "days": ["mon", "tue", "wed", "thu", "fri"]}]
+      selector:
+        object:

@@ -169,6 +169,30 @@
           "description": "Której prośby dotyczy odpowiedź. Puste znaczy: tej ostatniej."
         }
       }
+    },
+    "set_schedule": {
+      "name": "Ustaw limit na dany dzień",
+      "description": "Nadaje jednemu dniowi tygodnia własny limit zamiast zwykłego dziennego. Pomiń minuty, aby usunąć nadpisanie.",
+      "fields": {
+        "day": {
+          "name": "Dzień",
+          "description": "Którego dnia tygodnia dotyczy limit."
+        },
+        "minutes": {
+          "name": "Minuty",
+          "description": "Ile wolno oglądać tego dnia. Zero oznacza brak oglądania; pominięcie oddaje dzień zwykłemu limitowi dziennemu."
+        }
+      }
+    },
+    "set_windows": {
+      "name": "Ustaw godziny oglądania",
+      "description": "Określa, kiedy w ogóle wolno oglądać. Wysyłaj całą listę za każdym razem; pusta lista oznacza brak ograniczenia godzin.",
+      "fields": {
+        "windows": {
+          "name": "Okna",
+          "description": "Lista okien; każde ma id, godzinę od i do, opcjonalnie dni, w których obowiązuje."
+        }
+      }
     }
   }
 }

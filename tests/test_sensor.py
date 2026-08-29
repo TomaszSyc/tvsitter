@@ -335,3 +335,22 @@ async def test_a_television_reporting_normally_is_not_a_problem(
         client._check_for_silence(fresh)
 
     assert client.reporting_stopped is False
+
+
+def test_every_entity_has_an_icon() -> None:
+    """A row with no icon reads as an entity somebody forgot, and often it is one.
+
+    Against `strings.json` rather than a hand-written list, so an entity added without
+    an icon fails here instead of showing up as the default dot in the entity list.
+    """
+    package = Path("custom_components/tvsitter")
+    document = json.loads((package / "strings.json").read_text())
+    icons = json.loads((package / "icons.json").read_text())
+
+    for platform, entities in document["entity"].items():
+        drawn = set(icons["entity"].get(platform, {}))
+        assert set(entities) <= drawn, (
+            f"{platform} is missing {sorted(set(entities) - drawn)}"
+        )
+
+    assert set(document["services"]) <= set(icons["services"])

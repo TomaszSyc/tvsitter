@@ -185,6 +185,30 @@ which does not need the old one. Five wrong guesses shut the keypad for five min
 fifteen, then thirty — on the television and in the change screen alike, because both spend
 the same attempts.
 
+## Changing the rules
+
+Most rules are one number, and each of those is a control you move: `number.…_daily_limit`,
+`number.…_warn_before`, `number.…_sleep_timer`, `switch.…_block_settings`, and one
+`number.…_limit` per app the TV has charged time to. Setting an app's limit to zero blocks it
+outright — one mechanism rather than two, and the same convention as everywhere else here.
+An app's limit appears once the TV has seen the app; twelve is the ceiling, for the same
+reason the per-app sensors have one.
+
+Two rules are not one number each, and those are actions aimed at `sensor.…_rules`:
+
+| Action | What it changes |
+|---|---|
+| `tvsitter.set_schedule` | One day of the week's own allowance. Leave `minutes` out to remove the override and hand the day back to the daily limit; zero means no viewing that day. |
+| `tvsitter.set_windows` | When viewing is allowed at all. Send the whole list every time — windows have no key to merge onto — and an empty list allows any hour. |
+
+`sensor.…_rules` shows what the TV says it is enforcing, as attributes, and its state is the
+revision the two sides agree on. The revision is why every write goes through one place: the
+TV ignores a `set_rules` whose revision is not higher than the one it holds, so two changes
+in a row have to count up even before the TV has answered.
+
+Editing a whole week by hand is what the add-on is for (#60). These are enough to set one
+without it.
+
 ## Answering a request from your phone
 
 When the child presses "ask a parent for more time", the TV publishes on `<prefix>/request`

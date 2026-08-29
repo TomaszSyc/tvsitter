@@ -11,6 +11,8 @@ from datetime import datetime
 import logging
 from typing import Any
 
+import voluptuous as vol
+
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
@@ -18,10 +20,23 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.const import EntityCategory, UnitOfTime
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import ServiceValidationError
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import entity_platform
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util import dt as dt_util
 
 from . import TvSitterConfigEntry
+from .const import (
+    ATTR_DAY,
+    ATTR_MINUTES,
+    ATTR_WINDOWS,
+    RULE_DAYS,
+    RULE_WINDOWS,
+    SERVICE_SET_SCHEDULE,
+    SERVICE_SET_WINDOWS,
+    WIRE_DAYS,
+)
 from .coordinator import TvSitterClient
 from .entity import TvSitterEntity
 
@@ -30,6 +45,23 @@ _LOGGER = logging.getLogger(__name__)
 # Twelve. Enough for what a child actually opens, few enough that a television with a
 # shopful of apps installed does not fill the recorder with rows nobody reads.
 MAX_APP_SENSORS = 12
+
+SECONDS_PER_MINUTE = 60
+
+# Twelve hours, the same ceiling as the daily limit itself: a day's allowance longer
+# than a waking day is not an allowance.
+MAX_DAY_MINUTES = 720
+
+# What a window has to say to be one. `id` is a name a parent gives it, and it is what
+# `active_window` reports when the lock goes up, so it is worth insisting on.
+WINDOW_SCHEMA = vol.Schema(
+    {
+        vol.Required("id"): cv.string,
+        vol.Required("from"): cv.string,
+        vol.Required("to"): cv.string,
+        vol.Optional("days"): vol.All(cv.ensure_list, [vol.In(WIRE_DAYS)]),
+    }
+)
 
 
 async def async_setup_entry(
@@ -92,6 +124,28 @@ async def async_setup_entry(
 
     add_apps_that_appeared()
     entry.async_on_unload(client.async_add_listener(add_apps_that_appeared))
+
+    # Aimed at the rules sensor, which is the thing that shows what they write. Neither
+    # of these is one number, so neither has an entity a parent could simply move.
+    platform = entity_platform.async_get_current_platform()
+    platform.async_register_entity_service(
+        SERVICE_SET_SCHEDULE,
+        {
+            vol.Required(ATTR_DAY): vol.In(WIRE_DAYS),
+            # Absent removes the override and hands the day back to the plain daily
+            # limit, which is the documented meaning of a null there. Zero is a real
+            # setting — no viewing that day — so it must stay tellable from absent.
+            vol.Optional(ATTR_MINUTES): vol.Any(
+                None, vol.All(vol.Coerce(float), vol.Range(min=0, max=MAX_DAY_MINUTES))
+            ),
+        },
+        "async_set_schedule",
+    )
+    platform.async_register_entity_service(
+        SERVICE_SET_WINDOWS,
+        {vol.Required(ATTR_WINDOWS): vol.All(cv.ensure_list, [WINDOW_SCHEMA])},
+        "async_set_windows",
+    )
 
 
 class ActiveAppSensor(TvSitterEntity, SensorEntity):
@@ -197,8 +251,11 @@ class RulesSensor(TvSitterEntity, SensorEntity):
     the hours, not one app's budget. "Why did it lock at half past seven" is a question
     a schedule invites and a dashboard could not answer.
 
-    Read-only, deliberately. Editing a week's schedule through entities is not the plan
-    (#60); seeing it is a different job and a much smaller one.
+    Not read-only any more. A schedule and a set of viewing hours are not one number
+    each, so they have no honest entity — but leaving them with no control at all meant
+    the rules could be counted and never changed (#114). Two actions, aimed at this
+    sensor because it is the thing that shows what they write. The one-number rules keep
+    their own controls, where a parent can find them without writing an action call.
 
     The revision is the state, because that is the part that changes meaningfully and
     can be compared with the one the TV echoes in its state payload — the two agreeing
@@ -224,6 +281,34 @@ class RulesSensor(TvSitterEntity, SensorEntity):
         if self._client.rules is None:
             return None
         return dict(self._client.rules)
+
+    async def async_set_schedule(self, day: str, minutes: float | None = None) -> None:
+        """Give one day of the week its own allowance, or take the override away.
+
+        One day at a time rather than the whole week in one call: a week is seven
+        numbers, and an action that takes all seven means retyping the six that are not
+        changing, which is how a Saturday quietly loses its limit.
+        """
+        self._require_a_listening_tv()
+        seconds = None if minutes is None else int(minutes * SECONDS_PER_MINUTE)
+        await self._client.async_set_rules({RULE_DAYS: {day: seconds}})
+
+    async def async_set_windows(self, windows: list[dict[str, Any]]) -> None:
+        """Say when viewing is allowed at all, or allow it at any hour.
+
+        The whole list, unlike the schedule: windows have no key a parent names, so
+        there is nothing to merge onto. An empty list is no restriction rather than a
+        closed day — the same reading the engine has had since M4 (D27).
+        """
+        self._require_a_listening_tv()
+        await self._client.async_set_rules({RULE_WINDOWS: list(windows)})
+
+    def _require_a_listening_tv(self) -> None:
+        """Refuse rather than write into the dark."""
+        if not self._client.available:
+            raise ServiceValidationError(
+                f"{self._client.name} is not listening; the change would go nowhere"
+            )
 
 
 class BonusTodaySensor(TvSitterEntity, SensorEntity):

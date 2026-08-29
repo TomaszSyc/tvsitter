@@ -7,18 +7,21 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from homeassistant.components.number import NumberDeviceClass, NumberEntity, NumberMode
 from homeassistant.const import EntityCategory, UnitOfTime
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import TvSitterConfigEntry
-from .const import RULE_DAILY_LIMIT, RULE_WARN_BEFORE
+from .const import RULE_APP_LIMITS, RULE_DAILY_LIMIT, RULE_WARN_BEFORE
 from .coordinator import TvSitterClient
 from .entity import TvSitterEntity
+
+LOGGER = logging.getLogger(__name__)
 
 SECONDS_PER_MINUTE = 60
 
@@ -37,6 +40,10 @@ DEFAULT_WARNING_MINUTES = 5
 # and the daily limit is the control for that.
 MAX_SLEEP_MINUTES = 240
 
+# The same ceiling as the per-app sensors, for the same reason: a television with a
+# shopful of apps must not fill the interface with rows nobody set.
+MAX_APP_LIMITS = 12
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -48,6 +55,39 @@ async def async_setup_entry(
     async_add_entities(
         [DailyLimitNumber(client), WarnBeforeNumber(client), SleepTimerNumber(client)]
     )
+
+    known: set[str] = set()
+
+    @callback
+    def add_limits_for_apps_that_appeared() -> None:
+        """Give every app the television has seen a limit somebody can move.
+
+        The same machinery as the per-app sensors, and for the same reason: the list is
+        whatever the child opens, so it cannot be declared in advance.
+        Without this the only
+        way to give Netflix half an hour was a hand-written payload (#114).
+        """
+        snapshot = client.snapshot
+        if snapshot is None:
+            return
+        fresh = [package for package in snapshot.per_app if package not in known]
+        if not fresh:
+            return
+        room = MAX_APP_LIMITS - len(known)
+        taking, dropped = fresh[:room], fresh[room:]
+        if taking:
+            known.update(taking)
+            async_add_entities([AppLimitNumber(client, package) for package in taking])
+        if dropped:
+            LOGGER.warning(
+                "%s: not adding limits for %s, already at %s apps",
+                client.name,
+                ", ".join(dropped),
+                MAX_APP_LIMITS,
+            )
+
+    add_limits_for_apps_that_appeared()
+    entry.async_on_unload(client.async_add_listener(add_limits_for_apps_that_appeared))
 
 
 class DailyLimitNumber(TvSitterEntity, NumberEntity):
@@ -216,3 +256,65 @@ class SleepTimerNumber(TvSitterEntity, NumberEntity):
                 f"{self._client.name} is not listening; nothing would be armed"
             )
         await self._client.async_send({"op": "lock", "in_minutes": int(value)})
+
+
+class AppLimitNumber(TvSitterEntity, NumberEntity):
+    """How long one app may be watched in a day, and zero to block it outright.
+
+    A control rather than a payload. The engine has understood per-app budgets since
+    M4, and the only way to set one was a hand-written `set_rules` — not a thing
+    anybody does from a sofa (#114).
+
+    Zero is the block, exactly as it is everywhere else here: one mechanism rather than
+    two, and it keeps the convention that zero is a real setting, not a missing one.
+
+    Unset means the app has no budget of its own and runs on the day's. That is not the
+    same as zero, so an unset limit reads as nothing rather than as a number.
+    """
+
+    _attr_native_min_value = 0
+    _attr_native_max_value = MAX_MINUTES
+    _attr_native_step = STEP_MINUTES
+    _attr_native_unit_of_measurement = UnitOfTime.MINUTES
+    _attr_device_class = NumberDeviceClass.DURATION
+    _attr_mode = NumberMode.BOX
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(self, client: TvSitterClient, package: str) -> None:
+        """Create the limit for one package."""
+        super().__init__(client, f"app_limit_{package}")
+        self._package = package
+        self._attr_translation_key = None
+
+    @property
+    def name(self) -> str:
+        """Return the app's label with what this is: the bare name is the sensor."""
+        snapshot = self._client.snapshot
+        label = (
+            snapshot.per_app_names.get(self._package, self._package)
+            if snapshot
+            else self._package
+        )
+        return f"{label} limit"
+
+    @property
+    def native_value(self) -> float | None:
+        """Return this app's own budget, or nothing when it has none."""
+        rules = self._client.rules
+        if rules is None:
+            return None
+        limits = rules.get(RULE_APP_LIMITS)
+        if not isinstance(limits, dict):
+            return None
+        seconds = limits.get(self._package)
+        return None if not isinstance(seconds, int) else seconds / SECONDS_PER_MINUTE
+
+    async def async_set_native_value(self, value: float) -> None:
+        """Give this app its own budget, or take it away."""
+        if not self._client.available:
+            raise ServiceValidationError(
+                f"{self._client.name} is not listening; the change would go nowhere"
+            )
+        await self._client.async_set_rules(
+            {RULE_APP_LIMITS: {self._package: int(value * SECONDS_PER_MINUTE)}}
+        )

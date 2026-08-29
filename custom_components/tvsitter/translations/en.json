@@ -169,6 +169,30 @@
           "description": "Which request is being answered. Leave empty to answer the most recent one."
         }
       }
+    },
+    "set_schedule": {
+      "name": "Set a day's allowance",
+      "description": "Gives one day of the week its own allowance, instead of the plain daily limit. Leave the minutes out to remove the override.",
+      "fields": {
+        "day": {
+          "name": "Day",
+          "description": "Which day of the week this allowance is for."
+        },
+        "minutes": {
+          "name": "Minutes",
+          "description": "How long may be watched that day. Zero means no viewing at all; leaving it out hands the day back to the daily limit."
+        }
+      }
+    },
+    "set_windows": {
+      "name": "Set the viewing hours",
+      "description": "Says when viewing is allowed at all. Send the whole list every time; an empty list allows viewing at any hour.",
+      "fields": {
+        "windows": {
+          "name": "Windows",
+          "description": "A list of windows, each with an id, a from and a to time, and optionally the days it applies on."
+        }
+      }
     }
   }
 }
