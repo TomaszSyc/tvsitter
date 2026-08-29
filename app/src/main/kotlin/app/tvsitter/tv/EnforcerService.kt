@@ -16,6 +16,7 @@ import app.tvsitter.rules.contract.Alert
 import app.tvsitter.rules.contract.AlertKind
 import app.tvsitter.rules.contract.Command
 import app.tvsitter.rules.contract.ContractCodec
+import app.tvsitter.rules.contract.DaySummary
 import app.tvsitter.rules.contract.StateSnapshot
 import app.tvsitter.rules.pairing.PairRequest
 import kotlinx.coroutines.CoroutineScope
@@ -58,7 +59,7 @@ class EnforcerService : Service() {
     private var permissions: PermissionWatch? = null
 
     @Volatile
-    private var lastDaySentence: String? = null
+    private var lastClosedDay: DaySummary? = null
     private var unlockGate: UnlockGate? = null
     private var pairing: PairingManager? = null
     private var parentPin: PinKeeper? = null
@@ -140,13 +141,13 @@ class EnforcerService : Service() {
     }
 
     /**
-     * Yesterday in one sentence, or null before any day has closed.
+     * The last day that closed, or null before any has.
      *
      * Read from the same payload that was published, rather than kept a second time: the
      * television already writes the closed day to storage so a reconnect can resend it, and two
      * copies of a number are two numbers that can disagree.
      */
-    val yesterday: String? get() = lastDaySentence
+    val yesterday: DaySummary? get() = lastClosedDay
 
     /** What the counter thinks is going on, for the debug status hook to print. */
     val attention: app.tvsitter.rules.Attention? get() = screenTime?.attention()
@@ -260,7 +261,7 @@ class EnforcerService : Service() {
             scope.launch {
                 activeRules?.load()
                 dayTally?.load()
-                lastDaySentence = yesterdaySentence(this@EnforcerService)
+                lastClosedDay = lastClosedDay(this@EnforcerService)
                 startTelemetryOrOfferPairing()
             }
             screenTime?.start(
@@ -613,20 +614,15 @@ private fun clockJumpAlert(jumpMs: Long): Alert = alertOf(
 )
 
 /**
- * Turns the stored closed day into the one line a parent would read out loud.
+ * Reads the day that closed most recently, or null before any has.
  *
  * At file level because the service is at its allowance of methods, and because this is a
  * question about storage: the television already writes the closed day so a reconnect can resend
- * it, and keeping a second copy would be two numbers that can disagree.
+ * it, and keeping a second copy would be two numbers that can disagree. The whole summary rather
+ * than a sentence made from it — the screen that shows it wants the per-app split too, and a
+ * sentence cannot be taken apart again (#111).
  */
-private suspend fun yesterdaySentence(context: Context): String? {
+private suspend fun lastClosedDay(context: Context): DaySummary? {
     val payload = Settings(context).lastDay() ?: return null
-    val day = runCatching { ContractCodec.decodeDay(payload) }.getOrNull() ?: return null
-    return context.getString(
-        R.string.stats_yesterday_line,
-        TvStyle.length(context, day.usedSeconds),
-        day.limitSeconds?.let { TvStyle.length(context, it) }
-            ?: context.getString(R.string.setup_no_limit),
-        day.lockCount,
-    )
+    return runCatching { ContractCodec.decodeDay(payload) }.getOrNull()
 }

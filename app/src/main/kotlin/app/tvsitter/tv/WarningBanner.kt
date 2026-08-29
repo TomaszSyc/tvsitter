@@ -7,6 +7,7 @@ package app.tvsitter.tv
 
 import android.content.Context
 import android.graphics.PixelFormat
+import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -14,6 +15,7 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
+import android.view.animation.DecelerateInterpolator
 import android.widget.TextView
 
 /**
@@ -26,6 +28,19 @@ import android.widget.TextView
  * It is also not a Toast. A toast is short, easy to miss on a television from across a room,
  * and cannot be held on screen long enough to be read by somebody who was watching rather
  * than waiting for it.
+ *
+ * It looks like the rest of the app and not like the television reporting an error: the same
+ * surface colour, the same corner radius, the same type scale (#113). A band of system grey
+ * across the top of a film reads as a fault, and a child learns to ignore faults.
+ *
+ * It arrives and leaves with a short slide and a fade, easing out rather than linear. A thing
+ * that simply exists is a thing the eye slides off, and a thing that vanishes between frames
+ * reads as a glitch — but nothing flashes, nothing bounces, and nothing asks for a press. The
+ * whole job is to be noticed without stopping the programme.
+ *
+ * Top right rather than across the middle of a face, and the corner the platform's own toasts
+ * and picture-in-picture use. It stays there: this set's image-sticking protection drifts the
+ * lock screen (#50), and twelve seconds is far too short for a banner to need the same.
  */
 class WarningBanner(private val context: Context) {
 
@@ -51,11 +66,14 @@ class WarningBanner(private val context: Context) {
 
         val banner = TextView(context).apply {
             text = message
-            setTextColor(TEXT_COLOR)
-            setBackgroundColor(BACKDROP_COLOR)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, TEXT_SP)
+            setTextColor(TvStyle.TEXT)
+            background = GradientDrawable().apply {
+                cornerRadius = CORNER_PX
+                setColor(SURFACE_COLOR)
+            }
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, TvStyle.BODY_SP)
             gravity = Gravity.CENTER
-            setPadding(PADDING_PX, PADDING_PX, PADDING_PX, PADDING_PX)
+            setPadding(PADDING_PX, PADDING_PX / 2, PADDING_PX, PADDING_PX / 2)
         }
 
         val added = runCatching { windowManager.addView(banner, layoutParams()) }
@@ -64,16 +82,54 @@ class WarningBanner(private val context: Context) {
             return
         }
         root = banner
+        enter(banner)
         restartTimer()
         Log.i(EnforcerService.TAG, "warning shown: $message")
     }
 
+    /**
+     * Down and in, easing out.
+     *
+     * Started from the first layout pass rather than immediately: a view that has not been
+     * measured has no height to slide by, so the offset would be zero and the banner would only
+     * fade — which is the half of the movement that is easiest to miss.
+     */
+    private fun enter(banner: View) {
+        banner.alpha = 0f
+        banner.post {
+            banner.translationY = -banner.height.toFloat()
+            banner.animate()
+                .alpha(1f)
+                .translationY(0f)
+                .setDuration(ENTER_MS)
+                .setInterpolator(DecelerateInterpolator())
+                .start()
+        }
+    }
+
+    /**
+     * Leaves the way it came, then takes itself off the window.
+     *
+     * The view is let go of before the animation ends, so a banner already on its way out cannot
+     * be handed back by [isShowing] — and a new message that arrives mid-exit builds a fresh one
+     * rather than reviving the one that is fading.
+     */
     fun hide() {
         handler.removeCallbacks(dismiss)
         val view = root ?: return
+        root = null
+        view.animate()
+            .alpha(0f)
+            .translationY(-view.height.toFloat())
+            .setDuration(LEAVE_MS)
+            .setInterpolator(DecelerateInterpolator())
+            .withEndAction { remove(view) }
+            .start()
+    }
+
+    private fun remove(view: View) {
         runCatching { windowManager.removeViewImmediate(view) }
             .onFailure { Log.w(EnforcerService.TAG, "removeView() failed for the warning", it) }
-        root = null
     }
 
     private fun restartTimer() {
@@ -82,7 +138,7 @@ class WarningBanner(private val context: Context) {
     }
 
     private fun layoutParams() = WindowManager.LayoutParams(
-        WindowManager.LayoutParams.MATCH_PARENT,
+        WindowManager.LayoutParams.WRAP_CONTENT,
         WindowManager.LayoutParams.WRAP_CONTENT,
         WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
         // The opposite choice from the lock, and for the opposite reason: this one must not
@@ -92,20 +148,24 @@ class WarningBanner(private val context: Context) {
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
         PixelFormat.TRANSLUCENT,
     ).apply {
-        gravity = Gravity.TOP
+        gravity = Gravity.TOP or Gravity.END
         // Overscan is real on some sets, so it does not sit against the very edge.
-        y = TOP_MARGIN_PX
+        y = TvStyle.OVERSCAN_PX
+        x = TvStyle.OVERSCAN_PX
     }
 
     private companion object {
         const val VISIBLE_MS = 12_000L
-        const val TEXT_SP = 22f
-        const val PADDING_PX = 28
-        const val TOP_MARGIN_PX = 48
-        const val TEXT_COLOR = 0xFFFFFFFF.toInt()
+        const val PADDING_PX = 44
+        const val CORNER_PX = 28f
 
-        // Nearly opaque rather than fully: this sits over whatever is playing, and a solid
-        // band across the top of a film is more intrusive than the warning needs to be.
-        const val BACKDROP_COLOR = 0xE60B1017.toInt()
+        /** Long enough to be seen arriving, short enough not to be a thing that happens to you. */
+        const val ENTER_MS = 320L
+        const val LEAVE_MS = 240L
+
+        // The app's own surface colour, nearly opaque rather than fully: this sits over whatever
+        // is playing, and the picture showing faintly through is what keeps it a message on top
+        // of a programme rather than a hole cut in one.
+        const val SURFACE_COLOR = 0xF2141F2B.toInt()
     }
 }

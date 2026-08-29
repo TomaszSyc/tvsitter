@@ -120,7 +120,7 @@
     <string name="stats_yesterday">Yesterday</string>
     <string name="stats_nothing">Nothing has been watched yet today.</string>
     <string name="stats_no_yesterday">No day has finished yet.</string>
-    <string name="stats_yesterday_line">%1$s watched of %2$s, %3$d locks</string>
+    <string name="stats_yesterday_line">%1$s watched of %2$s · %3$s granted · locked %4$d times</string>
     <string name="pick_current">%1$s   ✓</string>
     <string name="set_section_rules">Rules</string>
     <string name="set_section_tv">This television</string>
