@@ -16,8 +16,9 @@ Runs on your network. No cloud, no subscription.
 >
 > Rules are in: a different limit per day of the week, hours viewing is allowed in, a budget per
 > app, blocking one outright, and a sleep timer. The television says why it locked, and Home
-> Assistant shows what is being enforced. There are no usage statistics yet (M5), and nothing has
-> been designed to be looked at from a sofa yet (M6).
+> Assistant shows what is being enforced, graphs what was watched and keeps yesterday. It also
+> raises an alarm when somebody is at it — a keypad shut, a clock moved, a permission taken away,
+> the app stopped. Nothing has been designed to be looked at from a sofa yet (M6).
 >
 > **Tested on exactly one television** — a Philips Google TV TA5 on Android 14. If you try it
 > on another, a [device report](../../issues/new?template=03-device-report.yml) is the most
@@ -37,7 +38,7 @@ and those are the reason for this project.
 | App blocking, sleep timer | yes | **done** |
 | Weekly schedules | announced | **done** — and allowed hours, and a budget per app |
 | **"More time" request from the TV → actionable notification for the parent** | no | **done — the main reason this exists** |
-| **Usage statistics and history** | no | planned (M5), via the Home Assistant recorder |
+| **Usage statistics and history** | no | **done** — per app, graphable, with yesterday kept |
 | **At-a-glance "is the TV on, what is running"** | no | **done** |
 | Where the data lives | vendor cloud | your MQTT broker and your Home Assistant |
 
@@ -96,6 +97,10 @@ Measured on the television it runs on, rather than guessed:
   belongs to the system UI ([#50](../../issues/50)).
 - **Stopping another app is impossible**, so a blocked app is one the TV walks away from rather
   than one that gets killed. See D21 in [`docs/architecture.md`](docs/architecture.md).
+- **Settings cannot be kept out of reach.** Behind a lock it lasts about three quarters of a
+  second before the television is sent home, which is far too little to reach Force stop — but
+  with no lock up it stays as long as anybody likes. What the app can do is notice: a force-stop,
+  a revoked permission and a moved clock all raise alarms. See D30.
 - Nothing here survives a factory reset, and it is not meant to. This is a house rule with
   teeth, not device management.
 
@@ -108,7 +113,7 @@ Measured on the television it runs on, rather than guessed:
 | M2 | counter and lock | daily budget, day starting at 04:00, lock screen, PIN | done |
 | M3 | time requests | button on the TV → actionable notification → granted time | done |
 | M4 | rules | weekly schedule, allowed time windows, per-app budgets, app blocking, sleep timer | done |
-| M5 | statistics and anti-tamper | history, Settings lockout, alarm when the app dies | next |
+| M5 | statistics and anti-tamper | per-app history, a closed day, alarms when somebody is at it | done |
 | M6 | interface and graphics | screens designed for a ten-foot view, real artwork, the words a child reads | |
 | M7 | going public | documentation, release, HACS submission | |
 | M8 | parent add-on | the weekly schedule, per-app budgets and history in a page of their own, through Ingress | |
