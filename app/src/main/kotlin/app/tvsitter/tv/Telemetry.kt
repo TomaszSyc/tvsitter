@@ -60,6 +60,7 @@ class Telemetry(
         val fresh = MqttBridge(config, onCommand, onConnected = {
             publishNow()
             publishRules(rules())
+            flushAlerts()
             // Retained on the broker already, but a broker that lost its store — or a fresh
             // one after a move — would otherwise have no yesterday until tomorrow.
             scope.launch {
@@ -147,20 +148,37 @@ class Telemetry(
     }
 
     /**
-     * Raises an alarm, through here rather than straight into the bridge.
+     * Raises an alarm, or holds it until there is somewhere to raise it.
      *
-     * Everything that leaves the television goes through this class, which is what makes "is
-     * it publishing" a question with one answer. It also means an alarm raised before the
-     * broker is up is dropped in one place, with one log line, rather than at each caller.
+     * The alarms that matter most are the ones raised at start-up, and start-up is exactly
+     * when the broker is not there yet: measured, `unclean_restart` was dropped eight hundred
+     * milliseconds before the connection came up (#106). An alarm is not retained on the wire,
+     * so waiting here is the only place it can wait.
+     *
+     * Bounded, oldest dropped first. This is for the handful raised before a connection, not a
+     * spool for a television that has been offline all evening — by then the alarm is history
+     * and the state payload says more than it would.
      */
     fun publish(alert: Alert) {
-        val active = bridge
-        if (active == null) {
-            Log.w(EnforcerService.TAG, "telemetry: no broker, alert ${alert.kind} not sent")
-            return
-        }
-        runCatching { active.publish(alert) }
-            .onFailure { Log.w(EnforcerService.TAG, "telemetry: alert publish failed", it) }
+        val sent = bridge?.let { active ->
+            runCatching { active.publish(alert) }
+                .onFailure { Log.w(EnforcerService.TAG, "telemetry: alert publish failed", it) }
+                .getOrDefault(false)
+        } ?: false
+        if (sent) return
+
+        if (waitingAlerts.size >= MAX_WAITING_ALERTS) waitingAlerts.removeFirst()
+        waitingAlerts += alert
+        Log.i(EnforcerService.TAG, "telemetry: holding alert ${alert.kind} until the broker is up")
+    }
+
+    /** Sends what was raised before there was anywhere to send it. */
+    private fun flushAlerts() {
+        if (waitingAlerts.isEmpty()) return
+        val holding = waitingAlerts.toList()
+        waitingAlerts.clear()
+        Log.i(EnforcerService.TAG, "telemetry: sending ${holding.size} alert(s) held from start-up")
+        holding.forEach { alert -> publish(alert) }
     }
 
     private fun publishNow() {
@@ -169,8 +187,13 @@ class Telemetry(
             .onFailure { Log.w(EnforcerService.TAG, "telemetry: publish failed", it) }
     }
 
+    private val waitingAlerts = ArrayDeque<Alert>()
+
     private companion object {
         const val PUBLISH_DEBOUNCE_MS = 400L
+
+        /** Enough for a start-up's worth. An alarm from last night is history, not news. */
+        const val MAX_WAITING_ALERTS = 8
         const val HEARTBEAT_MS = 60_000L
     }
 }

@@ -1111,6 +1111,39 @@ and a lock raised over it displaced in 440 ms, with the sound stopping.
 The general lesson is the one D21 already taught in a different costume: a value that is absent
 looks exactly like a value that is correctly empty, and only the hardware can tell them apart.
 
+## D30 — Settings cannot be kept out of reach by the app alone (measured, 2026-08-29)
+
+Force stop, "draw on top" and the date all live behind the Settings app, so the whole product
+rests on whether a child can get there. Three ways were on the table and none had numbers. Now
+two of them do.
+
+**What the lock already does, and when it does nothing.** Anything coming forward behind a lock
+is sent home. Measured with Settings: it appeared 949 ms after being launched and was gone by
+1705 ms — about three quarters of a second on screen. Force stop is a dozen D-pad presses away
+from there, so behind a lock Settings is effectively unusable, and each attempt starts over.
+
+The same measurement with no lock up: Settings stayed for the twelve seconds it was watched, and
+would have stayed all day. That is the finding. The mechanism protects Settings exactly when a
+child has no reason to go there, and does nothing on a weekday morning when the television is
+unlocked and the app is one Force stop away from silence.
+
+**`pm suspend` works, and an app cannot call it.** Suspending `com.android.tv.settings` replaces
+it with the system's own "app is paused" screen — decisive, and reversible in one command.
+But `setPackagesSuspended` needs Device Owner, Profile Owner, or a system permission, so nothing
+this app can do at runtime reaches it. It is an ADB action a parent runs once at setup, and it
+costs them Settings too: every picture setting, every network change, would need ADB to undo it
+first. That is a real price, not a footnote, and it should be offered rather than recommended.
+
+**Device Owner: still unmeasured, deliberately.** The set has no owner and D21's assumption that
+provisioning needs a factory reset may well be wrong. It was not tested here because a device
+owner is, on many devices, removable only by a factory reset — that is somebody's television, and
+the decision is theirs to make knowingly rather than as a side effect of a spike.
+
+**So the position for now.** Prevention is out of reach without a decision nobody has made yet.
+Evidence is not: a force-stop, a revoked permission and a moved clock all raise alarms now, and
+the force-stop alarm survives the restart that carries it. A child who disables the product no
+longer does so quietly, and that is the whole of what this milestone can honestly claim.
+
 ## No open hardware questions from the M0 spike
 
 Everything the spike set out to answer is answered, in D9 through D13. What it turned up

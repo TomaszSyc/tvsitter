@@ -238,12 +238,8 @@ class MqttBridge(
      * ignore it. And an alarm that failed to send is the one failure worth a line in the log:
      * the whole point of it is that somebody finds out.
      */
-    fun publish(alert: Alert) {
-        val active = client?.takeIf { it.state.isConnected }
-        if (active == null) {
-            Log.w(EnforcerService.TAG, "mqtt: not connected, alert ${alert.kind} could not be sent")
-            return
-        }
+    fun publish(alert: Alert): Boolean {
+        val active = client?.takeIf { it.state.isConnected } ?: return false
         active.publishWith()
             .topic(topics.alert)
             .payload(ContractCodec.encode(alert).toByteArray())
@@ -253,6 +249,7 @@ class MqttBridge(
             .whenComplete { _, error ->
                 if (error != null) Log.w(EnforcerService.TAG, "mqtt: alert publish failed", error)
             }
+        return true
     }
 
     fun publish(request: TimeRequest) {
