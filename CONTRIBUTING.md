@@ -67,6 +67,14 @@ claimed the same version as the repository, so nothing gave it away.
 
 A rising number is the cheapest possible answer to "is what I am testing what I wrote".
 
+## Commits
+
+Every commit bumps the version — see above for why.
+
+An issue is closed by its own keyword. `Closes #12 and #13` closes only #12, which is easy to
+write, invisible in review, and has left issues open here three times. Write `Closes #12. Closes
+#13.`
+
 ## Style
 
 - Kotlin: see `.editorconfig`, 120 column limit.
