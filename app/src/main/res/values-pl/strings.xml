@@ -4,6 +4,8 @@
     <string name="notification_running">Pilnuje czasu przed telewizorem</string>
 
     <string name="lock_title">Koniec czasu na dziś</string>
+    <string name="lock_title_hours">Teraz nie ma telewizji</string>
+    <string name="lock_until_window">Telewizja znowu o %1$s</string>
     <string name="lock_ask_more">Poproś rodzica o więcej czasu</string>
 
     <string name="pin_unlock">Odblokuj PIN-em</string>

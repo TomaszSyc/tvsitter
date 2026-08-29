@@ -95,7 +95,7 @@ class EnforcerService : Service() {
             pin = pin,
             foregroundApp = { foregroundApps?.current },
             onAskForTime = { requests?.ask() },
-            onLimitStandDown = { screenTime?.suspendLimitUntilReset() },
+            onLimitStandDown = { screenTime?.setLimitAside(true) },
             onChanged = { telemetry?.publishSoon() },
         )
         appLabels = AppLabels(this)
@@ -292,6 +292,13 @@ class EnforcerService : Service() {
             is Command.Deny -> requests?.settle(command.requestId, minutes = null)
             is Command.SetRules -> scope.launch {
                 activeRules?.apply(command.rules, command.rev)
+                // Editing today's allowance is a fresh decision about today, so it undoes a
+                // limit set aside earlier by a PIN or an unlock (#94). Only these two keys:
+                // the others say nothing about how much time there is, and a parent changing
+                // the warning threshold has not asked for the evening back.
+                if (Rules.KEY_DAILY_LIMIT in command.rules || Rules.KEY_DAYS in command.rules) {
+                    screenTime?.setLimitAside(false)
+                }
                 // Both: the state payload carries the revision, and the rules topic carries
                 // what that revision actually says. Sending one without the other leaves the
                 // two disagreeing about which is newer.

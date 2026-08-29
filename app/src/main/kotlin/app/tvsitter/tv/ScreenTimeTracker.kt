@@ -123,9 +123,14 @@ class ScreenTimeTracker(
      * What `unlock` with no minutes means: not "some more time" but "not tonight". It clears
      * itself at the next reset, because it lives in the day's state.
      */
-    fun suspendLimitUntilReset() {
-        state = state.copy(limitSuspended = true)
-        Log.i(EnforcerService.TAG, "counter: limit set aside until ${state.day.plusDays(1)}")
+    fun setLimitAside(aside: Boolean) {
+        if (state.limitSuspended == aside) return
+        state = state.copy(limitSuspended = aside)
+        val until = state.day.plusDays(1)
+        Log.i(
+            EnforcerService.TAG,
+            if (aside) "counter: limit set aside until $until" else "counter: limit back in force",
+        )
         persistNow()
         announceVerdict()
     }

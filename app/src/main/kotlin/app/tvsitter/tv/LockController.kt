@@ -16,6 +16,8 @@ import app.tvsitter.rules.LockReason
 import app.tvsitter.rules.LockState
 import app.tvsitter.rules.LockTransitions
 import app.tvsitter.rules.PinOutcome
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 import kotlin.math.ceil
 
 /**
@@ -48,7 +50,19 @@ class LockController(
     private val audio: AudioFocusHold = AudioFocusHold(context) { if (overlay.isShowing) displacer.sendHome() }
     private val memory = LockMemory(context)
 
+    /** The same list the counter uses to decide that standby is not watching (D20). */
+    private val screenSavers = ScreenSaverPackages(context)
+
     private var state = LockState()
+
+    /**
+     * When viewing is allowed again, for a lock the hours put up. Null for every other reason.
+     *
+     * Kept beside the state rather than in it: the state machine compares decisions to decide
+     * whether anything changed, and a clock time drifting from "16:00" to "16:00" would be the
+     * same decision anyway. This is only ever read when the screen is being covered.
+     */
+    private var opensAt: LocalTime? = null
 
     private val handler = Handler(Looper.getMainLooper())
 
@@ -123,7 +137,7 @@ class LockController(
     fun say(message: String) {
         if (overlay.isShowing) {
             overlay.show(
-                title = context.getString(R.string.lock_title),
+                title = context.lockTitleFor(state.lastDecision?.reason),
                 subtitle = message,
                 onAskForTime = onAskForTime,
                 onEnterPin = if (pin.isSet) enterPin else null,
@@ -178,6 +192,7 @@ class LockController(
 
     /** Acts on what the rules say. The deciding, including when to say nothing, is in `:rules`. */
     fun applyJudgement(judgement: Judgement) {
+        opensAt = judgement.opensAt
         act(LockTransitions.applyDecision(state, judgement, System.currentTimeMillis()))
     }
 
@@ -192,6 +207,12 @@ class LockController(
         // Our own screens are windows on this overlay rather than activities, so anything of
         // ours in front is the setup screen a parent opened deliberately.
         if (packageName == context.packageName || packageName == displacer.homePackage) return
+        // A screen saver behind a lock is the television idling, not a child getting round it.
+        // Sending it home dismissed the saver, which came straight back, and the two fought
+        // every two seconds for as long as the lock was up — measured, #95. That kept the panel
+        // awake all night and defeated the burn-in protection, on a set where that is already a
+        // known problem (#50).
+        if (screenSavers.contains(packageName)) return
 
         Log.i(EnforcerService.TAG, "lock: $packageName came forward behind the lock")
         displacer.sendHome()
@@ -249,9 +270,15 @@ class LockController(
         // Before the overlay, not after: the point is that the sound stops when the screen is
         // covered, not a moment later.
         audio.claim()
+        val lockedByHours = state.lastDecision?.reason == LockReason.OUTSIDE_WINDOW
         overlay.show(
-            title = context.getString(R.string.lock_title),
-            subtitle = reason,
+            title = context.lockTitleFor(state.lastDecision?.reason),
+            // "Again at four" rather than nothing. A child told only that the television is off
+            // has been given a fact and no way to plan around it, and "that is it for today" —
+            // which is what this said before — is not even true when it is the hours.
+            subtitle = reason ?: opensAt?.takeIf { lockedByHours }?.let {
+                context.getString(R.string.lock_until_window, it.format(HOUR_AND_MINUTE))
+            },
             onAskForTime = onAskForTime,
             onEnterPin = if (pin.isSet) enterPin else null,
         )
@@ -292,5 +319,18 @@ private fun Context.warningFor(remainingSeconds: Long?): String {
         ?: 1
     return resources.getQuantityString(R.plurals.warn_minutes_left, minutes, minutes)
 }
+
+/**
+ * What the lock calls itself, which is not always the end of the day.
+ *
+ * At file level so the controller holds behaviour rather than wording, and shared by both places
+ * that put the overlay up — a message arriving during an out-of-hours lock must not re-title the
+ * screen "that is it for today".
+ */
+private fun Context.lockTitleFor(reason: LockReason?): String = getString(
+    if (reason == LockReason.OUTSIDE_WINDOW) R.string.lock_title_hours else R.string.lock_title,
+)
+
+private val HOUR_AND_MINUTE: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
 private const val SECONDS_IN_A_MINUTE = 60.0

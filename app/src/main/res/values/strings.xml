@@ -6,6 +6,8 @@
     <string name="notification_running">Watching screen time</string>
 
     <string name="lock_title">That is it for today</string>
+    <string name="lock_title_hours">Not television time</string>
+    <string name="lock_until_window">Television again at %1$s</string>
     <string name="lock_ask_more">Ask a parent for more time</string>
 
     <string name="pin_unlock">Unlock with the PIN</string>
