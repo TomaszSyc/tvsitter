@@ -100,10 +100,6 @@ class SettingsPanel(private val activity: Activity, private val parentPin: PinKe
         ) + "  ·  " + activity.getString(R.string.setup_version, BuildConfig.VERSION_NAME)
     }
 
-    fun focusFirst() {
-        (if (pairButton.visibility == View.VISIBLE) pairButton else pinButton).requestFocus()
-    }
-
     private fun text(sizeSp: Float, colour: Int) = TextView(activity).apply {
         setTextColor(colour)
         setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, sizeSp)

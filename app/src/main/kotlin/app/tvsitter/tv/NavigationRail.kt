@@ -8,7 +8,6 @@ package app.tvsitter.tv
 import android.content.Context
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
-import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
 
@@ -53,7 +52,7 @@ class NavigationRail(context: Context, private val onChosen: (Destination) -> Un
     /** Moves the highlight, without pretending anybody pressed anything. */
     fun select(destination: Destination) {
         current = destination
-        items.forEach { (which, view) -> view.paint(chosen = which == destination) }
+        repaint()
     }
 
     fun focusCurrent() {
@@ -61,40 +60,49 @@ class NavigationRail(context: Context, private val onChosen: (Destination) -> Un
     }
 
     private fun item(destination: Destination): TextView = TextView(context).apply {
-        text = context.getString(destination.labelRes)
         setCompoundDrawablesRelativeWithIntrinsicBounds(destination.iconRes, 0, 0, 0)
         compoundDrawablePadding = ICON_GAP_PX
         gravity = Gravity.CENTER_VERTICAL
         isFocusable = true
         isFocusableInTouchMode = true
+        setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, TvStyle.SMALL_SP)
         setPadding(ITEM_PADDING_PX, ITEM_PADDING_PX, ITEM_PADDING_PX, ITEM_PADDING_PX)
-        // Labels appear when the rail has the focus and go again when it does not, which is the
-        // collapsed and expanded pair the guidance describes rather than a drawer that slides.
-        setOnFocusChangeListener { _, _ -> items.values.forEach { it.paint(it.isChosen()) } }
+        setOnFocusChangeListener { _, _ -> repaint() }
         setOnClickListener { onChosen(destination) }
     }
 
-    private fun TextView.isChosen(): Boolean = text == context.getString(current.labelRes)
-
-    private fun TextView.paint(chosen: Boolean) {
+    /**
+     * Both states of the rail, drawn from one place so they cannot disagree.
+     *
+     * The collapse has to remove the label rather than squeeze it. Making the item narrower and
+     * leaving the text in it is what put the icons out of line — the label was still being
+     * measured, so it pushed the icon along and then got clipped. Reported from use, and visible
+     * only on the screen that happened to move focus off the rail.
+     */
+    private fun repaint() {
         val expanded = items.values.any { it.isFocused }
-        // Text is what makes the rail wide, so hiding it is what collapses it. The icon stays,
-        // which is the whole point of a rail rather than a menu that appears and disappears.
-        setTextColor(if (chosen || isFocused) TvStyle.TEXT else TvStyle.MUTED)
-        setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, TvStyle.SMALL_SP)
-        visibility = View.VISIBLE
-        width = if (expanded) EXPANDED_PX else COLLAPSED_PX
-        background = GradientDrawable().apply {
-            cornerRadius = ITEM_RADIUS_PX
-            setColor(
+        items.forEach { (destination, view) ->
+            val chosen = destination == current
+            view.text = if (expanded) context.getString(destination.labelRes) else ""
+            view.width = if (expanded) EXPANDED_PX else COLLAPSED_PX
+            view.setTextColor(
                 when {
-                    isFocused -> TvStyle.ACCENT
-                    chosen -> TvStyle.ACTIVE
-                    else -> TvStyle.SURFACE
+                    view.isFocused -> TvStyle.BACKDROP
+                    chosen -> TvStyle.TEXT
+                    else -> TvStyle.MUTED
                 },
             )
+            view.background = GradientDrawable().apply {
+                cornerRadius = ITEM_RADIUS_PX
+                setColor(
+                    when {
+                        view.isFocused -> TvStyle.ACCENT
+                        chosen -> TvStyle.ACTIVE
+                        else -> TvStyle.SURFACE
+                    },
+                )
+            }
         }
-        if (isFocused) setTextColor(TvStyle.BACKDROP)
     }
 
     private companion object {

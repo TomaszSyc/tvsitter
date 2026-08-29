@@ -128,9 +128,11 @@ class SetupActivity : ComponentActivity() {
             },
         )
         render()
-        // Into the content, because somebody who chose a destination wants to be in it. The rail
-        // is one press of back away, which is where they came from.
-        if (destination == Destination.SETTINGS) settings.focusFirst() else rail.focusCurrent()
+        // The rail keeps the focus, on every destination. Settings used to jump into its own
+        // content, which collapsed the rail on that screen and nowhere else — one screen behaving
+        // unlike the other two is exactly the thing this shell exists to stop. Right, or down,
+        // goes into the content when there is anything there to reach.
+        rail.focusCurrent()
     }
 
     private fun render() {
