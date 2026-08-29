@@ -259,7 +259,9 @@ class RulesSensor(TvSitterEntity, SensorEntity):
 
     The revision is the state, because that is the part that changes meaningfully and
     can be compared with the one the TV echoes in its state payload — the two agreeing
-    is the whole point of having a revision at all.
+    is the whole point of having a revision at all. It is named for what it is: called
+    "Rules", a state of 47 reads as forty-seven rules, which is nothing it has ever
+    meant (#115).
     """
 
     _attr_entity_category = EntityCategory.DIAGNOSTIC
