@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The plate behind the adaptive icon's foreground. Dark, because every screen this app
+         draws is dark and an icon that is not would look like somebody else's. -->
+    <color name="icon_background">#FF16232E</color>
+</resources>

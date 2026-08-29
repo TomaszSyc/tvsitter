@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" width="320" height="180">
+  <!-- The launcher row shows no label, so the banner carries the name itself. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1B2A38"/>
+      <stop offset="1" stop-color="#0B1219"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="180" fill="url(#bg)"/>
+
+  <g transform="translate(28 52) scale(0.42)">
+    <rect x="32" y="44" width="128" height="88" rx="18"
+          fill="none" stroke="#5BE1BE" stroke-width="11"/>
+    <path d="M96 88 L96 66 A22 22 0 1 1 74 88 Z" fill="#5BE1BE"/>
+    <rect x="74" y="142" width="44" height="12" rx="6" fill="#5BE1BE"/>
+  </g>
+
+  <text x="120" y="86" font-family="Roboto, Helvetica, Arial, sans-serif"
+        font-size="34" font-weight="600" fill="#F2F6F9">TV Sitter</text>
+  <text x="121" y="112" font-family="Roboto, Helvetica, Arial, sans-serif"
+        font-size="15" font-weight="400" fill="#8FA3B3">Czas przed telewizorem</text>
+</svg>
