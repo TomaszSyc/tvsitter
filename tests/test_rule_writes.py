@@ -370,3 +370,21 @@ async def test_an_app_limit_can_be_taken_away(hass: HomeAssistant) -> None:
     assert await written(sensor.async_set_app_limit("com.disney.disneyplus", 45)) == {
         "app_limits_s": {"com.disney.disneyplus": 2700}
     }
+
+
+async def test_following_a_schedule_does_not_need_a_listening_tv(
+    hass: HomeAssistant,
+) -> None:
+    """#119. What this sets up is the following, which outlives the set being asleep.
+
+    The other rule writes refuse rather than write into the dark, and should. This one
+    would refuse to remember a helper — and the hours would then never arrive, because
+    nothing would be watching the grid to send them when the television woke up.
+    """
+    client = make_client(hass, available=False)
+    client.rules = {}
+
+    with patch.object(client, "async_follow_schedule") as followed:
+        await RulesSensor(client).async_use_schedule("schedule.hours")
+
+    followed.assert_called_once_with("schedule.hours")

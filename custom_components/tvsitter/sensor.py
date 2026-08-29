@@ -342,8 +342,11 @@ class RulesSensor(TvSitterEntity, SensorEntity):
         The helper is remembered, so a later edit to the grid reaches the television
         by itself. A schedule imported once and left to drift would be worse than no
         import at all: the dashboard would show hours the set is not enforcing.
+
+        Unlike the other rule writes, this does not refuse while the set is asleep.
+        What it sets up is the following, which is a real and lasting thing to have
+        done, and the hours go out on the next reconnect rather than being lost.
         """
-        self._require_a_listening_tv()
         await self._client.async_follow_schedule(schedule)
 
     async def async_set_app_limit(
