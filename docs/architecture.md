@@ -1184,3 +1184,22 @@ it later. Two ways of writing the same thing is how they come to disagree.
 The rules sit behind the parent PIN, the door pairing already sits behind (#98), and proving it
 covers the visit rather than each press: three questions in a row with two seconds of hashing
 between them is how a parent gives up halfway through.
+
+### D32 — the screens stay on plain views; Compose is not coming
+
+#24 left the question open and assumed Compose for TV was already in the version catalogue. It
+never was, so choosing it would be an addition rather than a switch, and the reasons not to are
+the same ones that kept it out.
+
+The lock screen is a window a `Service` adds to the window manager. It has no `Activity`, and
+therefore none of the ViewTree owners a `ComposeView` needs — lifecycle, saved state, view-model
+store. They can be attached by hand, and that is exactly the sort of scaffolding worth avoiding in
+the one component whose failure means a television locked or unlocked for good.
+
+The rest of the screens could move without that problem, and then the app would be written in two
+languages: a lock screen in views, everything else in Compose, one style guide for each. Against
+that, what Compose buys here is state handling for screens that have almost none — a rail, three
+panels and a keypad, all of which redraw from one `refresh()` a second.
+
+What the ten-foot view actually needed was a type scale, a focus treatment that survives a bright
+room, overscan margins and one place to keep them. That is `TvStyle`, and it is forty lines.
