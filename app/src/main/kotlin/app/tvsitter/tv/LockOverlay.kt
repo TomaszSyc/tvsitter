@@ -8,6 +8,7 @@ package app.tvsitter.tv
 import android.content.Context
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -104,7 +105,7 @@ class LockOverlay(private val context: Context) {
             // button — which on a TV means the lock screen's own controls are dead.
             isFocusable = false
             descendantFocusability = FrameLayout.FOCUS_AFTER_DESCENDANTS
-            addView(column, centred())
+            addView(column, full())
         }
 
         val added = runCatching { windowManager.addView(container, layoutParams()) }
@@ -193,12 +194,25 @@ class LockOverlay(private val context: Context) {
             visibility = if (withPin) View.VISIBLE else View.GONE
         }
 
+        listOfNotNull(askButton, pinButton).forEach { button ->
+            button.dressForTheSofa()
+            // Room to grow into: a focused button gets larger, and without this the two of them
+            // overlap at exactly the moment one of them is being pointed at.
+            button.layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { setMargins(0, BUTTON_GAP_PX, 0, BUTTON_GAP_PX) }
+        }
+
         return LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
-            addView(textView(title, sizeSp = 34f, color = Color.WHITE))
+            gravity = Gravity.CENTER
+            // Overscan: some sets still crop the edges, and a centred column is not enough on
+            // its own once a button is as wide as this one.
+            setPadding(OVERSCAN_PX, OVERSCAN_PX, OVERSCAN_PX, OVERSCAN_PX)
+            addView(textView(title, sizeSp = TITLE_SP, color = Color.WHITE))
             addView(
-                textView(subtitle.orEmpty(), sizeSp = 18f, color = SUBTITLE_COLOR).also {
+                textView(subtitle.orEmpty(), sizeSp = SUBTITLE_SP, color = SUBTITLE_COLOR).also {
                     subtitleView = it
                     it.applySubtitle(subtitle)
                 },
@@ -207,6 +221,58 @@ class LockOverlay(private val context: Context) {
             addView(pinButton)
         }
     }
+
+    /**
+     * Makes a button readable and, more importantly, obviously selected from a sofa.
+     *
+     * With a D-pad the focused element is the cursor: if you cannot tell which one it is from
+     * across the room, the screen is broken however pretty it is. So focus changes the fill and
+     * the size, not a hairline border — two signals, because one of them survives a bad panel
+     * and a bright room.
+     *
+     * Shouting is turned off as well. A child reading "THAT IS IT FOR TODAY" in capitals is
+     * being told off by a machine, which is the tone this screen exists to avoid.
+     */
+    private fun Button.dressForTheSofa() {
+        isAllCaps = false
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, BUTTON_SP)
+        setPadding(BUTTON_PADDING_PX, BUTTON_PADDING_PX / 2, BUTTON_PADDING_PX, BUTTON_PADDING_PX / 2)
+        stateOnTheSofa(focused = false)
+        setOnFocusChangeListener { view, focused -> (view as Button).stateOnTheSofa(focused) }
+    }
+
+    /**
+     * Resting and focused, in the shape the platform uses now.
+     *
+     * Three things change at once, and that is on purpose: fill, corner radius and size. One
+     * signal is not enough at three metres in a bright room, and the shape change is what the
+     * current TV design language leans on — a pill at rest, squarer and filled when it is the
+     * one the D-pad would press.
+     */
+    private fun Button.stateOnTheSofa(focused: Boolean) {
+        background = GradientDrawable().apply {
+            cornerRadius = if (focused) FOCUS_RADIUS_PX else RESTING_RADIUS_PX
+            setColor(if (focused) BUTTON_FOCUS_COLOR else BUTTON_COLOR)
+        }
+        setTextColor(if (focused) BACKDROP_COLOR else Color.WHITE)
+        animate()
+            .scaleX(if (focused) FOCUS_SCALE else 1f)
+            .scaleY(if (focused) FOCUS_SCALE else 1f)
+            .setDuration(FOCUS_MS)
+            .start()
+    }
+
+    /**
+     * The column gets the whole screen rather than shrinking to its widest child.
+     *
+     * Wrapping made the title as narrow as a button and cut it to one word — a lock screen that
+     * says "Telewizor" and stops. The words need the room; the buttons size themselves inside it.
+     */
+    private fun full() = FrameLayout.LayoutParams(
+        FrameLayout.LayoutParams.MATCH_PARENT,
+        FrameLayout.LayoutParams.MATCH_PARENT,
+        Gravity.CENTER,
+    )
 
     private fun centred() = FrameLayout.LayoutParams(
         FrameLayout.LayoutParams.WRAP_CONTENT,
@@ -245,6 +311,30 @@ class LockOverlay(private val context: Context) {
         const val BACKDROP_COLOR = 0xFF0B1017.toInt()
         const val SUBTITLE_COLOR = 0xFFB9C6D2.toInt()
         const val PADDING_PX = 24
+
+        /**
+         * A type scale for three metres rather than phone sizes scaled up. A television is read
+         * from a sofa, and the title is the one thing that has to land before anything else.
+         */
+        const val TITLE_SP = 44f
+        const val SUBTITLE_SP = 22f
+        const val BUTTON_SP = 20f
+        const val BUTTON_PADDING_PX = 56
+        const val OVERSCAN_PX = 64
+        const val BUTTON_GAP_PX = 20
+
+        /** Focus: filled and a little larger, because one signal is not enough across a room. */
+        const val BUTTON_COLOR = 0xFF1C2733.toInt()
+        const val BUTTON_FOCUS_COLOR = 0xFFE8EEF4.toInt()
+        const val FOCUS_SCALE = 1.06f
+        const val FOCUS_MS = 120L
+
+        /**
+         * A pill at rest, squarer when focused. Shape as a state rather than decoration is what
+         * the platform's own components do now, and it survives a panel that washes colour out.
+         */
+        const val RESTING_RADIUS_PX = 48f
+        const val FOCUS_RADIUS_PX = 20f
 
         /**
          * How far and how often the words wander.
