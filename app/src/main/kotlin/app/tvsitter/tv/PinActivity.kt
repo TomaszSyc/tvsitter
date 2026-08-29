@@ -48,6 +48,13 @@ class PinActivity : Activity() {
     private var currentPin = ""
     private var proposed = ""
 
+    /**
+     * What a correct PIN is being asked for. Changing it is the original job; opening a pairing
+     * window is the other, because a pairing code on a fifty-inch screen hands the television to
+     * whoever is holding the remote (#98).
+     */
+    private val forPairing: Boolean by lazy { intent?.getBooleanExtra(EXTRA_FOR_PAIRING, false) == true }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Three questions in a row, each with a couple of seconds of hashing between them, is
@@ -56,6 +63,13 @@ class PinActivity : Activity() {
         pin = PinKeeper(this)
 
         if (!pin.isSet) {
+            // Nothing to ask for. A television with no PIN has nobody to keep out of pairing
+            // either, which is the first run and is meant to be open.
+            if (forPairing) {
+                EnforcerService.instance?.requestPairing()
+                finish()
+                return
+            }
             showNote(getString(R.string.pin_from_ha))
             return
         }
@@ -109,6 +123,13 @@ class PinActivity : Activity() {
         pin.verify(typed) { outcome ->
             if (outcome != PinOutcome.Accepted) {
                 keypad?.message(pinMessage(outcome).orEmpty())
+                return@verify
+            }
+            if (forPairing) {
+                // Nothing is remembered and nothing is hashed again: the question was only
+                // whether the person at the keypad is the one the PIN is for.
+                EnforcerService.instance?.requestPairing()
+                finish()
                 return@verify
             }
             currentPin = typed
@@ -175,10 +196,11 @@ class PinActivity : Activity() {
         step = next
         keypad?.prompt(
             getString(
-                when (next) {
-                    Step.CURRENT -> R.string.pin_step_current
-                    Step.NEW -> R.string.pin_step_new
-                    Step.CONFIRM -> R.string.pin_step_confirm
+                when {
+                    next == Step.CURRENT && forPairing -> R.string.pin_step_pairing
+                    next == Step.CURRENT -> R.string.pin_step_current
+                    next == Step.NEW -> R.string.pin_step_new
+                    else -> R.string.pin_step_confirm
                 },
             ),
         )
@@ -199,10 +221,13 @@ class PinActivity : Activity() {
         )
     }
 
-    private companion object {
-        const val BACKDROP = 0xFF0B1017.toInt()
-        const val NOTE_SP = 24f
-        const val PADDING = 48
-        const val DONE_MS = 2500L
+    companion object {
+        /** Ask for the PIN, then open a pairing window rather than changing anything. */
+        const val EXTRA_FOR_PAIRING: String = "for_pairing"
+
+        private const val BACKDROP = 0xFF0B1017.toInt()
+        private const val NOTE_SP = 24f
+        private const val PADDING = 48
+        private const val DONE_MS = 2500L
     }
 }

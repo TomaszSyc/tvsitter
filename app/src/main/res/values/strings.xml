@@ -19,6 +19,7 @@
         it can be changed here as well.</string>
     <string name="pin_change">Change the parent PIN</string>
     <string name="pin_step_current">Type the PIN you use now</string>
+    <string name="pin_step_pairing">Type the parent PIN to pair again</string>
     <string name="pin_step_new">Type the new PIN</string>
     <string name="pin_step_confirm">Type the new PIN again</string>
     <string name="pin_mismatch">Those two did not match. Type the new PIN again.</string>

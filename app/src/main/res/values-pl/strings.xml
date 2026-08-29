@@ -17,6 +17,7 @@
         jest, można go zmieniać także tutaj.</string>
     <string name="pin_change">Zmień PIN rodzica</string>
     <string name="pin_step_current">Wpisz PIN, którego używasz teraz</string>
+    <string name="pin_step_pairing">Wpisz PIN rodzica, aby sparować ponownie</string>
     <string name="pin_step_new">Wpisz nowy PIN</string>
     <string name="pin_step_confirm">Powtórz nowy PIN</string>
     <string name="pin_mismatch">PIN-y się nie zgadzają. Wpisz nowy PIN jeszcze raz.</string>

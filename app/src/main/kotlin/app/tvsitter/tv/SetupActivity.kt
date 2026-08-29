@@ -63,7 +63,17 @@ class SetupActivity : Activity() {
         report = textView(sizeSp = 15f, color = MUTED)
         pairButton = Button(this).apply {
             text = getString(R.string.pair_start)
-            setOnClickListener { EnforcerService.instance?.requestPairing() }
+            // Through the PIN screen, which opens the window itself once the PIN is right, or
+            // straight away when there is no PIN to ask for. A pairing code is on a fifty-inch
+            // screen in front of the person the PIN exists to keep out, and after pairing the
+            // television takes its commands — unlock included — from whichever broker answered
+            // (#98).
+            setOnClickListener {
+                startActivity(
+                    Intent(this@SetupActivity, PinActivity::class.java)
+                        .putExtra(PinActivity.EXTRA_FOR_PAIRING, true),
+                )
+            }
         }
         // Only ever offered when a PIN already exists: the change screen asks for the current
         // one, and there is no first PIN to be had at the television.
