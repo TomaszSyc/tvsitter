@@ -350,6 +350,7 @@ class EnforcerService : Service() {
         requests?.tally = dayTally
         locks?.tally = dayTally
         screenTime?.onClockJump = { jump -> telemetry?.publish(clockJumpAlert(jump)) }
+        locks?.onFight = { telemetry?.publish(alertOf(AlertKind.SOURCE_FIGHT)) }
         scope.launch { uncleanRestartAlert(this@EnforcerService)?.let { telemetry?.publish(it) } }
 
         // Unconditionally, and before anything that reads storage. Whether the lock should

@@ -46,7 +46,11 @@ class LockController(
 
     // Types spelled out because these two refer to each other: the lock claims focus after
     // going home, and losing focus is one of the things that sends it home.
-    private val displacer: Displacer = Displacer(context) { if (overlay.isShowing) audio.claim() }
+    private val displacer: Displacer = Displacer(
+        context,
+        onSentHome = { if (overlay.isShowing) audio.claim() },
+        onFight = { onFight?.invoke() },
+    )
     private val audio: AudioFocusHold = AudioFocusHold(context) { if (overlay.isShowing) displacer.sendHome() }
     private val memory = LockMemory(context)
 
@@ -66,6 +70,13 @@ class LockController(
 
     /** Set after construction, like the requester's. Counting is somebody else's interest. */
     var tally: DayTally? = null
+
+    /**
+     * Somebody is working the source key against the lock, which this side cannot refuse —
+     * the key never reaches the app, so a switch can only be undone. Set after construction
+     * for the same reason as the tally: it is an alarm somebody else raises.
+     */
+    var onFight: (() -> Unit)? = null
 
     private val handler = Handler(Looper.getMainLooper())
 

@@ -1,0 +1,120 @@
+blueprint:
+  name: TV Sitter — somebody is at the television
+  description: >-
+    Tells a parent when the television reports tampering, and optionally does something about
+    the one case the app cannot handle by itself.
+
+    The app sends the set home whenever anything comes forward behind the lock, which costs a
+    child under a second of sound per press of the source key. It cannot do better than that:
+    the source key never reaches the app, so a switch can only be undone, never refused. Home
+    Assistant has authority the app does not — a media player exposes the source list and the
+    power — so a household that wants a harder stop can have one, and one that does not can
+    leave it alone.
+
+    Deliberately not done by the app: powering off a television because a child pressed a
+    button twice is not a decision that side should make on its own.
+  domain: automation
+  source_url: https://github.com/TomaszSyc/tvsitter/blob/main/blueprints/automation/tvsitter/tamper_alarm.yaml
+  input:
+    tamper_event:
+      name: Tamper event
+      description: The TV Sitter tamper entity for this television.
+      selector:
+        entity:
+          filter:
+            - integration: tvsitter
+              domain: event
+    notify_action:
+      name: Notify
+      description: Which notify action tells the parent. A phone, usually.
+      selector:
+        text:
+      default: notify.persistent_notification
+    fight_response:
+      name: When the lock is being fought
+      description: >-
+        What to do when the television reports somebody working the source key against the
+        lock. Everything else on this list is only ever reported.
+      selector:
+        select:
+          options:
+            - label: Only tell me
+              value: tell
+            - label: Switch the source back
+              value: source
+            - label: Turn the television off
+              value: power
+      default: tell
+    media_player:
+      name: The television
+      description: >-
+        Needed only for switching the source or cutting the power. This is the household's own
+        witness — philips_js, androidtv_remote, or whatever else knows this set.
+      selector:
+        entity:
+          filter:
+            - domain: media_player
+      default: []
+    source_name:
+      name: Source to switch back to
+      description: The input the television should be put on, exactly as its source list spells it.
+      selector:
+        text:
+      default: ""
+
+mode: queued
+max: 10
+
+triggers:
+  - trigger: state
+    entity_id: !input tamper_event
+    # Not from unavailable or unknown: a restart re-reads the entity and would otherwise
+    # raise every alarm again, hours after anybody could act on it.
+    not_from:
+      - unavailable
+      - unknown
+    not_to:
+      - unavailable
+      - unknown
+
+variables:
+  kind: "{{ trigger.to_state.attributes.event_type }}"
+  detail: >-
+    {% set a = trigger.to_state.attributes %}
+    {% if a.event_type == 'pin_lockout' %}{{ a.failures }} wrong PINs, keypad shut for {{ (a.seconds | int / 60) | round }} min
+    {% elif a.event_type == 'clock_changed' %}the clock moved by {{ (a.jump_s | int / 60) | round }} min
+    {% elif a.event_type == 'unclean_restart' %}the app was stopped, {{ (a.gap_s | int / 60) | round }} min unaccounted for
+    {% elif a.event_type == 'overlay_lost' %}permission to draw over apps was taken away
+    {% elif a.event_type == 'usage_lost' %}usage access was taken away
+    {% elif a.event_type == 'source_fight' %}the source key is being used against the lock
+    {% else %}{{ a.event_type }}{% endif %}
+  response: !input fight_response
+  player: !input media_player
+  source: !input source_name
+
+actions:
+  - action: !input notify_action
+    data:
+      title: TV Sitter
+      message: "{{ detail | trim }}"
+      data:
+        tag: "tvsitter-tamper-{{ trigger.to_state.attributes.id }}"
+        importance: high
+
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ kind == 'source_fight' and response == 'source' and player and source }}"
+        sequence:
+          - action: media_player.select_source
+            target:
+              entity_id: !input media_player
+            data:
+              source: !input source_name
+      - conditions:
+          - condition: template
+            value_template: "{{ kind == 'source_fight' and response == 'power' and player }}"
+        sequence:
+          - action: media_player.turn_off
+            target:
+              entity_id: !input media_player

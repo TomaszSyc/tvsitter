@@ -33,10 +33,21 @@ class Displacer(
     private val context: Context,
     /** Called after each successful trip home, deferred ones included. */
     private val onSentHome: () -> Unit = {},
+    /**
+     * Called once when the trips home stop looking like accidents.
+     *
+     * The source key never reaches this app, so a switch can only be undone, never refused —
+     * and a child who keeps pressing it gets a second of sound each time. Home Assistant has
+     * authority this side does not, so the signal goes there and the answer is the
+     * household's: switch the source, cut the power, or do nothing (#59).
+     */
+    private val onFight: () -> Unit = {},
 ) {
     private val handler = Handler(Looper.getMainLooper())
     private val again = Runnable { sendHome() }
     private var lastAtMs = 0L
+    private var recentTrips = mutableListOf<Long>()
+    private var lastFightAtMs = 0L
 
     /** Resolved once. Sending the home screen home would be a fight with nobody. */
     val homePackage: String? by lazy {
@@ -73,10 +84,27 @@ class Displacer(
         }
         Log.i(EnforcerService.TAG, "audio: sent the TV home to stop what focus could not")
         onSentHome()
+        noticeAFight(nowMs)
     }
 
     fun stop() {
         handler.removeCallbacks(again)
+    }
+
+    /**
+     * Decides whether this is somebody fighting the lock rather than brushing a key.
+     *
+     * Once per outbreak, not once per press: an alarm that arrives four times in a minute is
+     * one a parent stops reading, which is the mistake #58 was about in a different costume.
+     */
+    private fun noticeAFight(nowMs: Long) {
+        recentTrips = recentTrips.filterTo(mutableListOf()) { nowMs - it < FIGHT_WINDOW_MS }
+        recentTrips += nowMs
+        if (recentTrips.size < FIGHT_TRIPS) return
+        if (nowMs - lastFightAtMs < FIGHT_QUIET_MS) return
+        lastFightAtMs = nowMs
+        Log.w(EnforcerService.TAG, "lock: ${recentTrips.size} trips home, somebody is at it")
+        onFight()
     }
 
     private companion object {
@@ -85,5 +113,15 @@ class Displacer(
          * pressing the source key buys a couple of seconds of console and no more.
          */
         const val COOLDOWN_MS = 2_000L
+
+        /**
+         * Four trips within three minutes. One press of the source key is a mistake, and two
+         * is a child finding out what the button does; four is a decision.
+         */
+        const val FIGHT_TRIPS = 4
+        const val FIGHT_WINDOW_MS = 3 * 60 * 1000L
+
+        /** And no more than one alarm every ten minutes, however long they keep at it. */
+        const val FIGHT_QUIET_MS = 10 * 60 * 1000L
     }
 }
