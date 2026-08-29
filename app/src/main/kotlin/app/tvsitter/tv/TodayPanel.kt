@@ -30,6 +30,7 @@ class TodayPanel(private val context: Context) {
     private val remaining = text(TvStyle.NUMBER_SP, TvStyle.ACCENT)
     private val inForce = text(TvStyle.BODY_SP, TvStyle.MUTED)
     private val hours = text(TvStyle.BODY_SP, TvStyle.MUTED)
+    private val bedtime = text(TvStyle.BODY_SP, TvStyle.MUTED)
     private val watching = text(TvStyle.BODY_SP, TvStyle.MUTED)
     private val locked = text(TvStyle.HEADING_SP, TvStyle.WARN)
     private val attention = text(TvStyle.BODY_SP, TvStyle.WARN)
@@ -51,6 +52,7 @@ class TodayPanel(private val context: Context) {
         )
         addView(inForce)
         addView(hours)
+        addView(bedtime)
         addView(watching)
         addView(locked.apply { setPadding(0, TvStyle.GAP_PX, 0, 0) })
         addView(attention.apply { setPadding(0, TvStyle.GAP_PX, 0, 0) })
@@ -93,7 +95,7 @@ class TodayPanel(private val context: Context) {
      */
     private fun showWhatIsInForce(service: EnforcerService?) {
         if (service == null) {
-            listOf(inForce, hours, watching).forEach { it.visibility = View.GONE }
+            listOf(inForce, hours, bedtime, watching).forEach { it.visibility = View.GONE }
             return
         }
         listOf(inForce, hours).forEach { it.visibility = View.VISIBLE }
@@ -115,6 +117,17 @@ class TodayPanel(private val context: Context) {
         } else {
             context.getString(R.string.today_hours, today.joinToString(", ") { span(it) })
         }
+
+        // A deadline for tonight is not a rule and is not stored with them (D30), but it is very
+        // much in force, and a parent standing here wants to know it is armed before the screen
+        // goes dark in ten minutes.
+        val sleep = service.sleepInMinutes
+        bedtime.text = if (sleep > 0) {
+            context.getString(R.string.today_sleep, TvStyle.length(context, sleep * SECONDS_PER_MINUTE))
+        } else {
+            ""
+        }
+        bedtime.visibility = if (sleep > 0) View.VISIBLE else View.GONE
 
         val app = service.foregroundPackage?.let { service.labels?.labelOf(it) ?: it }
         watching.text = app?.let { context.getString(R.string.today_watching, it) }.orEmpty()
@@ -139,6 +152,7 @@ class TodayPanel(private val context: Context) {
 
     private companion object {
         val HOUR_AND_MINUTE: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+        const val SECONDS_PER_MINUTE = 60
     }
 }
 

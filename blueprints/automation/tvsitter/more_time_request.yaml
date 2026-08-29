@@ -140,9 +140,11 @@ actions:
           # load time and validate.
           - action: !input notify_action
             data:
-              title: More TV?
+              # The app name first, because on a watch the title is what the eye lands on and
+              # "More TV?" alone does not say which television or what is playing on it.
+              title: "{{ what }} — more time?"
               message: >-
-                {{ what }} — asking for {{ minutes }} more minutes.
+                Asking for {{ minutes }} more minutes.
               data:
                 tag: "tvsitter-{{ req_id }}"
                 importance: high
@@ -157,9 +159,11 @@ actions:
           - action: !input second_notify_action
             enabled: !input also_notify
             data:
-              title: More TV?
+              # The app name first, because on a watch the title is what the eye lands on and
+              # "More TV?" alone does not say which television or what is playing on it.
+              title: "{{ what }} — more time?"
               message: >-
-                {{ what }} — asking for {{ minutes }} more minutes.
+                Asking for {{ minutes }} more minutes.
               data:
                 tag: "tvsitter-{{ req_id }}"
                 importance: high

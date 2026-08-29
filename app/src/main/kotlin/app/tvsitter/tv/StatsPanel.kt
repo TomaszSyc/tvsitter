@@ -41,6 +41,12 @@ class StatsPanel(private val context: Context) {
                 addView(todayList)
                 addView(heading(R.string.stats_yesterday))
                 addView(yesterdayLine)
+                addView(
+                    text(TvStyle.SMALL_SP, TvStyle.MUTED).apply {
+                        setText(R.string.stats_yesterday_apps)
+                        setPadding(0, TvStyle.GAP_PX, 0, 0)
+                    },
+                )
                 addView(yesterdayList)
                 addView(
                     text(TvStyle.SMALL_SP, TvStyle.MUTED).apply {

@@ -73,16 +73,7 @@
 
     <string name="setup_device">Device: %1$s %2$s, API %3$d</string>
     <string name="setup_version">App version: %1$s</string>
-    <string name="setup_service_running">Enforcer running: %1$s</string>
-    <string name="setup_overlay">Permission to draw over other apps: %1$s</string>
-    <string name="setup_usage_access">Usage access granted: %1$s</string>
-    <string name="setup_foreground">Foreground app: %1$s</string>
-    <string name="setup_locked">Lock active: %1$s</string>
-    <string name="setup_reporting">Reporting to Home Assistant: %1$s</string>
-    <string name="setup_pin">Parent PIN set: %1$s</string>
-    <string name="setup_yes">yes</string>
     <string name="setup_no">no</string>
-    <string name="setup_unknown">(no data yet)</string>
 
     <string name="pair_heading">Pair with Home Assistant</string>
     <string name="pair_instructions">In Home Assistant this television appears on its own
@@ -96,20 +87,16 @@
     <string name="pair_offline">Paired, but not reaching Home Assistant at the moment. Check
         that Home Assistant and its MQTT broker are running.</string>
     <string name="pair_again">Pair again</string>
-    <string name="setup_today">Today</string>
     <string name="setup_used">Watched</string>
     <string name="setup_limit">Limit</string>
     <string name="setup_left">Left</string>
     <string name="setup_no_limit">—</string>
-    <string name="setup_locked_now">The television is locked right now.</string>
     <string name="setup_attention">Needs attention</string>
     <string name="setup_all_well">Everything it needs, it has.</string>
     <string name="setup_fix_overlay">It cannot draw over other apps, so the lock will not appear. Settings, then Apps, then TV Sitter.</string>
     <string name="setup_fix_usage">It cannot see which app is open, so nothing is being counted. Settings, then Apps, then special access.</string>
     <string name="setup_fix_service">The service is not running. Open this screen again, or restart the television.</string>
     <string name="setup_fix_reporting">No connection to Home Assistant. The rules still hold; only the reporting is missing.</string>
-    <string name="setup_minutes">%1$d min</string>
-    <string name="setup_hours">%1$d:%2$02d</string>
     <string name="setup_set_aside">set aside</string>
     <string name="nav_today">Today</string>
     <string name="nav_statistics">Statistics</string>
