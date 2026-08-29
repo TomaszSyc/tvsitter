@@ -14,9 +14,10 @@ Runs on your network. No cloud, no subscription.
 > time from the remote and have a parent answer it from their phone. A PIN lifts the lock at
 > the set itself, with no Home Assistant in reach, and can be changed there too.
 >
-> Rules beyond a single daily limit are being built now (M4): a different limit per day of the
-> week, allowed hours, a budget per app, a sleep timer. There are no usage statistics yet (M5),
-> and nothing has been designed to be looked at from a sofa yet (M6).
+> Rules are in: a different limit per day of the week, hours viewing is allowed in, a budget per
+> app, blocking one outright, and a sleep timer. The television says why it locked, and Home
+> Assistant shows what is being enforced. There are no usage statistics yet (M5), and nothing has
+> been designed to be looked at from a sofa yet (M6).
 >
 > **Tested on exactly one television** — a Philips Google TV TA5 on Android 14. If you try it
 > on another, a [device report](../../issues/new?template=03-device-report.yml) is the most
@@ -33,8 +34,8 @@ and those are the reason for this project.
 | Price | 2.99 USD/month or 19.99 USD/year, 7-day trial | free, AGPL |
 | Number of TVs | 1 per subscription | unlimited (topics carry a device id) |
 | Time limit, PIN-protected lock | yes | **done** |
-| App blocking, sleep timer | yes | in progress (M4) |
-| Weekly schedules | announced | in progress (M4) |
+| App blocking, sleep timer | yes | **done** |
+| Weekly schedules | announced | **done** — and allowed hours, and a budget per app |
 | **"More time" request from the TV → actionable notification for the parent** | no | **done — the main reason this exists** |
 | **Usage statistics and history** | no | planned (M5), via the Home Assistant recorder |
 | **At-a-glance "is the TV on, what is running"** | no | **done** |
@@ -106,8 +107,8 @@ Measured on the television it runs on, rather than guessed:
 | M1 | telemetry | screen state and active app surfaced in Home Assistant | done |
 | M2 | counter and lock | daily budget, day starting at 04:00, lock screen, PIN | done |
 | M3 | time requests | button on the TV → actionable notification → granted time | done |
-| M4 | rules | weekly schedule, allowed time windows, per-app budgets, app blocking, sleep timer | in progress |
-| M5 | statistics and anti-tamper | history, Settings lockout, alarm when the app dies | |
+| M4 | rules | weekly schedule, allowed time windows, per-app budgets, app blocking, sleep timer | done |
+| M5 | statistics and anti-tamper | history, Settings lockout, alarm when the app dies | next |
 | M6 | interface and graphics | screens designed for a ten-foot view, real artwork, the words a child reads | |
 | M7 | going public | documentation, release, HACS submission | |
 
