@@ -43,11 +43,20 @@ class TodayPanel(private val context: Context) {
             LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
                 setPadding(0, TvStyle.GAP_PX, 0, TvStyle.GAP_PX)
+                // Equal thirds, because the numbers are not the same width and the labels
+                // under them have to stay lined up. Left to wrap their content, "4 h 17 min"
+                // pushed Limit and Left into the corner and the row read as one number with
+                // two dashes after it.
                 listOf(
                     column(used, R.string.setup_used),
                     column(limit, R.string.setup_limit),
                     column(remaining, R.string.setup_left),
-                ).forEach { addView(it) }
+                ).forEach {
+                    addView(
+                        it,
+                        LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f),
+                    )
+                }
             },
         )
         addView(inForce)
@@ -139,6 +148,7 @@ class TodayPanel(private val context: Context) {
         "${window.from.format(HOUR_AND_MINUTE)}\u2013${window.to.format(HOUR_AND_MINUTE)}"
 
     private fun column(value: TextView, labelRes: Int) = LinearLayout(context).apply {
+        TvStyle.fitNumber(value)
         orientation = LinearLayout.VERTICAL
         setPadding(0, 0, TvStyle.OVERSCAN_PX, 0)
         addView(value)

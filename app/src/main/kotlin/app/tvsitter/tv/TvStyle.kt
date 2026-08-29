@@ -11,6 +11,8 @@ import android.graphics.drawable.GradientDrawable
 import android.util.TypedValue
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.TextView
+import androidx.core.widget.TextViewCompat
 
 /**
  * What every screen here looks like, in one place.
@@ -44,6 +46,10 @@ object TvStyle {
     private const val SECONDS_PER_MINUTE = 60
     private const val MINUTES_PER_HOUR = 60
 
+    /** Below this it stops being the headline number on the screen. */
+    private const val SMALLEST_NUMBER_SP = 22f
+    private const val AUTOSIZE_STEP_SP = 1
+
     private const val BUTTON_SP = 20f
     private const val BUTTON_PADDING_PX = 56
     private const val BUTTON_COLOR = 0xFF1C2733.toInt()
@@ -75,6 +81,25 @@ object TvStyle {
             R.string.dur_hours,
             total / MINUTES_PER_HOUR,
             total % MINUTES_PER_HOUR,
+        )
+    }
+
+    /**
+     * Lets a big number shrink rather than wrap.
+     *
+     * The three figures on Today share the width equally and none of them has a fixed length:
+     * "4 h 17 min" is nearly twice "45 min" and half again on a set showing hours in Polish.
+     * At a fixed size the longest one wraps onto a second line and the labels under the three
+     * stop lining up, which is worse than a slightly smaller number.
+     */
+    fun fitNumber(view: TextView) {
+        view.maxLines = 1
+        TextViewCompat.setAutoSizeTextTypeUniformWithConfiguration(
+            view,
+            SMALLEST_NUMBER_SP.toInt(),
+            NUMBER_SP.toInt(),
+            AUTOSIZE_STEP_SP,
+            TypedValue.COMPLEX_UNIT_SP,
         )
     }
 
