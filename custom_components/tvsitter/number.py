@@ -33,6 +33,10 @@ MAX_WARNING_MINUTES = 60
 # The television's own default, in minutes, used when nobody has ever set one.
 DEFAULT_WARNING_MINUTES = 5
 
+# Four hours. Past that it is not "finish this and go to bed", it is tomorrow's problem,
+# and the daily limit is the control for that.
+MAX_SLEEP_MINUTES = 240
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -41,7 +45,9 @@ async def async_setup_entry(
 ) -> None:
     """Set up the daily limit for one TV."""
     client = entry.runtime_data
-    async_add_entities([DailyLimitNumber(client), WarnBeforeNumber(client)])
+    async_add_entities(
+        [DailyLimitNumber(client), WarnBeforeNumber(client), SleepTimerNumber(client)]
+    )
 
 
 class DailyLimitNumber(TvSitterEntity, NumberEntity):
@@ -166,3 +172,47 @@ class WarnBeforeNumber(TvSitterEntity, NumberEntity):
         await self._client.async_set_rules(
             {RULE_WARN_BEFORE: [] if seconds <= 0 else [seconds]}
         )
+
+
+class SleepTimerNumber(TvSitterEntity, NumberEntity):
+    """Minutes until the television locks itself tonight, and zero for not tonight.
+
+    One evening's decision rather than a rule, so it is not stored with them and
+    does not
+    survive the night. It is a command, and the television keeps the deadline in
+    the same
+    device-encrypted corner as a granted-time stand-down — a deadline a child would most
+    like to lose is one they could otherwise lose by pulling the plug.
+
+    Write-only, like the parent PIN. The state payload does not carry the
+    deadline, and a
+    box that read back the minutes remaining would need the television to be
+    publishing a
+    countdown it has no other use for. What it does carry is `until_s`, which
+    says the same
+    thing when the timer is the rule that binds.
+    """
+
+    _attr_native_min_value = 0
+    _attr_native_max_value = MAX_SLEEP_MINUTES
+    _attr_native_step = 5
+    _attr_native_unit_of_measurement = UnitOfTime.MINUTES
+    _attr_device_class = NumberDeviceClass.DURATION
+    _attr_mode = NumberMode.BOX
+
+    def __init__(self, client: TvSitterClient) -> None:
+        """Create the sleep timer."""
+        super().__init__(client, "sleep_timer")
+
+    @property
+    def native_value(self) -> float | None:
+        """Return nothing: this is a control, not a reading."""
+        return None
+
+    async def async_set_native_value(self, value: float) -> None:
+        """Arm the timer, or cancel one already set."""
+        if not self._client.available:
+            raise ServiceValidationError(
+                f"{self._client.name} is not listening; nothing would be armed"
+            )
+        await self._client.async_send({"op": "lock", "in_minutes": int(value)})

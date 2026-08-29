@@ -118,6 +118,7 @@ class EnforcerService : Service() {
         screenTime = ScreenTimeTracker(
             this,
             rules = { activeRules?.rules ?: Rules.NONE },
+            sleepAtMs = { locks?.sleepAtMs ?: 0 },
             onDayRolled = { telemetry?.publishSoon() },
             onJudgement = { judgement -> locks?.applyJudgement(judgement) },
         )
@@ -257,7 +258,17 @@ class EnforcerService : Service() {
 
     private fun handleCommand(command: Command) {
         when (command) {
-            is Command.Lock -> lock(command.reason)
+            // Carrying minutes it is a sleep timer, not a lock: the deadline goes in and the
+            // engine counts down to it with the same warnings every other rule gets.
+            is Command.Lock -> {
+                val minutes = command.inMinutes
+                if (minutes == null) {
+                    lock(command.reason)
+                } else {
+                    locks?.sleepIn(minutes)
+                    telemetry?.publishSoon()
+                }
+            }
             // Minutes buy time against today's budget, and the lock then lifts because
             // there is time again rather than because it was hidden — hiding it while the
             // budget is spent would bring it straight back on the next sample.

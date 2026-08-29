@@ -44,6 +44,18 @@ class LockMemory(context: Context) {
             preferences.edit().putLong(KEY_PAUSED_UNTIL, value).apply()
         }
 
+    /**
+     * When the television has to lock itself tonight, epoch milliseconds. Zero for never.
+     *
+     * Device-encrypted with the rest of this for the same reason: a deadline a child would
+     * most like to lose is one they can lose by pulling the plug.
+     */
+    var sleepAtMs: Long
+        get() = preferences.getLong(KEY_SLEEP_AT, 0)
+        set(value) {
+            preferences.edit().putLong(KEY_SLEEP_AT, value).apply()
+        }
+
     var cause: LockCause
         get() = runCatching { LockCause.valueOf(preferences.getString(KEY, null) ?: NONE_NAME) }
             .getOrElse {
@@ -61,6 +73,7 @@ class LockMemory(context: Context) {
         const val FILE = "lock_memory"
         const val KEY = "cause"
         const val KEY_PAUSED_UNTIL = "paused_until"
+        const val KEY_SLEEP_AT = "sleep_at"
         val NONE_NAME: String = LockCause.NONE.name
     }
 }

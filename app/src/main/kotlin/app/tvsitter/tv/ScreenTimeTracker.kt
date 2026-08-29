@@ -33,6 +33,8 @@ import java.time.ZoneId
 class ScreenTimeTracker(
     private val context: Context,
     private val rules: () -> Rules = { Rules.NONE },
+    /** Tonight's deadline, epoch millis, or zero for none. Asked for on every sample. */
+    private val sleepAtMs: () -> Long = { 0 },
     private val onDayRolled: () -> Unit = {},
     private val onJudgement: (Judgement) -> Unit = {},
     private val clock: BudgetClock = BudgetClock(ZoneId.systemDefault()),
@@ -254,7 +256,13 @@ class ScreenTimeTracker(
 
     private fun announceVerdict() {
         val nowMs = System.currentTimeMillis()
-        judgement = engine.judge(rules(), state, appDuringInterval, nowMs)
+        judgement = engine.judge(
+            rules(),
+            state,
+            appDuringInterval,
+            nowMs,
+            sleepAtMs = sleepAtMs().takeIf { it > 0 },
+        )
         onJudgement(judgement)
     }
 

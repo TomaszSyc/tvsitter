@@ -142,6 +142,7 @@ would leave a dashboard showing last week's schedule until somebody happened to 
 
 ```json
 { "op": "lock",      "reason": "bedtime" }
+{ "op": "lock",      "in_minutes": 30 }
 { "op": "unlock",    "minutes": 30 }
 { "op": "grant",     "req_id": "8f14e45f", "minutes": 15 }
 { "op": "deny",      "req_id": "8f14e45f" }
@@ -151,6 +152,17 @@ would leave a dashboard showing last week's schedule until somebody happened to 
 { "op": "stop_app",  "pkg": "com.google.android.youtube.tv" }
 { "op": "ping" }
 ```
+
+`lock` carrying `in_minutes` is a **sleep timer**: it arms a deadline rather than covering the
+screen now, and zero cancels one already armed. The television keeps that deadline in
+device-encrypted storage, so pulling the plug does not buy the evening back, and the engine turns
+it into the same thing every rule becomes — how long until viewing has to stop — which is where
+its warnings and countdown come from. It is a command rather than a rule because it is one
+evening's decision: it is not stored with the rules and does not survive the night.
+
+Lifting the lock clears it. A deadline already past keeps saying zero, so a lock lifted without
+clearing would come straight back on the next sample — and whoever lifted it has answered the
+bedtime too.
 
 `unlock` without `minutes` lifts the lock. If the daily limit is what put the lock there,
 the limit is set aside until the next reset — anything less would be undone by the next

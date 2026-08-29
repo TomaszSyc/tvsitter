@@ -115,6 +115,30 @@ class LockController(
     val isLocked: Boolean get() = overlay.isShowing
 
     /**
+     * When the television locks itself tonight, epoch millis, or zero for never.
+     *
+     * Read by the counter on every sample and handed to the engine, which turns it into the
+     * same thing every rule turns into: how long until viewing has to stop. That is where the
+     * warnings and the countdown come from, rather than from a second copy here.
+     */
+    var sleepAtMs: Long
+        get() = memory.sleepAtMs
+        set(value) {
+            memory.sleepAtMs = value
+        }
+
+    /** Arms tonight's deadline, or cancels one already set. Zero and less both cancel. */
+    fun sleepIn(minutes: Int) {
+        if (minutes > 0) {
+            sleepAtMs = System.currentTimeMillis() + minutes * MILLIS_PER_MINUTE
+            Log.i(EnforcerService.TAG, "sleep timer: locking in ${minutes}m")
+        } else {
+            sleepAtMs = 0
+            Log.i(EnforcerService.TAG, "sleep timer: off")
+        }
+    }
+
+    /**
      * Why the screen is covered, in the words the contract uses, or null when it is not.
      *
      * A parent's own lock outranks whatever the rules were saying at the time: they asked for
@@ -173,6 +197,7 @@ class LockController(
 
     /** Lifts a lock a parent asked for, and not one the rules put up. */
     fun unlockManually() {
+        if (memory.sleepAtMs > 0) sleepAtMs = 0
         if (state.budget) {
             Log.i(EnforcerService.TAG, "unlock ignored: the budget is spent, grant time instead")
         }
@@ -187,6 +212,9 @@ class LockController(
      * handed over the rest of the day's budget (#42).
      */
     fun unlockUntilReset() {
+        // A deadline already past keeps saying zero, so a lock lifted without clearing it would
+        // return on the next sample. Whoever lifts it has answered the bedtime too.
+        if (memory.sleepAtMs > 0) sleepAtMs = 0
         act(LockTransitions.unlockUntilReset(state, System.currentTimeMillis()))
     }
 
@@ -303,6 +331,7 @@ class LockController(
     private companion object {
         /** How often the lock asks what is in front of it. */
         const val SWEEP_INTERVAL_MS = 2_000L
+        const val MILLIS_PER_MINUTE = 60_000L
     }
 }
 

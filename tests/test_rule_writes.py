@@ -13,7 +13,11 @@ from unittest.mock import patch
 from custom_components.tvsitter.button import ClearLimitButton
 from custom_components.tvsitter.coordinator import TvSitterClient
 from custom_components.tvsitter.models import StateSnapshot
-from custom_components.tvsitter.number import DailyLimitNumber, WarnBeforeNumber
+from custom_components.tvsitter.number import (
+    DailyLimitNumber,
+    SleepTimerNumber,
+    WarnBeforeNumber,
+)
 from homeassistant.core import HomeAssistant
 
 PREFIX = "tvsitter/salon"
@@ -194,3 +198,31 @@ async def test_setting_a_warning_writes_seconds(hass: HomeAssistant) -> None:
 async def test_nothing_is_shown_before_the_rules_arrive(hass: HomeAssistant) -> None:
     """Guessing five minutes at a television that has not spoken invents one."""
     assert WarnBeforeNumber(with_rules(make_client(hass), None)).native_value is None
+
+
+async def test_the_sleep_timer_arms_a_deadline_rather_than_locking(
+    hass: HomeAssistant,
+) -> None:
+    """#74. Minutes on the command make it a bedtime, not a lock."""
+    client = make_client(hass)
+
+    with patch("homeassistant.components.mqtt.async_publish") as publish:
+        await SleepTimerNumber(client).async_set_native_value(30)
+
+    assert json.loads(publish.call_args.args[2]) == {"op": "lock", "in_minutes": 30}
+    assert publish.call_args.kwargs["retain"] is False
+
+
+async def test_zero_cancels_a_bedtime_already_set(hass: HomeAssistant) -> None:
+    """Which is what a control at zero has to mean, or it could only ever add one."""
+    client = make_client(hass)
+
+    with patch("homeassistant.components.mqtt.async_publish") as publish:
+        await SleepTimerNumber(client).async_set_native_value(0)
+
+    assert json.loads(publish.call_args.args[2]) == {"op": "lock", "in_minutes": 0}
+
+
+async def test_the_sleep_timer_reads_back_nothing(hass: HomeAssistant) -> None:
+    """A control, not a reading: the countdown is until_s, for whatever binds."""
+    assert SleepTimerNumber(make_client(hass)).native_value is None

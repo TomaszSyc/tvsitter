@@ -20,9 +20,13 @@ import kotlinx.serialization.json.JsonObject
 @Serializable
 @JsonClassDiscriminator("op")
 sealed interface Command {
+    /**
+     * [inMinutes] arms a deadline instead of covering the screen now — a sleep timer. Null,
+     * which is the ordinary case, means lock it this second.
+     */
     @Serializable
     @SerialName("lock")
-    data class Lock(val reason: String? = null) : Command
+    data class Lock(val reason: String? = null, @SerialName("in_minutes") val inMinutes: Int? = null) : Command
 
     /** [minutes] null means "until the end of the budget day". */
     @Serializable
