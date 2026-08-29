@@ -7,6 +7,10 @@
 
     <string name="lock_title">That is it for today</string>
     <string name="lock_title_hours">Not television time</string>
+    <string name="lock_title_bedtime">Bedtime</string>
+    <string name="lock_title_manual">The television is off for now</string>
+    <string name="lock_until_tomorrow">Television again tomorrow</string>
+    <string name="app_out_of_time">%1$s has had its time for today</string>
     <string name="lock_until_window">Television again at %1$s</string>
     <string name="lock_ask_more">Ask a parent for more time</string>
 
@@ -60,6 +64,11 @@
     <plurals name="warn_minutes_left">
         <item quantity="one">%d minute of TV left</item>
         <item quantity="other">%d minutes of TV left</item>
+    </plurals>
+
+    <plurals name="warn_minutes_left_app">
+        <item quantity="one">%d minute left of this app</item>
+        <item quantity="other">%d minutes left of this app</item>
     </plurals>
 
     <string name="setup_device">Device: %1$s %2$s, API %3$d</string>

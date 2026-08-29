@@ -352,6 +352,7 @@ class EnforcerService : Service() {
         screenTime?.onClockJump = { jump -> telemetry?.publish(clockJumpAlert(jump)) }
         locks?.onFight = { telemetry?.publish(alertOf(AlertKind.SOURCE_FIGHT)) }
         locks?.settingsBlocked = { activeRules?.rules?.settingsBlocked == true }
+        locks?.appName = { pkg -> appLabels?.labelOf(pkg) ?: pkg }
         scope.launch { uncleanRestartAlert(this@EnforcerService)?.let { telemetry?.publish(it) } }
 
         // Unconditionally, and before anything that reads storage. Whether the lock should

@@ -5,6 +5,10 @@
 
     <string name="lock_title">Koniec czasu na dziś</string>
     <string name="lock_title_hours">Teraz nie ma telewizji</string>
+    <string name="lock_title_bedtime">Pora spać</string>
+    <string name="lock_title_manual">Telewizor jest teraz wyłączony</string>
+    <string name="lock_until_tomorrow">Telewizja znowu jutro</string>
+    <string name="app_out_of_time">%1$s ma na dziś dość</string>
     <string name="lock_until_window">Telewizja znowu o %1$s</string>
     <string name="lock_ask_more">Poproś rodzica o więcej czasu</string>
 
@@ -70,6 +74,13 @@
         <item quantity="few">Zostały %d minuty telewizji</item>
         <item quantity="many">Zostało %d minut telewizji</item>
         <item quantity="other">Zostało %d minuty telewizji</item>
+    </plurals>
+
+    <plurals name="warn_minutes_left_app">
+        <item quantity="one">Tej aplikacji została %d minuta</item>
+        <item quantity="few">Tej aplikacji zostały %d minuty</item>
+        <item quantity="many">Tej aplikacji zostało %d minut</item>
+        <item quantity="other">Tej aplikacji zostało %d minuty</item>
     </plurals>
 
     <string name="setup_device">Urządzenie: %1$s %2$s, API %3$d</string>

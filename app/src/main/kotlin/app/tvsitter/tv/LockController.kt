@@ -87,6 +87,9 @@ class LockController(
      */
     var settingsBlocked: () -> Boolean = { false }
 
+    /** Turns a package into something a child would recognise. Set after construction. */
+    var appName: (String) -> String = { it }
+
     private val handler = Handler(Looper.getMainLooper())
 
     private val resumeManual = Runnable {
@@ -184,7 +187,7 @@ class LockController(
     fun say(message: String) {
         if (overlay.isShowing) {
             overlay.show(
-                title = context.lockTitleFor(state.lastDecision?.reason),
+                title = context.lockTitleFor(state.cause, state.lastDecision?.reason),
                 subtitle = message,
                 onAskForTime = onAskForTime,
                 onEnterPin = if (pin.isSet) enterPin else null,
@@ -319,11 +322,18 @@ class LockController(
         }
 
         val warning = effects.warnAtRemainingSeconds
-        if (warning != null) banner.show(context.warningFor(warning)) else banner.hide()
+        if (warning != null) {
+            banner.show(context.warningFor(warning, state.lastDecision?.reason))
+        } else {
+            banner.hide()
+        }
 
         effects.displace?.let { app ->
             Log.i(EnforcerService.TAG, "rules: $app has used its own time, sending the TV home")
             displacer.sendHome()
+            // Said out loud, because from the sofa an app closed itself for no reason and the
+            // obvious move is to open it again — whose only answer was another trip home (#97).
+            banner.show(context.getString(R.string.app_out_of_time, appName(app)))
         }
     }
 
@@ -332,15 +342,11 @@ class LockController(
         // Before the overlay, not after: the point is that the sound stops when the screen is
         // covered, not a moment later.
         audio.claim()
-        val lockedByHours = state.lastDecision?.reason == LockReason.OUTSIDE_WINDOW
         overlay.show(
-            title = context.lockTitleFor(state.lastDecision?.reason),
-            // "Again at four" rather than nothing. A child told only that the television is off
-            // has been given a fact and no way to plan around it, and "that is it for today" —
-            // which is what this said before — is not even true when it is the hours.
-            subtitle = reason ?: opensAt?.takeIf { lockedByHours }?.let {
-                context.getString(R.string.lock_until_window, it.format(HOUR_AND_MINUTE))
-            },
+            title = context.lockTitleFor(state.cause, state.lastDecision?.reason),
+            // A child told only that the television is off has a fact and no way to plan around
+            // it. Every reason that has an answer to "until when" gives it.
+            subtitle = reason ?: context.untilWhen(state.cause, state.lastDecision?.reason, opensAt),
             onAskForTime = onAskForTime,
             onEnterPin = if (pin.isSet) enterPin else null,
         )
@@ -376,12 +382,19 @@ class LockController(
  * Rounded up and never below one: "one minute left" with thirty seconds to go is friendlier
  * than "zero minutes left", and closer to what somebody would actually say.
  */
-private fun Context.warningFor(remainingSeconds: Long?): String {
+private fun Context.warningFor(remainingSeconds: Long?, reason: LockReason?): String {
     val minutes = remainingSeconds
         ?.let { ceil(it / SECONDS_IN_A_MINUTE).toInt() }
         ?.coerceAtLeast(1)
         ?: 1
-    return resources.getQuantityString(R.plurals.warn_minutes_left, minutes, minutes)
+    // "Minutes of television left" is wrong when it is one app's own budget running out with
+    // hours left in the day, and a child who believes it is about to be surprised twice.
+    val plural = if (reason == LockReason.APP_LIMIT) {
+        R.plurals.warn_minutes_left_app
+    } else {
+        R.plurals.warn_minutes_left
+    }
+    return resources.getQuantityString(plural, minutes, minutes)
 }
 
 /**
@@ -391,9 +404,31 @@ private fun Context.warningFor(remainingSeconds: Long?): String {
  * that put the overlay up — a message arriving during an out-of-hours lock must not re-title the
  * screen "that is it for today".
  */
-private fun Context.lockTitleFor(reason: LockReason?): String = getString(
-    if (reason == LockReason.OUTSIDE_WINDOW) R.string.lock_title_hours else R.string.lock_title,
+private fun Context.lockTitleFor(cause: LockCause, reason: LockReason?): String = getString(
+    when {
+        // A parent's decision outranks whatever the rules were saying at the time, and "that is
+        // it for today" is simply untrue at four in the afternoon.
+        cause == LockCause.MANUAL -> R.string.lock_title_manual
+        reason == LockReason.OUTSIDE_WINDOW -> R.string.lock_title_hours
+        reason == LockReason.SLEEP_TIMER -> R.string.lock_title_bedtime
+        else -> R.string.lock_title
+    },
 )
+
+/**
+ * When the television comes back, for the reasons that have an answer.
+ *
+ * The hours know the time. A spent day knows it is tomorrow. A parent's lock and a bedtime know
+ * neither — one ends when the parent says so and the other is the end of the evening — so they
+ * say nothing rather than guessing, which is better than a promise the television cannot keep.
+ */
+private fun Context.untilWhen(cause: LockCause, reason: LockReason?, opensAt: LocalTime?): String? = when {
+    cause == LockCause.MANUAL -> null
+    reason == LockReason.OUTSIDE_WINDOW ->
+        opensAt?.let { getString(R.string.lock_until_window, it.format(HOUR_AND_MINUTE)) }
+    reason == LockReason.DAILY_LIMIT -> getString(R.string.lock_until_tomorrow)
+    else -> null
+}
 
 private val HOUR_AND_MINUTE: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
