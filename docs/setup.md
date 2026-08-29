@@ -209,6 +209,23 @@ in a row have to count up even before the TV has answered.
 Editing a whole week by hand is what the add-on is for (#60). These are enough to set one
 without it.
 
+## The dashboard
+
+Entities are plumbing. The surface a parent opens is
+[`dashboards/tvsitter.yaml`](../dashboards/tvsitter.yaml): what is on now and one tap to lock it,
+today by app and the last week, the rules, and — last, because it is only interesting when
+something is wrong — whether the television is still reporting.
+
+Settings, then Dashboards, then add one, open its three-dot menu, choose "Raw configuration
+editor" and paste the file in. Every entity in it starts with `tv_lounge`, the slug Home Assistant
+made from the name you gave the television; search and replace that one word with yours and the
+whole file works. The per-app rows are whatever this house's television has opened, so delete the
+ones you do not have and add the ones you do.
+
+No custom card is shipped with it. A Lovelace card is a separate HACS category from an
+integration, which by D6 means either a second repository or serving frontend code from this one,
+and the built-in cards answer every question on the list.
+
 ## Answering a request from your phone
 
 When the child presses "ask a parent for more time", the TV publishes on `<prefix>/request`

@@ -1,0 +1,176 @@
+# The parent's daily view for one television.
+#
+# Every entity below starts with `tv_lounge` — the slug Home Assistant made from the name you
+# gave the television when you paired it. Search and replace that one word with yours and the
+# whole file works; there is nothing else to edit.
+#
+# To use it: Settings, then Dashboards, then add a dashboard, open its three-dot menu, choose
+# "Raw configuration editor", and paste this in.
+#
+# The per-app rows are the apps this television has actually opened, so yours will differ. Delete
+# the ones you do not have and add the ones you do — the entity is named after the app.
+#
+# TV Sitter — parental control for Android TV / Google TV.
+# Copyright (C) 2026 Tomasz Syc
+# SPDX-License-Identifier: AGPL-3.0-only
+views:
+  - title: Television
+    path: television
+    type: sections
+    icon: mdi:television-play
+    max_columns: 3
+    badges:
+      - type: entity
+        entity: binary_sensor.tv_lounge_screen
+        show_state: true
+      - type: entity
+        entity: sensor.tv_lounge_active_app
+        show_state: true
+      - type: entity
+        entity: binary_sensor.tv_lounge_reporting
+        show_state: true
+    sections:
+      # What is happening, and the one control worth reaching for in a hurry.
+      - type: grid
+        cards:
+          - type: heading
+            heading: Right now
+            icon: mdi:television-play
+          - type: tile
+            entity: switch.tv_lounge_lock
+            name: Lock the television
+            features:
+              - type: toggle
+            grid_options:
+              columns: 12
+          - type: tile
+            entity: sensor.tv_lounge_remaining_today
+            name: Left today
+            grid_options:
+              columns: 6
+          - type: tile
+            entity: sensor.tv_lounge_used_today
+            name: Watched today
+            grid_options:
+              columns: 6
+
+      # What he is watching, in proportion. A distribution card rather than a row of numbers:
+      # the question is which app the day went into, and that is a shape rather than a list.
+      - type: grid
+        cards:
+          - type: heading
+            heading: Today, by app
+            icon: mdi:chart-donut
+          - type: distribution
+            entities:
+              - sensor.tv_lounge_youtube
+              - sensor.tv_lounge_netflix
+              - sensor.tv_lounge_spotify
+              - sensor.tv_lounge_google_tv
+            grid_options:
+              columns: full
+          - type: statistics-graph
+            title: The last week
+            chart_type: bar
+            period: day
+            days_to_show: 7
+            stat_types:
+              - max
+            entities:
+              - entity: sensor.tv_lounge_used_today
+                name: Watched
+            grid_options:
+              columns: full
+              rows: 4
+
+      # The rules, which are the reason the rest of it behaves the way it does.
+      - type: grid
+        cards:
+          - type: heading
+            heading: Rules
+            icon: mdi:script-text
+          - type: tile
+            entity: number.tv_lounge_daily_limit
+            features:
+              - type: numeric-input
+                style: buttons
+            grid_options:
+              columns: 12
+          - type: tile
+            entity: number.tv_lounge_sleep_timer
+            features:
+              - type: numeric-input
+                style: buttons
+            grid_options:
+              columns: 12
+          - type: tile
+            entity: number.tv_lounge_warn_before
+            features:
+              - type: numeric-input
+                style: buttons
+            grid_options:
+              columns: 12
+          - type: tile
+            entity: switch.tv_lounge_block_settings
+            features:
+              - type: toggle
+            grid_options:
+              columns: 12
+          - type: tile
+            entity: button.tv_lounge_clear_limit
+            features:
+              - type: button
+            grid_options:
+              columns: 12
+          # Zero blocks the app outright, which is the same convention the daily limit has:
+          # zero is a real setting, not the absence of one.
+          - type: heading
+            heading: A budget of its own
+            heading_style: subtitle
+          - type: tile
+            entity: number.tv_lounge_youtube_limit
+            features:
+              - type: numeric-input
+                style: buttons
+            grid_options:
+              columns: 12
+          - type: tile
+            entity: number.tv_lounge_netflix_limit
+            features:
+              - type: numeric-input
+                style: buttons
+            grid_options:
+              columns: 12
+
+      # Last, because it is only interesting when something is wrong.
+      - type: grid
+        cards:
+          - type: heading
+            heading: Is it working
+            icon: mdi:stethoscope
+          - type: tile
+            entity: binary_sensor.tv_lounge_reporting_stopped
+            name: Stopped reporting
+            grid_options:
+              columns: 6
+          - type: tile
+            entity: sensor.tv_lounge_last_reported
+            name: Last heard from
+            grid_options:
+              columns: 6
+          - type: tile
+            entity: binary_sensor.tv_lounge_parent_pin_set
+            name: Parent PIN
+            grid_options:
+              columns: 6
+          - type: tile
+            entity: sensor.tv_lounge_rules
+            name: Rules revision
+            grid_options:
+              columns: 6
+          - type: markdown
+            text_only: true
+            content: >-
+              The weekly schedule and the viewing hours are not one number each, so they are
+              actions rather than controls: `tvsitter.set_schedule` and `tvsitter.set_windows`,
+              both aimed at the rules sensor above.
