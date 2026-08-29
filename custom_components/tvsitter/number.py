@@ -7,14 +7,16 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 from __future__ import annotations
 
+from typing import Any
+
 from homeassistant.components.number import NumberDeviceClass, NumberEntity, NumberMode
-from homeassistant.const import UnitOfTime
+from homeassistant.const import EntityCategory, UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import TvSitterConfigEntry
-from .const import RULE_DAILY_LIMIT
+from .const import RULE_DAILY_LIMIT, RULE_WARN_BEFORE
 from .coordinator import TvSitterClient
 from .entity import TvSitterEntity
 
@@ -25,6 +27,12 @@ SECONDS_PER_MINUTE = 60
 MAX_MINUTES = 720
 STEP_MINUTES = 5
 
+# An hour. A warning further out than that is not a warning, it is a weather forecast.
+MAX_WARNING_MINUTES = 60
+
+# The television's own default, in minutes, used when nobody has ever set one.
+DEFAULT_WARNING_MINUTES = 5
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -32,7 +40,8 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up the daily limit for one TV."""
-    async_add_entities([DailyLimitNumber(entry.runtime_data)])
+    client = entry.runtime_data
+    async_add_entities([DailyLimitNumber(client), WarnBeforeNumber(client)])
 
 
 class DailyLimitNumber(TvSitterEntity, NumberEntity):
@@ -84,4 +93,76 @@ class DailyLimitNumber(TvSitterEntity, NumberEntity):
             )
         await self._client.async_set_rules(
             {RULE_DAILY_LIMIT: int(value * SECONDS_PER_MINUTE)}
+        )
+
+
+class WarnBeforeNumber(TvSitterEntity, NumberEntity):
+    """How long before the end the TV says so, and zero for not saying it at all.
+
+    Absent and zero mean opposite things here, the reverse of the daily limit and worth
+    stating: somebody who has never touched this should still get a warning, so
+    an absent
+    rule is the default rather than silence. Zero reads naturally as "no time before the
+    end", which is when no warning appears.
+
+    The engine takes a list — a quarter of an hour and then five minutes is a
+    thing people
+    want — and this control writes one. Setting it therefore collapses a ladder
+    to a single
+    warning, which is why the whole list is in the attributes: a parent who set
+    two from an
+    automation can see that this box shows only the nearest.
+    """
+
+    _attr_native_min_value = 0
+    _attr_native_max_value = MAX_WARNING_MINUTES
+    _attr_native_step = 1
+    _attr_native_unit_of_measurement = UnitOfTime.MINUTES
+    _attr_device_class = NumberDeviceClass.DURATION
+    _attr_mode = NumberMode.BOX
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(self, client: TvSitterClient) -> None:
+        """Create the warning control."""
+        super().__init__(client, "warn_before")
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the nearest warning, in minutes."""
+        thresholds = self._thresholds()
+        if thresholds is None:
+            return None
+        return min(thresholds) / SECONDS_PER_MINUTE if thresholds else 0
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Show the whole ladder when there is more than one rung."""
+        thresholds = self._thresholds()
+        if not thresholds or len(thresholds) < 2:
+            return None
+        return {"all_warnings_s": sorted(thresholds, reverse=True)}
+
+    def _thresholds(self) -> list[int] | None:
+        """Read the thresholds in force, or None while the TV has not said."""
+        rules = self._client.rules
+        if rules is None:
+            return None
+        if RULE_WARN_BEFORE not in rules:
+            return [DEFAULT_WARNING_MINUTES * SECONDS_PER_MINUTE]
+        raw = rules[RULE_WARN_BEFORE]
+        if isinstance(raw, int):
+            return [raw]
+        if not isinstance(raw, list):
+            return None
+        return [item for item in raw if isinstance(item, int)]
+
+    async def async_set_native_value(self, value: float) -> None:
+        """Set one warning, or none at all."""
+        if not self._client.available:
+            raise ServiceValidationError(
+                f"{self._client.name} is not listening; the change would go nowhere"
+            )
+        seconds = int(value * SECONDS_PER_MINUTE)
+        await self._client.async_set_rules(
+            {RULE_WARN_BEFORE: [] if seconds <= 0 else [seconds]}
         )

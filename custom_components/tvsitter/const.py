@@ -72,6 +72,7 @@ OP_SET_RULES: Final = "set_rules"
 # the
 # only record on this side of what the engine understands.
 RULE_DAILY_LIMIT: Final = "daily_limit_s"
+RULE_WARN_BEFORE: Final = "warn_before_s"
 
 KIND_MORE_TIME: Final = "more_time"
 

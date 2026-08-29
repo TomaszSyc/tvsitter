@@ -13,7 +13,7 @@ from unittest.mock import patch
 from custom_components.tvsitter.button import ClearLimitButton
 from custom_components.tvsitter.coordinator import TvSitterClient
 from custom_components.tvsitter.models import StateSnapshot
-from custom_components.tvsitter.number import DailyLimitNumber
+from custom_components.tvsitter.number import DailyLimitNumber, WarnBeforeNumber
 from homeassistant.core import HomeAssistant
 
 PREFIX = "tvsitter/salon"
@@ -125,3 +125,72 @@ async def test_clearing_a_limit_names_one_key_and_nothing_else(
     assert payload == {"op": "set_rules", "rev": 2, "rules": {"daily_limit_s": None}}
     assert publish.call_args.kwargs["retain"] is False
     assert publish.call_args.kwargs["qos"] == 1
+
+
+def with_rules(
+    client: TvSitterClient, rules: dict[str, object] | None
+) -> TvSitterClient:
+    """Hand the client the rules the TV would have published."""
+    client.rules = rules
+    return client
+
+
+async def test_the_warning_reads_the_nearest_rung(hass: HomeAssistant) -> None:
+    """#39. Two warnings in an evening is a ladder; this box shows the last one."""
+    client = with_rules(make_client(hass), {"warn_before_s": [900, 300]})
+
+    warn = WarnBeforeNumber(client)
+
+    assert warn.native_value == 5
+    assert warn.extra_state_attributes == {"all_warnings_s": [900, 300]}
+
+
+async def test_one_rung_needs_no_footnote(hass: HomeAssistant) -> None:
+    """The attribute exists to explain a ladder, so one warning does not get one."""
+    client = with_rules(make_client(hass), {"warn_before_s": [300]})
+
+    assert WarnBeforeNumber(client).extra_state_attributes is None
+
+
+async def test_never_set_means_the_default_and_not_silence(hass: HomeAssistant) -> None:
+    """The reverse of the daily limit, and the reason it is worth a test.
+
+    Somebody who has never touched this should still be warned before the end.
+    """
+    client = with_rules(make_client(hass), {"daily_limit_s": 3600})
+
+    assert WarnBeforeNumber(client).native_value == 5
+
+
+async def test_zero_is_no_warning_at_all(hass: HomeAssistant) -> None:
+    """And it is what an empty list means, which is what setting zero writes."""
+    client = with_rules(make_client(hass), {"warn_before_s": []})
+
+    assert WarnBeforeNumber(client).native_value == 0
+
+
+async def test_setting_zero_asks_for_silence_rather_than_removing_the_rule(
+    hass: HomeAssistant,
+) -> None:
+    """A null would restore the default, which is the opposite of what zero means."""
+    client = with_rules(make_client(hass), {"warn_before_s": [300]})
+
+    with patch("homeassistant.components.mqtt.async_publish") as publish:
+        await WarnBeforeNumber(client).async_set_native_value(0)
+
+    assert json.loads(publish.call_args.args[2])["rules"] == {"warn_before_s": []}
+
+
+async def test_setting_a_warning_writes_seconds(hass: HomeAssistant) -> None:
+    """Minutes on the dial, seconds on the wire, like every other rule."""
+    client = with_rules(make_client(hass), {"warn_before_s": [300]})
+
+    with patch("homeassistant.components.mqtt.async_publish") as publish:
+        await WarnBeforeNumber(client).async_set_native_value(15)
+
+    assert json.loads(publish.call_args.args[2])["rules"] == {"warn_before_s": [900]}
+
+
+async def test_nothing_is_shown_before_the_rules_arrive(hass: HomeAssistant) -> None:
+    """Guessing five minutes at a television that has not spoken invents one."""
+    assert WarnBeforeNumber(with_rules(make_client(hass), None)).native_value is None

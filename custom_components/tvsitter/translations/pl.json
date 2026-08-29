@@ -97,6 +97,9 @@
     "number": {
       "daily_limit": {
         "name": "Limit dzienny"
+      },
+      "warn_before": {
+        "name": "Ostrzeżenie przed końcem"
       }
     },
     "button": {
