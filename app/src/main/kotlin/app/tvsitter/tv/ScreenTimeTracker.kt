@@ -11,9 +11,10 @@ import android.util.Log
 import app.tvsitter.rules.Attention
 import app.tvsitter.rules.AttentionRule
 import app.tvsitter.rules.BudgetClock
-import app.tvsitter.rules.BudgetEnforcement
 import app.tvsitter.rules.BudgetState
-import app.tvsitter.rules.BudgetVerdict
+import app.tvsitter.rules.Judgement
+import app.tvsitter.rules.RuleEngine
+import app.tvsitter.rules.Rules
 import app.tvsitter.rules.ScreenTimeCounter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -31,12 +32,23 @@ import java.time.ZoneId
  */
 class ScreenTimeTracker(
     private val context: Context,
-    private val limitSeconds: () -> Long? = { null },
+    private val rules: () -> Rules = { Rules.NONE },
     private val onDayRolled: () -> Unit = {},
-    private val onVerdict: (BudgetVerdict, Int?) -> Unit = { _, _ -> },
+    private val onJudgement: (Judgement) -> Unit = {},
     private val clock: BudgetClock = BudgetClock(ZoneId.systemDefault()),
 ) {
     private val counter = ScreenTimeCounter(clock)
+    private val engine = RuleEngine(clock)
+
+    /**
+     * The last answer the rules gave, kept so that the state payload and the lock agree.
+     *
+     * One judgement, read by both: publishing a second opinion worked out separately is how
+     * Home Assistant ends up disagreeing with the television about why it is covered.
+     */
+    @Volatile
+    var judgement: Judgement = Judgement.NOTHING
+        private set
     private val screenSavers = ScreenSaverPackages(context)
     private val tvInputs = TvInputPackages(context)
     private val audioManager = context.getSystemService(AudioManager::class.java)
@@ -77,11 +89,20 @@ class ScreenTimeTracker(
     val bonusSeconds: Int get() = state.bonusSeconds.toInt()
     val perAppSeconds: Map<String, Int> get() = state.perAppSeconds.mapValues { it.value.toInt() }
 
-    /** Null when no limit applies, which is a different answer from zero. */
-    fun remainingSeconds(limit: Long?): Int? = counter.remainingSeconds(state, limit)?.toInt()
+    /**
+     * Today's limit, null when none applies — which is a different answer from zero.
+     *
+     * Not always the plain daily one: a weekday and a Saturday can carry different numbers,
+     * and the day that decides is the budget day — so watching at one in the morning is still
+     * charged, and limited, by the evening it belongs to. Null while a limit is set aside for
+     * tonight, because a limit set aside is no limit.
+     */
+    fun limitTodaySeconds(): Int? = counter.effectiveLimitSeconds(state, limitToday())?.toInt()
 
-    /** The limit actually in force, which is null while one is set aside for tonight. */
-    fun effectiveLimitSeconds(limit: Long?): Int? = counter.effectiveLimitSeconds(state, limit)?.toInt()
+    /** What is left of it, ignoring windows and per-app budgets: that is what [judgement] is for. */
+    fun remainingTodaySeconds(): Int? = counter.remainingSeconds(state, limitToday())?.toInt()
+
+    private fun limitToday(): Long? = rules().limitFor(clock.budgetDay(Instant.now()).dayOfWeek)
 
     /**
      * Adds granted time to the day.
@@ -227,8 +248,9 @@ class ScreenTimeTracker(
     }
 
     private fun announceVerdict() {
-        val remaining = remainingSeconds(limitSeconds())
-        onVerdict(BudgetEnforcement.verdictFor(remaining?.toLong()), remaining)
+        val nowMs = System.currentTimeMillis()
+        judgement = engine.judge(rules(), state, appDuringInterval, nowMs)
+        onJudgement(judgement)
     }
 
     private fun persistNow() {

@@ -64,7 +64,12 @@ class ActiveAppSensor(TvSitterEntity, SensorEntity):
         snapshot = self._client.snapshot
         if snapshot is None:
             return None
-        return {"app_id": snapshot.app_id, "active_window": snapshot.active_window}
+        return {
+            "app_id": snapshot.app_id,
+            "active_window": snapshot.active_window,
+            "lock_reason": snapshot.lock_reason,
+            "until_s": snapshot.until_seconds,
+        }
 
 
 class UsedTodaySensor(TvSitterEntity, SensorEntity):

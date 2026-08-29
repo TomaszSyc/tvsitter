@@ -34,6 +34,16 @@ data class StateSnapshot(
     @SerialName("per_app") val perApp: Map<String, Int> = emptyMap(),
     /** Identifier of the rule window in force, so "why did it block me now" is answerable. */
     @SerialName("active_window") val activeWindow: String? = null,
+    /** Why the screen is covered, or null when it is not. `manual` for a parent's own lock. */
+    @SerialName("lock_reason") val lockReason: String? = null,
+    /**
+     * How long viewing may still go on, counting whichever rule binds first.
+     *
+     * Not the same as [remainingTodaySeconds], which is the day's budget and nothing else. A
+     * window closing at half past seven is what stops the evening even with an hour of budget
+     * left, and that is the number the television is counting down to.
+     */
+    @SerialName("until_s") val untilSeconds: Int? = null,
     @SerialName("rules_rev") val rulesRev: Int = 0,
     /**
      * Whether a parent PIN exists. Not the PIN, and not its hash: nothing that could be

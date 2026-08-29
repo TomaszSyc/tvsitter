@@ -82,16 +82,45 @@ class ForegroundAppMonitor(context: Context, private val onChanged: (String) -> 
             }
         }
 
-        val resolved = latest ?: return
+        val resolved = latest ?: seedFromHistory(manager, now) ?: return
         if (resolved == current) return
         current = resolved
         Log.i(EnforcerService.TAG, "foreground=$resolved")
         onChanged(resolved)
     }
 
+    /**
+     * What was already in front before anyone started looking.
+     *
+     * Events only say what *moved*, so an app that came forward before the service started
+     * produces none — and something has usually been playing for half an hour by then. The
+     * monitor then knew nothing at all until the next time somebody changed app, which meant
+     * the lock had nothing to displace and went up over a programme that carried on playing
+     * with the sound on (#92). Measured: Netflix in front, `foreground=null`, no displacement.
+     *
+     * Asked only while nothing is known, and answered from the daily summary rather than the
+     * event stream: the most recently used package is the one in front. Once an event has
+     * arrived this is never consulted again, because events are the better answer.
+     */
+    private fun seedFromHistory(manager: UsageStatsManager, now: Long): String? {
+        if (current != null) return null
+        val used = runCatching {
+            manager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, now - SEED_LOOKBACK_MS, now)
+        }.getOrElse {
+            Log.w(EnforcerService.TAG, "usage summary unavailable", it)
+            return null
+        }
+        val front = used.maxByOrNull { it.lastTimeUsed }?.packageName ?: return null
+        Log.i(EnforcerService.TAG, "foreground seeded from history: $front")
+        return front
+    }
+
     private companion object {
         const val POLL_INTERVAL_MS = 1_500L
         const val INITIAL_LOOKBACK_MS = 60_000L
         const val QUERY_OVERLAP_MS = 2_000L
+
+        /** A day. Long enough that something is always in it, short enough to stay one query. */
+        const val SEED_LOOKBACK_MS = 24 * 60 * 60 * 1000L
     }
 }

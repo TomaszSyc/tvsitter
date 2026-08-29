@@ -10,17 +10,23 @@ import java.time.Instant
 import java.time.LocalTime
 
 /** What is stopping the viewing, when something is. */
-enum class LockReason {
-    NONE,
+enum class LockReason(val wire: String) {
+    NONE("none"),
 
     /** The hours do not allow it. Asking for more time cannot answer this one. */
-    OUTSIDE_WINDOW,
+    OUTSIDE_WINDOW("outside_window"),
 
     /** The day's allowance is gone. */
-    DAILY_LIMIT,
+    DAILY_LIMIT("daily_limit"),
 
     /** This app's own allowance is gone. The rest of the television is unaffected. */
-    APP_LIMIT,
+    APP_LIMIT("app_limit"),
+    ;
+
+    companion object {
+        /** A parent's decision, which is not one of the rules and never comes from the engine. */
+        const val MANUAL: String = "manual"
+    }
 }
 
 /**

@@ -10,6 +10,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
+import app.tvsitter.rules.Rules
 import app.tvsitter.rules.contract.Command
 import app.tvsitter.rules.contract.StateSnapshot
 import app.tvsitter.rules.pairing.PairRequest
@@ -116,9 +117,9 @@ class EnforcerService : Service() {
         )
         screenTime = ScreenTimeTracker(
             this,
-            limitSeconds = { activeRules?.dailyLimitSeconds },
+            rules = { activeRules?.rules ?: Rules.NONE },
             onDayRolled = { telemetry?.publishSoon() },
-            onVerdict = { verdict, remaining -> locks?.applyVerdict(verdict, remaining) },
+            onJudgement = { judgement -> locks?.applyJudgement(judgement) },
         )
         // Commands arrive on an RxJava thread owned by the MQTT client, and acting on one
         // touches the window manager, where addView from any thread but the main one throws.
@@ -299,7 +300,7 @@ class EnforcerService : Service() {
     /** The single place that says what the current state is; Telemetry decides when to send it. */
     private fun currentState(): StateSnapshot {
         val pkg = foregroundApps?.current
-        val limitSeconds = activeRules?.dailyLimitSeconds
+        val judgement = screenTime?.judgement
         return StateSnapshot(
             ts = System.currentTimeMillis(),
             fw = BuildConfig.VERSION_NAME,
@@ -312,8 +313,15 @@ class EnforcerService : Service() {
             perApp = screenTime?.perAppSeconds ?: emptyMap(),
             // Published rather than assumed: this TV keeps its own rules and enforces them
             // offline (D3), so it is the only thing that knows what is actually in force.
-            limitTodaySeconds = screenTime?.effectiveLimitSeconds(limitSeconds),
-            remainingTodaySeconds = screenTime?.remainingSeconds(limitSeconds),
+            limitTodaySeconds = screenTime?.limitTodaySeconds(),
+            remainingTodaySeconds = screenTime?.remainingTodaySeconds(),
+            // Which window is in force, why the screen is covered, and how long viewing may
+            // still go on counting whichever rule binds first. The last one is not the day's
+            // budget: a window closing at half past seven is what ends the evening even with
+            // an hour of budget left, and that is what the television counts down to.
+            activeWindow = judgement?.decision?.windowId,
+            lockReason = locks?.lockReason,
+            untilSeconds = judgement?.remainingSeconds?.toInt(),
             rulesRev = activeRules?.revision ?: 0,
             // Whether a PIN exists and when it last changed, never the PIN or its hash. A
             // change made here rather than in Home Assistant reaches it the moment the broker

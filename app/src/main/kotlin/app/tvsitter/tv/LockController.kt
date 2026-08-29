@@ -9,8 +9,6 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import app.tvsitter.rules.BudgetVerdict
-import app.tvsitter.rules.Decision
 import app.tvsitter.rules.Judgement
 import app.tvsitter.rules.LockCause
 import app.tvsitter.rules.LockChange
@@ -103,6 +101,18 @@ class LockController(
     val isLocked: Boolean get() = overlay.isShowing
 
     /**
+     * Why the screen is covered, in the words the contract uses, or null when it is not.
+     *
+     * A parent's own lock outranks whatever the rules were saying at the time: they asked for
+     * it, and "the day's allowance is gone" would be an answer to a question nobody asked.
+     */
+    val lockReason: String? get() = when {
+        !overlay.isShowing -> null
+        state.cause == LockCause.MANUAL -> LockReason.MANUAL
+        else -> state.lastDecision?.reason?.wire
+    }
+
+    /**
      * Tells the child something, wherever they can currently see it.
      *
      * On the lock screen it is the second line. Once the lock has gone it is the banner, which
@@ -166,10 +176,8 @@ class LockController(
         act(LockTransitions.unlockUntilReset(state, System.currentTimeMillis()))
     }
 
-    /** Acts on what the budget says. The deciding, including when to say nothing, is in `:rules`. */
-    fun applyVerdict(verdict: BudgetVerdict, remainingSeconds: Int?) {
-        val reason = if (verdict == BudgetVerdict.WITHIN) LockReason.NONE else LockReason.DAILY_LIMIT
-        val judgement = Judgement(Decision(verdict, reason), remainingSeconds?.toLong())
+    /** Acts on what the rules say. The deciding, including when to say nothing, is in `:rules`. */
+    fun applyJudgement(judgement: Judgement) {
         act(LockTransitions.applyDecision(state, judgement, System.currentTimeMillis()))
     }
 
