@@ -33,3 +33,14 @@ updates:
       interval: weekly
       day: monday
     labels: ["dependencies"]
+    ignore:
+      # pytest-homeassistant-custom-component pins one pytest exactly — 0.13.356 wants
+      # pytest==9.0.3 — so a bump here is a dependency conflict rather than an upgrade, and
+      # the tests passing anyway is not the same as it being installable. It moves when the
+      # plugin moves, which is when Home Assistant does. #88 was that PR, closed unmerged.
+      - dependency-name: pytest
+      # Same reasoning one step up: this pin and the homeassistant pin have to move together,
+      # and test_imports.py fails if they ever disagree. Worth a deliberate pair of edits
+      # rather than two pull requests that are each wrong on their own.
+      - dependency-name: pytest-homeassistant-custom-component
+      - dependency-name: homeassistant
