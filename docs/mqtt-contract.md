@@ -47,6 +47,8 @@ Three rules the correctness of the whole thing rests on:
   "bonus_today_s": 900,
   "per_app": { "com.google.android.youtube.tv": 3600, "com.netflix.ninja": 610 },
   "active_window": "weekday_afternoon",
+  "lock_reason": "daily_limit",
+  "until_s": 1190,
   "rules_rev": 7,
   "pin_set": true,
   "pin_changed_at": 1787400000000,
@@ -65,6 +67,16 @@ Three rules the correctness of the whole thing rests on:
 - `remaining_today_s` — `null` means "no limit", not zero.
 - `active_window` — identifier of the rule window in force, so that "why did it block me
   right now" is answerable.
+- `lock_reason` — why the screen is covered, or `null` when it is not. One of `daily_limit`,
+  `app_limit`, `outside_window`, or `manual` for a lock a parent asked for. A parent's own lock
+  outranks whatever the rules were saying at the time: they asked for it, and "the day's
+  allowance is gone" would answer a question nobody put.
+- `until_s` — how long viewing may still go on, counting whichever rule binds first, or `null`
+  when nothing does. **Not** the same as `remaining_today_s`, which is the day's budget and
+  nothing else: a window closing at half past seven ends the evening with an hour of budget
+  left, and `until_s` is the number the television is counting down to. Keeping them apart is
+  deliberate — redefining `remaining_today_s` to mean "whichever runs out first" without
+  changing its name is the kind of change nobody finds afterwards.
 - `pin_set` — whether a parent PIN exists on the TV. Not the PIN and not its hash: nothing
   that could be attacked offline leaves the television. What it answers is whether the lock
   can be lifted at the set itself, which is worth knowing before the evening Home Assistant

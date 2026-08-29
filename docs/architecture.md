@@ -1059,6 +1059,58 @@ Home Assistant, which is where rules are edited.
 One thing this does not do: work out that the next window is on Saturday. `opensAt` covers today
 only. A lock screen has room for "allowed again at four" and not for a calendar.
 
+## D28 — The lock's decisions move to `:rules` (2026-08-23)
+
+Everything deciding whether the television was covered lived in `LockController` as two booleans
+and a verdict, in `:app`, which has no test source set. Five bugs came out of it: only WITHIN
+lifting a budget lock, `restoreFromMemory` gated behind locked storage, #42, #66, and the same
+mistake as #66 one path along — a spent budget arriving during granted time wrote BUDGET over a
+parent's decision, so a restart restored a lock that lifted by itself.
+
+That is the worst place in the product to be checking by hand, one case at a time, on hardware.
+The two failure modes it owns are a television locked when it should not be and unlocked when it
+should not be.
+
+So the state is a data class in `:rules` with pure transitions — verdict applied, manual lock,
+manual unlock, unlock-until-reset, stand down for granted time, stand-down expiry, restore after a
+reboot — each returning the new state and what should be different on screen. `LockController`
+compares what was covered before against what should be covered now and touches the overlay, the
+banner, audio focus and the two values in device-encrypted storage. It decides nothing.
+
+Both values go to storage on every transition rather than at the places that used to write them,
+which is what killed #66 and its sibling: there is now one place where the memory can disagree
+with the state, and it is three lines long.
+
+Twenty-three JVM tests cover the interleavings that used to need a television, including all five
+bugs above. The controller lost two functions doing it, which matters more than it sounds: it and
+`EnforcerService` both sit one function under the detekt threshold, with `maxIssues: 0` and no
+baseline, so M4's wiring had to fit in the room the refactor made.
+
+## D29 — Usage events say what moved, not what is there (measured, 2026-08-29)
+
+The daily limit ran out while Netflix was playing. The lock covered the screen, the log said
+playback should stop, and the sound carried on — reported by ear, which is the only instrument
+that works here (D21). Asked what was in front, the service said `foreground=null`.
+
+`UsageStatsManager.queryEvents` reports transitions. The monitor asked for the last sixty seconds,
+so an app that came forward before the service started produced nothing to find — and by the time
+a limit runs out, something has usually been playing for half an hour. The monitor then knew
+nothing at all until somebody next changed app.
+
+Two consequences, both silent. The lock had nothing to displace, so it covered a screen over a
+programme that went on playing. And the counter had nothing to charge, so `per_app` was missing
+whole programmes while the total stayed right.
+
+Older than M4 and fatal to it: per-app budgets and app blocking are nothing but this value.
+
+While nothing is known the question is asked a different way — the daily usage summary, most
+recently used package first — and once an event has arrived that is never consulted again, because
+events are the better answer. Measured after the fix: seeded as `com.netflix.ninja` at start-up,
+and a lock raised over it displaced in 440 ms, with the sound stopping.
+
+The general lesson is the one D21 already taught in a different costume: a value that is absent
+looks exactly like a value that is correctly empty, and only the hardware can tell them apart.
+
 ## No open hardware questions from the M0 spike
 
 Everything the spike set out to answer is answered, in D9 through D13. What it turned up
