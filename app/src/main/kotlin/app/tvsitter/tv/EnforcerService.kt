@@ -94,6 +94,29 @@ class EnforcerService : Service() {
     /** The name resolver itself, so a screen can ask without this class growing a method. */
     val labels: AppLabels? get() = appLabels
 
+    /** The rules in force, for a screen that shows what it is about to change. */
+    val rules: Rules get() = activeRules?.rules ?: Rules.NONE
+
+    /**
+     * Changes rules from the television itself, by the same road Home Assistant uses.
+     *
+     * A local edit is a `set_rules` that never went over the wire: it merges, it persists, it
+     * takes the next revision, and it is published so Home Assistant learns what changed rather
+     * than being surprised by it later. Anything else would be a second way of writing rules,
+     * and two ways of writing the same thing is how they come to disagree.
+     */
+    fun changeRules(change: JsonObject) {
+        val rules = activeRules ?: return
+        scope.launch {
+            rules.apply(change, rules.revision + 1)
+            if (Rules.KEY_DAILY_LIMIT in change || Rules.KEY_DAYS in change) {
+                screenTime?.setLimitAside(false)
+            }
+            rules.json.let { telemetry?.publishRules(it) }
+            telemetry?.publishSoon()
+        }
+    }
+
     /**
      * Yesterday in one sentence, or null before any day has closed.
      *
@@ -229,8 +252,13 @@ class EnforcerService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_LOCK -> lock(intent.getStringExtra(EXTRA_REASON))
-            ACTION_UNLOCK -> unlock()
+            // A reason that only repeats the title would print the same sentence twice on a
+            // fifty-inch screen, so a plain `lock` with no reason gets no second line.
+            ACTION_LOCK -> locks?.lockManually(
+                intent.getStringExtra(EXTRA_REASON)
+                    ?.takeIf { it.isNotBlank() && it != getString(R.string.lock_title) },
+            )
+            ACTION_UNLOCK -> locks?.unlockManually()
             // Sent by the PIN screen. Without it a PIN changed at the television would sit
             // there until the next heartbeat, up to a minute later, and a change made while
             // the broker was unreachable would look like it had not been noticed.
@@ -240,14 +268,6 @@ class EnforcerService : Service() {
         // kills the process, restarting it is the only way the counter resumes.
         return START_STICKY
     }
-
-    fun lock(reason: String?) {
-        // A reason that only repeats the title would print the same sentence twice on a
-        // fifty-inch screen, so a plain `lock` with no reason gets no second line.
-        locks?.lockManually(reason?.takeIf { it.isNotBlank() && it != getString(R.string.lock_title) })
-    }
-
-    fun unlock() = locks?.unlockManually() ?: Unit
 
     /**
      * An unconfigured TV offers itself for pairing rather than sitting there doing nothing.
@@ -316,15 +336,7 @@ class EnforcerService : Service() {
         when (command) {
             // Carrying minutes it is a sleep timer, not a lock: the deadline goes in and the
             // engine counts down to it with the same warnings every other rule gets.
-            is Command.Lock -> {
-                val minutes = command.inMinutes
-                if (minutes == null) {
-                    lock(command.reason)
-                } else {
-                    locks?.sleepIn(minutes)
-                    telemetry?.publishSoon()
-                }
-            }
+            is Command.Lock -> obeyLock(command)
             // Minutes buy time against today's budget, and the lock then lifts because
             // there is time again rather than because it was hidden — hiding it while the
             // budget is spent would bring it straight back on the next sample.
@@ -400,6 +412,26 @@ class EnforcerService : Service() {
         // ran on this television, where the user is already unlocked when the early broadcast
         // arrives — and a lock a parent had put up was quietly forgotten by a reboot.
         locks?.restoreFromMemory()
+    }
+
+    /**
+     * A lock now, or a bedtime.
+     *
+     * Its own function because the branch inside it is what tipped handleCommand over the
+     * complexity the build allows, and because "lock" carrying minutes is a different verb.
+     */
+    private fun obeyLock(command: Command.Lock) {
+        val minutes = command.inMinutes
+        if (minutes == null) {
+            // A reason that only repeats the title would print the same sentence twice on a
+            // fifty-inch screen, so a plain `lock` with no reason gets no second line.
+            locks?.lockManually(
+                command.reason?.takeIf { it.isNotBlank() && it != getString(R.string.lock_title) },
+            )
+            return
+        }
+        locks?.sleepIn(minutes)
+        telemetry?.publishSoon()
     }
 
     /** The single place that says what the current state is; Telemetry decides when to send it. */
