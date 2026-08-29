@@ -7,6 +7,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -17,6 +18,7 @@ from homeassistant.components.sensor import (
 from homeassistant.const import EntityCategory, UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.util import dt as dt_util
 
 from . import TvSitterConfigEntry
 from .coordinator import TvSitterClient
@@ -36,6 +38,9 @@ async def async_setup_entry(
             UsedTodaySensor(client),
             RemainingTodaySensor(client),
             RulesSensor(client),
+            BonusTodaySensor(client),
+            LimitTodaySensor(client),
+            LastReportedSensor(client),
         ]
     )
 
@@ -170,3 +175,87 @@ class RulesSensor(TvSitterEntity, SensorEntity):
         if self._client.rules is None:
             return None
         return dict(self._client.rules)
+
+
+class BonusTodaySensor(TvSitterEntity, SensorEntity):
+    """Time granted on top of the day's allowance, in the budget day.
+
+    On the wire since M2 and visible only as an attribute until now, which meant
+    "how much
+    extra did this month cost" could not be answered at all: attributes are not
+    recorded as
+    statistics. A bonus rather than a reduction of what was used, so the two
+    numbers answer
+    different questions — this one is what was given, `used_today` is what was watched.
+    """
+
+    _attr_device_class = SensorDeviceClass.DURATION
+    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
+    _attr_suggested_unit_of_measurement = UnitOfTime.MINUTES
+    _attr_suggested_display_precision = 0
+    # Resets to zero at 04:00 with the budget day, which is what this is for.
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+
+    def __init__(self, client: TvSitterClient) -> None:
+        """Create the bonus sensor."""
+        super().__init__(client, "bonus_today")
+
+    @property
+    def native_value(self) -> int | None:
+        """Return the seconds granted today."""
+        snapshot = self._client.snapshot
+        return None if snapshot is None else snapshot.bonus_seconds
+
+
+class LimitTodaySensor(TvSitterEntity, SensorEntity):
+    """The allowance the television is actually enforcing today.
+
+    Not `number.daily_limit`, which is the parent's intention. These differ
+    whenever a day
+    override is in force, and they differ again the moment a limit is set aside — the
+    control still reads what was asked for, and this reads nothing, because nothing is
+    being enforced.
+    """
+
+    _attr_device_class = SensorDeviceClass.DURATION
+    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
+    _attr_suggested_unit_of_measurement = UnitOfTime.MINUTES
+    _attr_suggested_display_precision = 0
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, client: TvSitterClient) -> None:
+        """Create the limit sensor."""
+        super().__init__(client, "limit_today")
+
+    @property
+    def native_value(self) -> int | None:
+        """Return today's limit, or nothing while none is being enforced."""
+        snapshot = self._client.snapshot
+        return None if snapshot is None else snapshot.limit_seconds
+
+
+class LastReportedSensor(TvSitterEntity, SensorEntity):
+    """When the television last said anything.
+
+    The state payload is retained, so a dashboard shows numbers whether or not
+    anything is
+    still running. This is how old they are — the one question a retained topic cannot
+    answer by itself, and the difference between "the child watched nothing
+    today" and "the
+    app died at breakfast".
+    """
+
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, client: TvSitterClient) -> None:
+        """Create the last-reported sensor."""
+        super().__init__(client, "last_reported")
+
+    @property
+    def native_value(self) -> datetime | None:
+        """Return the send time of the last state payload."""
+        snapshot = self._client.snapshot
+        if snapshot is None or not snapshot.ts:
+            return None
+        return dt_util.utc_from_timestamp(snapshot.ts / 1000)

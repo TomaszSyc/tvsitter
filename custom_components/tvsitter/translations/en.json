@@ -87,6 +87,15 @@
       },
       "rules": {
         "name": "Rules"
+      },
+      "bonus_today": {
+        "name": "Bonus today"
+      },
+      "limit_today": {
+        "name": "Limit today"
+      },
+      "last_reported": {
+        "name": "Last reported"
       }
     },
     "switch": {

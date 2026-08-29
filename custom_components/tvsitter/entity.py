@@ -25,11 +25,17 @@ class TvSitterEntity(Entity):
         self._client = client
         self._attr_translation_key = key
         self._attr_unique_id = f"{client.device_id}_{key}"
+        snapshot = client.snapshot
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, client.device_id)},
             name=client.name,
             manufacturer="TV Sitter",
             model="Android TV parental control",
+            # Parsed since M1 and dropped ever since. On the device rather than in an
+            # entity: it answers "which build is on that television", which is what the
+            # device page is for, and it is the first thing worth knowing when a report
+            # says something behaves differently than it does here.
+            sw_version=snapshot.firmware if snapshot else None,
         )
 
     @property

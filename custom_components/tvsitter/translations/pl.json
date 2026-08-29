@@ -87,6 +87,15 @@
       },
       "rules": {
         "name": "Reguły"
+      },
+      "bonus_today": {
+        "name": "Bonus dziś"
+      },
+      "limit_today": {
+        "name": "Limit na dziś"
+      },
+      "last_reported": {
+        "name": "Ostatni raport"
       }
     },
     "switch": {
