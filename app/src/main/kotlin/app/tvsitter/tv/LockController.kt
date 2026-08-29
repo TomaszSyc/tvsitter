@@ -193,8 +193,14 @@ class LockController(
      * matters for the case that reads worst otherwise: a grant lifts the lock, so a message
      * written on the lock screen would vanish in the same instant it appeared, and the child
      * would be left guessing whether anybody had answered at all.
+     *
+     * [onlyIfCovered] is for a number that goes stale rather than for news: with the lock up it
+     * is one line among several the child is already reading, and with the lock down it is a
+     * banner over the programme. The countdown on an unanswered question used to take the
+     * second road every fifteen seconds for ten minutes — forty banners to keep one figure
+     * honest, and somebody watching called it what it was.
      */
-    fun say(message: String) {
+    fun say(message: String, onlyIfCovered: Boolean = false) {
         if (overlay.isShowing) {
             overlay.show(
                 title = context.lockTitleFor(state.cause, state.lastDecision?.reason),
@@ -202,7 +208,7 @@ class LockController(
                 onAskForTime = onAskForTime,
                 onEnterPin = if (pin.isSet) enterPin else null,
             )
-        } else {
+        } else if (!onlyIfCovered) {
             banner.show(message)
         }
     }

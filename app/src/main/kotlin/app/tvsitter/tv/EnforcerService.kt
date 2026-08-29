@@ -209,7 +209,7 @@ class EnforcerService : Service() {
                 screenTime?.addBonus(seconds)
                 telemetry?.publishSoon()
             },
-            say = { message -> locks?.say(message) },
+            say = { message, onlyIfCovered -> locks?.say(message, onlyIfCovered) },
         )
         screenTime = ScreenTimeTracker(
             this,

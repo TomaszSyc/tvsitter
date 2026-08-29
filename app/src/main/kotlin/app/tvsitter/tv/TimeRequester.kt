@@ -38,7 +38,13 @@ class TimeRequester(
     private val currentAppName: () -> String?,
     private val send: (TimeRequest) -> Unit,
     private val onGranted: (Long) -> Unit,
-    private val say: (String) -> Unit,
+    /**
+     * Says something to the child, and the flag says whether it is worth interrupting for.
+     *
+     * A banner is an interruption; a line on a screen already being read is not, and only one
+     * of the two is worth repeating every fifteen seconds.
+     */
+    private val say: (message: String, onlyIfCovered: Boolean) -> Unit,
 ) {
     /** What the screen is currently counting down to, if anything. */
     private enum class Waiting { NONE, ANSWER, ALLOWANCE }
@@ -63,6 +69,11 @@ class TimeRequester(
      * A number worked out once and left on screen goes stale, and the only way a child can
      * refresh it is to press the button again — which is exactly what the allowance is there
      * to discourage. Every fifteen seconds keeps a minute-granular figure honest.
+     *
+     * Only where it is already being read, though. This used to go through the same path as
+     * every other message, so with the lock down it put a banner over the programme every
+     * fifteen seconds until the question expired — forty of them for one countdown. The timer
+     * still runs either way: it is what notices the wait is over.
      */
     private val tick = object : Runnable {
         override fun run() {
@@ -72,7 +83,7 @@ class TimeRequester(
                 stopWaiting(announce = waitingFor == Waiting.ALLOWANCE)
                 return
             }
-            say(waitingMessage(remaining))
+            say(waitingMessage(remaining), true)
             handler.postDelayed(this, TICK_MS)
         }
     }
@@ -118,7 +129,7 @@ class TimeRequester(
                     ),
                 )
                 Log.i(EnforcerService.TAG, "request ${verdict.request.id} sent")
-                say(context.getString(R.string.request_sent))
+                say(context.getString(R.string.request_sent), false)
                 scheduleGiveUp(verdict.request)
             }
 
@@ -151,14 +162,14 @@ class TimeRequester(
                 handler.removeCallbacks(giveUp)
                 stopWaiting(announce = false)
                 onGranted(answer.minutes * SECONDS_PER_MINUTE)
-                say(minutesMessage(R.plurals.request_granted, answer.minutes))
+                say(minutesMessage(R.plurals.request_granted, answer.minutes), false)
             }
 
             Answer.Refused -> {
                 tally?.recordDenied()
                 handler.removeCallbacks(giveUp)
                 stopWaiting(announce = false)
-                say(context.getString(R.string.request_refused))
+                say(context.getString(R.string.request_refused), false)
             }
 
             // Nothing on screen for any of these: one is an answer to a question that is
@@ -188,7 +199,7 @@ class TimeRequester(
         handler.removeCallbacks(tick)
         // Only the allowance running out is worth saying out loud. A question giving up
         // already has its own message, and saying both would contradict itself.
-        if (announce) say(context.getString(R.string.request_can_ask))
+        if (announce) say(context.getString(R.string.request_can_ask), false)
     }
 
     private fun waitingMessage(remainingMs: Long): String {
@@ -207,7 +218,7 @@ class TimeRequester(
         stopWaiting(announce = false)
         Log.i(EnforcerService.TAG, "request expired with no answer")
         tally?.recordExpired()
-        say(context.getString(R.string.request_expired))
+        say(context.getString(R.string.request_expired), false)
     }
 
     private fun scheduleGiveUp(request: app.tvsitter.rules.PendingRequest) {
