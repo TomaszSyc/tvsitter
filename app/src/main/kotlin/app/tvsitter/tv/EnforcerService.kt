@@ -349,6 +349,7 @@ class EnforcerService : Service() {
         parentPin?.onLockout = { tries, until -> telemetry?.publish(pinLockoutAlert(tries, until)) }
         requests?.tally = dayTally
         locks?.tally = dayTally
+        screenTime?.onClockJump = { jump -> telemetry?.publish(clockJumpAlert(jump)) }
         scope.launch { uncleanRestartAlert(this@EnforcerService)?.let { telemetry?.publish(it) } }
 
         // Unconditionally, and before anything that reads storage. Whether the lock should
@@ -507,3 +508,9 @@ private suspend fun uncleanRestartAlert(context: Context): Alert? {
     Log.w(EnforcerService.TAG, "restart: the last run ended without notice, ${gap}s ago")
     return alertOf(AlertKind.UNCLEAN_RESTART, buildJsonObject { put("gap_s", JsonPrimitive(gap)) })
 }
+
+/** Somebody moved the television's clock. The budget ignored it; a parent should not. */
+private fun clockJumpAlert(jumpMs: Long): Alert = alertOf(
+    AlertKind.CLOCK_CHANGED,
+    buildJsonObject { put("jump_s", JsonPrimitive(jumpMs / MILLIS_IN_A_SECOND)) },
+)

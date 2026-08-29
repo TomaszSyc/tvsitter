@@ -44,6 +44,14 @@ class ScreenTimeTracker(
     private val engine = RuleEngine(clock)
 
     /**
+     * Told when the wall clock moves on its own. Set after construction: this class already
+     * takes as many collaborators as it should, and a jump is somebody else's alarm to raise.
+     */
+    var onClockJump: ((Long) -> Unit)? = null
+
+    private val trusted = TrustedClock { jump -> onClockJump?.invoke(jump) }
+
+    /**
      * The last answer the rules gave, kept so that the state payload and the lock agree.
      *
      * One judgement, read by both: publishing a second opinion worked out separately is how
@@ -192,7 +200,7 @@ class ScreenTimeTracker(
     )
 
     private fun sample(screenOnNow: Boolean, appIdNow: String?) {
-        val nowMs = System.currentTimeMillis()
+        val nowMs = trusted.now()
         val playingNow = audioManager?.isMusicActive == true
         if (somethingHappened(playingNow, screenOnNow, appIdNow)) lastActivityAtMs = nowMs
 
