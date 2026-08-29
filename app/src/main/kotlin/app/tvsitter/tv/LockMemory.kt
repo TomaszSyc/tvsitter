@@ -56,6 +56,20 @@ class LockMemory(context: Context) {
             preferences.edit().putLong(KEY_SLEEP_AT, value).apply()
         }
 
+    /**
+     * Whether the last run ended by being asked to.
+     *
+     * False at start means the previous one was force-stopped, killed for memory, or died —
+     * and nothing else in the package would ever mention it. START_STICKY does not cover a
+     * force-stop, and Android offers no way to prevent one without Device Owner, so the honest
+     * scope is evidence rather than prevention.
+     */
+    var cleanShutdown: Boolean
+        get() = preferences.getBoolean(KEY_CLEAN, true)
+        set(value) {
+            preferences.edit().putBoolean(KEY_CLEAN, value).apply()
+        }
+
     var cause: LockCause
         get() = runCatching { LockCause.valueOf(preferences.getString(KEY, null) ?: NONE_NAME) }
             .getOrElse {
@@ -74,6 +88,7 @@ class LockMemory(context: Context) {
         const val KEY = "cause"
         const val KEY_PAUSED_UNTIL = "paused_until"
         const val KEY_SLEEP_AT = "sleep_at"
+        const val KEY_CLEAN = "clean_shutdown"
         val NONE_NAME: String = LockCause.NONE.name
     }
 }

@@ -51,6 +51,14 @@ class BootReceiver : BroadcastReceiver() {
                 )
                 EnforcerService.start(context)
             }
+
+            // An update stops the app and nothing starts it again: START_STICKY does not
+            // survive a replace, so without this an install left the television unenforced
+            // until the next reboot or until somebody opened the app.
+            Intent.ACTION_MY_PACKAGE_REPLACED -> {
+                Log.i(EnforcerService.TAG, "package replaced, starting the enforcer")
+                EnforcerService.start(context)
+            }
         }
     }
 

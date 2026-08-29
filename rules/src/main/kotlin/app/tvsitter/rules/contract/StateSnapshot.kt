@@ -55,6 +55,15 @@ data class StateSnapshot(
     @SerialName("until_s") val untilSeconds: Int? = null,
     @SerialName("rules_rev") val rulesRev: Int = 0,
     /**
+     * Whether the television can still draw over other apps, and still read usage.
+     *
+     * Either being false means the product is not working, and both are one Settings screen
+     * away. Published rather than only alarmed about, so a dashboard can say so plainly and a
+     * parent who missed the alarm still finds out.
+     */
+    @SerialName("can_overlay") val canOverlay: Boolean = true,
+    @SerialName("can_usage") val canUsage: Boolean = true,
+    /**
      * Whether a parent PIN exists. Not the PIN, and not its hash: nothing that could be
      * attacked offline leaves the television. What this answers is whether the lock can be
      * lifted at the set itself, which is worth knowing before the evening Home Assistant is

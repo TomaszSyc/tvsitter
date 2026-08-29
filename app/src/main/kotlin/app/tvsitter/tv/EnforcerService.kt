@@ -6,6 +6,7 @@
 package app.tvsitter.tv
 
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
@@ -25,6 +26,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import java.util.UUID
@@ -51,6 +53,7 @@ class EnforcerService : Service() {
     private var screenTime: ScreenTimeTracker? = null
     private var activeRules: ActiveRules? = null
     private var dayTally: DayTally? = null
+    private var permissions: PermissionWatch? = null
     private var unlockGate: UnlockGate? = null
     private var pairing: PairingManager? = null
     private var parentPin: PinKeeper? = null
@@ -83,7 +86,7 @@ class EnforcerService : Service() {
     var lastPairingFailed: Boolean = false
         private set
 
-    fun pairingSecondsRemaining(): Long = pairing?.secondsRemaining() ?: 0
+    val pairingSeconds: Long get() = pairing?.secondsRemaining() ?: 0
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -107,6 +110,7 @@ class EnforcerService : Service() {
         appLabels = AppLabels(this)
         activeRules = ActiveRules(this)
         dayTally = DayTally(this, scope)
+        permissions = PermissionWatch(this) { kind -> telemetry?.publish(alertOf(kind)) }
         requests = TimeRequester(
             this,
             currentApp = { foregroundApps?.current },
@@ -164,17 +168,7 @@ class EnforcerService : Service() {
                 "model=${Build.MODEL} manufacturer=${Build.MANUFACTURER}",
         )
 
-        // Unconditionally, and before anything that reads storage. Whether the lock should
-        // come back has nothing to do with whether storage is readable: it was up when this
-        // process last died, so it goes back up. Gating this on locked storage meant it never
-        // ran on this television, where the user is already unlocked when the early broadcast
-        // arrives — and a lock a parent had put up was quietly forgotten by a reboot.
-        // Somebody working through PINs on the lock screen is invisible until they get one
-        // right, which is the wrong way round (#41).
-        parentPin?.onLockout = { tries, until -> telemetry?.publish(pinLockoutAlert(tries, until)) }
-        requests?.tally = dayTally
-        locks?.tally = dayTally
-        locks?.restoreFromMemory()
+        wireAfterConstruction()
 
         // Everything below reads credential-encrypted storage, which does not exist yet on a
         // device that does have a credential lock (D22).
@@ -342,8 +336,34 @@ class EnforcerService : Service() {
         }
     }
 
+    /**
+     * The wiring that could not be done while the pieces were being built.
+     *
+     * Two of these hand one collaborator to another, which cannot happen until both exist, and
+     * the third asks a question about the last run that only makes sense once there is
+     * somewhere to publish the answer.
+     */
+    private fun wireAfterConstruction() {
+        // Somebody working through PINs on the lock screen was invisible until they got one
+        // right, which is the wrong way round (#41).
+        parentPin?.onLockout = { tries, until -> telemetry?.publish(pinLockoutAlert(tries, until)) }
+        requests?.tally = dayTally
+        locks?.tally = dayTally
+        scope.launch { uncleanRestartAlert(this@EnforcerService)?.let { telemetry?.publish(it) } }
+
+        // Unconditionally, and before anything that reads storage. Whether the lock should
+        // come back has nothing to do with whether storage is readable: it was up when this
+        // process last died, so it goes back up. Gating this on locked storage meant it never
+        // ran on this television, where the user is already unlocked when the early broadcast
+        // arrives — and a lock a parent had put up was quietly forgotten by a reboot.
+        locks?.restoreFromMemory()
+    }
+
     /** The single place that says what the current state is; Telemetry decides when to send it. */
     private fun currentState(): StateSnapshot {
+        // Asked here rather than on a timer: this runs whenever anything changed, which is
+        // when a permission being taken away would matter.
+        permissions?.check()
         val pkg = foregroundApps?.current
         val judgement = screenTime?.judgement
         return StateSnapshot(
@@ -373,6 +393,8 @@ class EnforcerService : Service() {
             lockReason = locks?.lockReason,
             untilSeconds = judgement?.remainingSeconds?.toInt(),
             rulesRev = activeRules?.revision ?: 0,
+            canOverlay = permissions?.canOverlay != false,
+            canUsage = permissions?.canUsage != false,
             // Whether a PIN exists and when it last changed, never the PIN or its hash. A
             // change made here rather than in Home Assistant reaches it the moment the broker
             // is back, because this payload is retained and republished on every connect.
@@ -384,6 +406,8 @@ class EnforcerService : Service() {
 
     override fun onDestroy() {
         Log.w(TAG, "onDestroy(): the enforcer is going down")
+        // Asked to stop, so the next start knows this one ended properly.
+        LockMemory(this).cleanShutdown = true
         telemetry?.stop()
         telemetry = null
         pairing?.stop()
@@ -437,15 +461,49 @@ class EnforcerService : Service() {
  * Carries what was tried and until when, and nothing else: never the PIN, never its hash, never
  * what was typed. An alarm that leaked any of those would be a worse hole than the one it reports.
  */
-private fun pinLockoutAlert(failures: Int, untilMs: Long): Alert = Alert(
-    id = UUID.randomUUID().toString().take(EnforcerService.ALERT_ID_LENGTH),
-    kind = AlertKind.PIN_LOCKOUT,
-    ts = System.currentTimeMillis(),
-    detail = buildJsonObject {
+private fun pinLockoutAlert(failures: Int, untilMs: Long): Alert = alertOf(
+    AlertKind.PIN_LOCKOUT,
+    buildJsonObject {
         put("failures", JsonPrimitive(failures))
         put("until", JsonPrimitive(untilMs))
         put("seconds", JsonPrimitive((untilMs - System.currentTimeMillis()) / MILLIS_IN_A_SECOND))
     },
 )
 
+/** One alarm, with an id of its own so a redelivery is not a second alarm. */
+private fun alertOf(kind: String, detail: JsonObject = JsonObject(emptyMap())): Alert = Alert(
+    id = UUID.randomUUID().toString().take(EnforcerService.ALERT_ID_LENGTH),
+    kind = kind,
+    ts = System.currentTimeMillis(),
+    detail = detail,
+)
+
 private const val MILLIS_IN_A_SECOND = 1_000L
+
+/**
+ * The alarm for a run that ended without being asked to, or null when the last one ended
+ * properly.
+ *
+ * At file level because the service is at its allowance of functions, and because this is a
+ * question about storage rather than about the service: the marker and the last sample are both
+ * already on disk by the time anybody asks.
+ *
+ * The gap is measured from the last persisted sample, that being the last moment the television
+ * is known to have been counting. Nothing here prevents a force-stop — Android has no answer for
+ * that short of Device Owner, the same wall D21 hit — so this is evidence, not defence.
+ */
+private suspend fun uncleanRestartAlert(context: Context): Alert? {
+    val memory = LockMemory(context)
+    val clean = memory.cleanShutdown
+    memory.cleanShutdown = false
+    if (clean) return null
+
+    val lastSample = Settings(context).budget().lastSampleAtMs ?: 0
+    val gap = if (lastSample > 0) {
+        (System.currentTimeMillis() - lastSample) / MILLIS_IN_A_SECOND
+    } else {
+        0
+    }
+    Log.w(EnforcerService.TAG, "restart: the last run ended without notice, ${gap}s ago")
+    return alertOf(AlertKind.UNCLEAN_RESTART, buildJsonObject { put("gap_s", JsonPrimitive(gap)) })
+}

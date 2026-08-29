@@ -142,14 +142,14 @@ class SetupActivity : Activity() {
     private fun pairingCopy(service: EnforcerService?): Copy {
         // Only while there is time left on it. The window closes itself now, but a second of
         // timer jitter should not put a dead code on a fifty-inch screen either.
-        val code = service?.pairingPin?.takeIf { service.pairingSecondsRemaining() > 0 }
+        val code = service?.pairingPin?.takeIf { service.pairingSeconds > 0 }
         return when {
             service == null -> invitation()
 
             code != null -> Copy(
                 heading = getString(R.string.pair_heading),
                 note = getString(R.string.pair_instructions) + "\n" +
-                    getString(R.string.pair_expires, service.pairingSecondsRemaining()),
+                    getString(R.string.pair_expires, service.pairingSeconds),
                 pin = code.chunked(PIN_GROUP).joinToString(separator = " "),
             )
 
