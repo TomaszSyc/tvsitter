@@ -13,6 +13,13 @@ import java.time.LocalTime
 enum class LockReason(val wire: String) {
     NONE("none"),
 
+    /**
+     * A deadline a parent set for tonight. First in the list so it wins a tie: "bed at nine" is
+     * the reason worth telling a child, ahead of whichever rule happened to run out at the
+     * same second.
+     */
+    SLEEP_TIMER("sleep_timer"),
+
     /** The hours do not allow it. Asking for more time cannot answer this one. */
     OUTSIDE_WINDOW("outside_window"),
 
@@ -80,7 +87,27 @@ class RuleEngine(private val clock: BudgetClock) {
 
     private data class Constraint(val reason: LockReason, val remainingSeconds: Long)
 
-    fun judge(rules: Rules, state: BudgetState, appId: String?, nowMs: Long): Judgement {
+    /**
+     * What should be happening, given the rules, the clock, what has been watched and any
+     * deadline a parent has set for tonight.
+     *
+     * [sleepAtMs] is not a rule and is not stored with them — it is one evening's decision, in
+     * epoch millis, or null for none. It arrives here rather than being handled separately so
+     * that it inherits the warning ladder, the countdown and the lock without a second copy of
+     * any of them; that it is a command rather than a rule is a question for the transport, not
+     * for the arithmetic.
+     *
+     * A deadline that has passed keeps returning zero, which is what keeps the lock up. So
+     * whoever lifts that lock has to clear the deadline as well, or it comes straight back —
+     * the same trap the suspended-limit rule below exists to avoid.
+     */
+    fun judge(
+        rules: Rules,
+        state: BudgetState,
+        appId: String?,
+        nowMs: Long,
+        sleepAtMs: Long? = null,
+    ): Judgement {
         val moment = Instant.ofEpochMilli(nowMs)
         val day = clock.budgetDay(moment).dayOfWeek
         val second = secondOfBudgetDay(moment.atZone(clock.zone).toLocalTime())
@@ -96,6 +123,7 @@ class RuleEngine(private val clock: BudgetClock) {
             window?.let { Constraint(LockReason.OUTSIDE_WINDOW, secondsUntilClose(it, second)) },
             state.remainingSeconds(rules.limitFor(day))?.let { Constraint(LockReason.DAILY_LIMIT, it) },
             appConstraint(rules, state, appId),
+            sleepAtMs?.let { Constraint(LockReason.SLEEP_TIMER, secondsUntil(it, nowMs)) },
         )
 
         val binding = constraints.minWithOrNull(
@@ -175,6 +203,10 @@ class RuleEngine(private val clock: BudgetClock) {
      * which day they are in: at 00:30 the counter is still charging yesterday's allowance, and a
      * window that ends at 01:00 has to still be open.
      */
+    /** Rounded up, and never below zero: a deadline already past is nothing left, not a debt. */
+    private fun secondsUntil(deadlineMs: Long, nowMs: Long): Long =
+        ((deadlineMs - nowMs + MILLIS_PER_SECOND - 1) / MILLIS_PER_SECOND).coerceAtLeast(0)
+
     private fun secondOfBudgetDay(time: LocalTime): Int {
         val fromMidnight = time.toSecondOfDay()
         val dayStart = clock.dayStartHour * SECONDS_PER_HOUR
@@ -184,5 +216,6 @@ class RuleEngine(private val clock: BudgetClock) {
     private companion object {
         const val SECONDS_PER_HOUR = 60 * 60
         const val SECONDS_PER_DAY = 24 * SECONDS_PER_HOUR
+        const val MILLIS_PER_SECOND = 1_000L
     }
 }

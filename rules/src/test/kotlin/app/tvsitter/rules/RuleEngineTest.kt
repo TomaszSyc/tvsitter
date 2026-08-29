@@ -267,4 +267,112 @@ class RuleEngineTest {
         const val NETFLIX = "com.netflix.ninja"
         const val YOUTUBE = "com.google.android.youtube.tv"
     }
+
+    @Test
+    fun `a sleep timer is how long until bed, like every other rule`() {
+        val judgement = engine.judge(
+            Rules.NONE,
+            onDay("2026-08-31"),
+            appId = null,
+            nowMs = at("2026-08-31T20:30:00"),
+            sleepAtMs = at("2026-08-31T21:00:00"),
+        )
+
+        assertEquals(1_800L, judgement.remainingSeconds)
+        // No reason yet, and that is right: a reason is what covers the screen or warns about
+        // it, and half an hour out neither is happening.
+        assertEquals(LockReason.NONE, judgement.reason)
+        assertEquals(BudgetVerdict.WITHIN, judgement.state)
+    }
+
+    @Test
+    fun `a sleep timer warns on the way, without a ladder of its own`() {
+        // The whole reason it goes through the engine rather than beside it.
+        val judgement = engine.judge(
+            Rules(warnBeforeSeconds = listOf(300)),
+            onDay("2026-08-31"),
+            appId = null,
+            nowMs = at("2026-08-31T20:56:00"),
+            sleepAtMs = at("2026-08-31T21:00:00"),
+        )
+
+        assertEquals(BudgetVerdict.WARN, judgement.state)
+        assertEquals(300, judgement.decision.warnAtSeconds)
+    }
+
+    @Test
+    fun `bedtime arriving covers the screen`() {
+        val judgement = engine.judge(
+            Rules.NONE,
+            onDay("2026-08-31"),
+            appId = null,
+            nowMs = at("2026-08-31T21:00:00"),
+            sleepAtMs = at("2026-08-31T21:00:00"),
+        )
+
+        assertEquals(BudgetVerdict.SPENT, judgement.state)
+        assertEquals(LockReason.SLEEP_TIMER, judgement.reason)
+    }
+
+    @Test
+    fun `a deadline already past is nothing left, not a debt`() {
+        // And it keeps saying so, which is what keeps the lock up until somebody clears it.
+        val judgement = engine.judge(
+            Rules.NONE,
+            onDay("2026-08-31"),
+            appId = null,
+            nowMs = at("2026-08-31T23:00:00"),
+            sleepAtMs = at("2026-08-31T21:00:00"),
+        )
+
+        assertEquals(0, judgement.remainingSeconds)
+        assertEquals(BudgetVerdict.SPENT, judgement.state)
+    }
+
+    @Test
+    fun `bed at nine beats an allowance that runs out at nine`() {
+        // A tie, and the reason a child is told should be the one a parent set.
+        val state = onDay("2026-08-31").copy(usedMillis = 3_600_000)
+        val judgement = engine.judge(
+            Rules(dailyLimitSeconds = 5_400),
+            state,
+            appId = null,
+            nowMs = at("2026-08-31T20:30:00"),
+            sleepAtMs = at("2026-08-31T21:00:00"),
+        )
+
+        assertEquals(1_800L, judgement.remainingSeconds)
+        // No reason yet, and that is right: a reason is what covers the screen or warns about
+        // it, and half an hour out neither is happening.
+        assertEquals(LockReason.NONE, judgement.reason)
+        assertEquals(BudgetVerdict.WITHIN, judgement.state)
+    }
+
+    @Test
+    fun `whichever ends first is the one that ends it`() {
+        val state = onDay("2026-08-31").copy(usedMillis = 5_100_000)
+        val judgement = engine.judge(
+            Rules(dailyLimitSeconds = 5_400),
+            state,
+            appId = null,
+            nowMs = at("2026-08-31T20:30:00"),
+            sleepAtMs = at("2026-08-31T21:00:00"),
+        )
+
+        assertEquals(300, judgement.remainingSeconds, "the budget, with five minutes on it")
+        assertEquals(LockReason.DAILY_LIMIT, judgement.reason)
+    }
+
+    @Test
+    fun `no deadline is no constraint, which is not the same as one at zero`() {
+        val judgement = engine.judge(
+            Rules.NONE,
+            onDay("2026-08-31"),
+            appId = null,
+            nowMs = at("2026-08-31T20:30:00"),
+        )
+
+        assertEquals(BudgetVerdict.WITHIN, judgement.state)
+        assertNull(judgement.remainingSeconds)
+    }
 }
