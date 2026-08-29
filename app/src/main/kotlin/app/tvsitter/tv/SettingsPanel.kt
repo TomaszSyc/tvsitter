@@ -91,7 +91,11 @@ class SettingsPanel(private val activity: Activity, private val parentPin: PinKe
     fun unlock() {
         proved = true
         refresh()
-        limitButton.requestFocus()
+        // Posted rather than called: the rules have only just been made visible, and the button
+        // that replaces the one the parent was standing on has not been laid out yet. Without
+        // this the focus is left on a view that is no longer there, which reads as a remote
+        // that has stopped working.
+        limitButton.post { limitButton.requestFocus() }
     }
 
     fun refresh() {

@@ -92,14 +92,16 @@ max_exceeded: silent
 triggers:
   - trigger: state
     entity_id: !input request_event
-    # Both directions, and the from side is the one that matters. An event entity restores
-    # its last value, so a television coming back from standby moves this entity from
-    # unavailable to a timestamp — and without not_from that reads as a fresh request, with
-    # the old id still in the attributes. Measured: one wake produced a notification asking
-    # about a request answered seven minutes earlier.
-    not_from:
-      - unavailable
-      - unknown
+    # Only the `to` side is guarded here. Guarding the `from` side as well ate the first
+    # request after every Home Assistant restart: the entity comes up `unknown`, so a
+    # genuine press moved it `unknown` -> timestamp and `not_from` dropped it without a
+    # word. Measured — a child pressed the button, the event entity fired, and the
+    # automation's last run was six days old.
+    #
+    # What that guard was for is still real: a restored or re-announced state carries the
+    # old request's id, and without something to stop it the parent is asked again about a
+    # question they answered. The freshness condition below does that job properly, because
+    # an event entity's state *is* the moment it fired.
     not_to:
       - unavailable
       - unknown
@@ -121,6 +123,14 @@ actions:
           - condition: template
             value_template: >-
               {{ trigger.to_state.attributes.get('id') is not none }}
+          # And the moment has to be now. A restored state after a restart, or the entity
+          # being re-announced, carries the timestamp of the request it was about — which is
+          # how a parent gets asked again about something they answered. Two minutes is
+          # slack for a slow broker, not a window anybody waits in.
+          - alias: The request is happening now, not being replayed
+            condition: template
+            value_template: >-
+              {{ (now() - as_datetime(trigger.to_state.state)).total_seconds() < 120 }}
         sequence:
           # The offers are assigned to variables because a blueprint input cannot be
           # read from inside a template: `!input` is substituted into the YAML, and
