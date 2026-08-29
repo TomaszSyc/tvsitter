@@ -9,6 +9,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -296,5 +297,37 @@ class RulesTest {
         // Including the warning default: writing it out would turn "the ordinary amount" into a
         // setting, and then changing the default later would not reach anybody.
         assertTrue(Rules.NONE.toJson().isEmpty(), Rules.NONE.toJson().toString())
+    }
+
+    @Test
+    fun `blocking settings is a switch, not a number of minutes`() {
+        // Twenty minutes of Settings a day is not a thing anybody means.
+        val rules = Rules.fromJson(json("""{"block_settings": true}"""))
+
+        assertTrue(rules.settingsBlocked)
+    }
+
+    @Test
+    fun `settings are reachable unless somebody said otherwise`() {
+        assertFalse(Rules.fromJson(json("{}")).settingsBlocked)
+        assertFalse(Rules.fromJson(json("""{"block_settings": false}""")).settingsBlocked)
+        assertFalse(Rules.fromJson(json("""{"block_settings": null}""")).settingsBlocked)
+    }
+
+    @Test
+    fun `an unreadable flag leaves the door open rather than shut`() {
+        // The direction matters. A rule nobody can parse must not keep a parent out of their
+        // own Settings — that is the failure that gets this uninstalled rather than debugged.
+        val reading = Rules.read(json("""{"block_settings": "yes please"}"""))
+
+        assertFalse(reading.rules.settingsBlocked)
+        assertTrue(reading.ignored.contains("block_settings"))
+    }
+
+    @Test
+    fun `the switch survives the round trip it will make over MQTT`() {
+        val blocked = Rules(settingsBlocked = true)
+
+        assertEquals(blocked, Rules.fromJson(blocked.toJson()))
     }
 }

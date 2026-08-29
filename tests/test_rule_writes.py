@@ -18,6 +18,7 @@ from custom_components.tvsitter.number import (
     SleepTimerNumber,
     WarnBeforeNumber,
 )
+from custom_components.tvsitter.switch import BlockSettingsSwitch
 from homeassistant.core import HomeAssistant
 
 PREFIX = "tvsitter/salon"
@@ -226,3 +227,35 @@ async def test_zero_cancels_a_bedtime_already_set(hass: HomeAssistant) -> None:
 async def test_the_sleep_timer_reads_back_nothing(hass: HomeAssistant) -> None:
     """A control, not a reading: the countdown is until_s, for whatever binds."""
     assert SleepTimerNumber(make_client(hass)).native_value is None
+
+
+async def test_the_settings_switch_reads_the_television(hass: HomeAssistant) -> None:
+    """#107. What the TV says it is enforcing, not what was last sent from here."""
+    on = with_rules(make_client(hass), {"block_settings": True})
+    off = with_rules(make_client(hass), {"daily_limit_s": 3600})
+
+    assert BlockSettingsSwitch(on).is_on is True
+    assert BlockSettingsSwitch(off).is_on is False, "absent means reachable"
+    assert BlockSettingsSwitch(with_rules(make_client(hass), None)).is_on is None
+
+
+async def test_blocking_settings_names_one_key(hass: HomeAssistant) -> None:
+    """set_rules merges, so this must not disturb a limit or a schedule."""
+    client = with_rules(make_client(hass), {"daily_limit_s": 3600})
+
+    with patch("homeassistant.components.mqtt.async_publish") as publish:
+        await BlockSettingsSwitch(client).async_turn_on()
+
+    assert json.loads(publish.call_args.args[2])["rules"] == {"block_settings": True}
+
+
+async def test_handing_settings_back_writes_false_rather_than_null(
+    hass: HomeAssistant,
+) -> None:
+    """A null would read the same here, but false says somebody decided it."""
+    client = with_rules(make_client(hass), {"block_settings": True})
+
+    with patch("homeassistant.components.mqtt.async_publish") as publish:
+        await BlockSettingsSwitch(client).async_turn_off()
+
+    assert json.loads(publish.call_args.args[2])["rules"] == {"block_settings": False}

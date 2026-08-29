@@ -11,6 +11,7 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.longOrNull
@@ -44,6 +45,14 @@ data class Rules(
      * somebody already has on a dashboard (#39).
      */
     val warnBeforeSeconds: List<Long> = DEFAULT_WARNINGS,
+    /**
+     * Whether the Settings app is kept out of reach, lock or no lock.
+     *
+     * A switch rather than a budget, because "twenty minutes of Settings a day" is not a thing
+     * anybody means. It is the one app whose reach decides whether any of the others can be
+     * enforced at all: force-stop, "draw on top" and the date all live behind it (D30).
+     */
+    val settingsBlocked: Boolean = false,
 ) {
 
     /** The limit in force on [day], which is the day's own or the plain daily one. */
@@ -63,6 +72,7 @@ data class Rules(
         if (warnBeforeSeconds != DEFAULT_WARNINGS) {
             put(KEY_WARN_BEFORE, buildJsonArray { warnBeforeSeconds.forEach { add(it) } })
         }
+        if (settingsBlocked) put(KEY_BLOCK_SETTINGS, true)
     }
 
     companion object {
@@ -71,6 +81,7 @@ data class Rules(
         const val KEY_WINDOWS: String = "windows"
         const val KEY_APP_LIMITS: String = "app_limits_s"
         const val KEY_WARN_BEFORE: String = "warn_before_s"
+        const val KEY_BLOCK_SETTINGS: String = "block_settings"
 
         /**
          * Five minutes, as it has been since M2.
@@ -156,6 +167,7 @@ data class Rules(
                     windows = readWindows(json[KEY_WINDOWS], ignored),
                     appLimitSeconds = readAppLimits(json[KEY_APP_LIMITS], ignored),
                     warnBeforeSeconds = readWarnings(json[KEY_WARN_BEFORE], ignored),
+                    settingsBlocked = readFlag(json[KEY_BLOCK_SETTINGS], KEY_BLOCK_SETTINGS, ignored),
                 ),
                 ignored,
             )
@@ -256,4 +268,21 @@ private fun readWarnings(element: JsonElement?, ignored: MutableList<String>): L
         if (seconds == null) ignored += "${Rules.KEY_WARN_BEFORE}[$index]" else thresholds += seconds
     }
     return thresholds.filter { it > 0 }.distinct().sortedDescending()
+}
+
+/**
+ * A yes or a no, and nothing else.
+ *
+ * Anything unreadable is a no, and says so. The direction matters: a rule nobody can parse must
+ * not silently keep a parent out of their own Settings, which is the failure that would have
+ * them uninstall this rather than debug it.
+ */
+private fun readFlag(element: JsonElement?, name: String, ignored: MutableList<String>): Boolean {
+    if (element == null || element is JsonNull) return false
+    val flag = (element as? JsonPrimitive)?.booleanOrNull
+    if (flag == null) {
+        ignored += name
+        return false
+    }
+    return flag
 }

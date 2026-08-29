@@ -56,6 +56,7 @@ class LockController(
 
     /** The same list the counter uses to decide that standby is not watching (D20). */
     private val screenSavers = ScreenSaverPackages(context)
+    private val settingsApps = SettingsPackages(context)
 
     private var state = LockState()
 
@@ -77,6 +78,14 @@ class LockController(
      * for the same reason as the tally: it is an alarm somebody else raises.
      */
     var onFight: (() -> Unit)? = null
+
+    /**
+     * Whether Settings is being kept out of reach right now.
+     *
+     * Asked rather than held, because it is a rule and rules change under us. Set after
+     * construction like the other two, for the same reason.
+     */
+    var settingsBlocked: () -> Boolean = { false }
 
     private val handler = Handler(Looper.getMainLooper())
 
@@ -245,7 +254,18 @@ class LockController(
      * out of a film loses their place, and doing that unnecessarily is rude.
      */
     fun onForegroundApp(packageName: String?) {
-        if (!overlay.isShowing || packageName == null) return
+        if (packageName == null) return
+
+        // Before the lock check, and deliberately: this one applies whether or not the screen
+        // is covered. Behind a lock, Settings already lasts under a second; with no lock up it
+        // lasted all day, and that is when a child would go looking for Force stop (D30).
+        if (settingsBlocked() && settingsApps.contains(packageName)) {
+            Log.i(EnforcerService.TAG, "settings: blocked, sending the TV home")
+            displacer.sendHome()
+            return
+        }
+
+        if (!overlay.isShowing) return
         // Our own screens are windows on this overlay rather than activities, so anything of
         // ours in front is the setup screen a parent opened deliberately.
         if (packageName == context.packageName || packageName == displacer.homePackage) return

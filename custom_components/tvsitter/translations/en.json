@@ -107,6 +107,9 @@
     "switch": {
       "lock": {
         "name": "Lock"
+      },
+      "block_settings": {
+        "name": "Block Settings"
       }
     },
     "number": {

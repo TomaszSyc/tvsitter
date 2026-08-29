@@ -107,6 +107,9 @@
     "switch": {
       "lock": {
         "name": "Blokada"
+      },
+      "block_settings": {
+        "name": "Blokada Ustawień"
       }
     },
     "number": {

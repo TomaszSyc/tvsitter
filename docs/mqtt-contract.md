@@ -269,7 +269,8 @@ this walks a payload that arrived over the network.
     { "id": "weekend", "from": "09:00", "to": "21:00", "days": ["sat", "sun"] }
   ],
   "app_limits_s": { "com.netflix.ninja": 1800, "com.twitch.android.app": 0 },
-  "warn_before_s": [900, 300]
+  "warn_before_s": [900, 300],
+  "block_settings": false
 }
 ```
 
@@ -283,6 +284,7 @@ is where a misreading turns into a television that enforces the opposite of what
 | `windows` | hours not restricted | removes them | — | hours not restricted |
 | `app_limits_s.<pkg>` | app has no budget of its own | removes its budget | **app is blocked** | — |
 | `warn_before_s` | the default, five minutes | back to the default | no warning | no warning |
+| `block_settings` | Settings reachable | reachable | — | — |
 
 - `days` is keyed `mon` … `sun`, and a full name (`monday`) is accepted on the way in. The day is
   the **budget day**, so watching at 01:00 on a Saturday is still Friday's allowance and Friday's
@@ -297,6 +299,13 @@ is where a misreading turns into a television that enforces the opposite of what
 - `warn_before_s` is seconds before the end, and the TV uses them farthest first. A single number
   is accepted where a list belongs. Duplicates and zeros are dropped: zero is how "no warning" is
   spelled, and the same warning twice is one warning.
+
+- `block_settings` is a switch rather than a budget: "twenty minutes of Settings a day" is not a
+  thing anybody means. It applies whether or not the lock is up, which is the point — behind a
+  lock Settings already lasts under a second, and with no lock up it lasts all day (D30). The
+  packages that count are resolved from the `ACTION_SETTINGS` intent rather than named, so this
+  is not a Philips-only rule. Anything unreadable there is a **no**: a rule nobody can parse must
+  not lock a parent out of their own Settings.
 
 A rule the TV cannot read is not enforced, and it says which one in its log rather than guessing.
 That degrades towards **less** enforcement — a window that fails to parse widens the evening

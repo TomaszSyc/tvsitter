@@ -12,13 +12,15 @@ import logging
 from typing import Any
 
 from homeassistant.components.switch import SwitchEntity
-from homeassistant.const import STATE_OFF, STATE_ON
+from homeassistant.const import STATE_OFF, STATE_ON, EntityCategory
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.util import dt as dt_util
 
 from . import TvSitterConfigEntry
+from .const import RULE_BLOCK_SETTINGS
 from .coordinator import TvSitterClient
 from .entity import TvSitterEntity
 
@@ -48,7 +50,8 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up the lock switch for one TV."""
-    async_add_entities([LockSwitch(entry.runtime_data)])
+    client = entry.runtime_data
+    async_add_entities([LockSwitch(client), BlockSettingsSwitch(client)])
 
 
 class LockSwitch(TvSitterEntity, SwitchEntity, RestoreEntity):
@@ -248,3 +251,52 @@ class LockSwitch(TvSitterEntity, SwitchEntity, RestoreEntity):
         self.hass.async_create_task(
             self._client.async_send(OP_LOCK if locked else OP_UNLOCK)
         )
+
+
+class BlockSettingsSwitch(TvSitterEntity, SwitchEntity):
+    """Keeps the Settings app out of reach, lock or no lock.
+
+    The one app whose reach decides whether any of the others can be enforced:
+    force stop,
+    "draw on top" and the date all live behind it. Behind a lock it already
+    lasts under a
+    second before the television is sent home; with no lock up it lasts all day,
+    and that is
+    when a child would go looking (D30).
+
+    A switch rather than a budget, because "twenty minutes of Settings a day" is
+    not a thing
+    anybody means.
+
+    The parent is shut out too while it is on. That is the honest cost, and it
+    is one toggle
+    away from being off — unlike suspending the package, which needs ADB in both
+    directions.
+    """
+
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(self, client: TvSitterClient) -> None:
+        """Create the settings switch."""
+        super().__init__(client, "block_settings")
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return what the TV says it is enforcing, not what was last sent from here."""
+        rules = self._client.rules
+        return None if rules is None else bool(rules.get(RULE_BLOCK_SETTINGS, False))
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Put Settings out of reach."""
+        await self._set(True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Hand Settings back."""
+        await self._set(False)
+
+    async def _set(self, blocked: bool) -> None:
+        if not self._client.available:
+            raise ServiceValidationError(
+                f"{self._client.name} is not listening; the change would go nowhere"
+            )
+        await self._client.async_set_rules({RULE_BLOCK_SETTINGS: blocked})
