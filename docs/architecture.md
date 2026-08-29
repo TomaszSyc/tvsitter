@@ -996,6 +996,26 @@ answered — with the notification being the part Home Assistant adds rather tha
 makes it work. And M5's history lives only in the recorder, so a second mode either keeps a
 rolling window on the device or has no statistics at all.
 
+### Checked after M4 and M5 (2026-08-29)
+
+The invariant is easy to state and easy to lose by accident, so it was audited once both
+milestones were in rather than assumed:
+
+- `:rules` has **zero** Android imports. The only matches for the word are the licence header and
+  a comment explaining why the module exists. It compiles for the JVM and knows nothing about
+  where it runs.
+- M4's schedule, windows and per-app budgets are all decided by `RuleEngine`, in `:rules`. Home
+  Assistant sends rules and reads answers; it computes none of them.
+- M5's day summary is built on the television, from the state that is closing, and published. Home
+  Assistant keeps the archive because it has a recorder — the set keeps exactly one closed day,
+  which is the rolling window a second mode would need.
+- The only `if` statements in the integration that mention limits are null checks for display.
+
+One deliberate exception, and it is worth naming rather than hiding: the response to
+`source_fight` lives in a blueprint (#59). That is not enforcement, it is escalation, and it
+exists precisely because it needs authority the television does not have — switching its own
+source or cutting its own power. A second mode would not have it, and would still work.
+
 ## D26 — The rules merge reaches inside objects (2026-08-23)
 
 `set_rules` has merged rather than replaced since M2, so that a control which knows about the

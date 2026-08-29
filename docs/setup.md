@@ -213,6 +213,28 @@ notification instead of stacking up.
 The wording in the blueprint is English, like the rest of the repository. It is the one piece
 of text a parent reads every day, so it is worth editing to taste after importing.
 
+### If you wear a watch
+
+Measured rather than assumed, because the documentation and the behaviour disagree.
+
+Sending only to the phone put nothing at all on the watch. Android bridges phone notifications
+to a watch by default, but an app that ships its own watch app opts out to avoid duplicates,
+and the Home Assistant companion app does exactly that.
+
+So the blueprint offers a second notify action. Sending to the watch as well makes it arrive —
+and in testing the buttons were there, which the companion app's documented field list does not
+promise: it names `channel`, `message`, `notification_icon`, `tag`, `title` and
+`vibrationPattern`, and `actions` is not among them. Undocumented is not the same as unsupported,
+and one measurement is not a guarantee, so treat the buttons on the watch as a bonus rather than
+the plan.
+
+If they are missing on yours, there are two honest options: answer on the phone and let the watch
+be a heads-up, or take the companion app off the watch entirely, after which Wear OS relays the
+phone's notification and renders its buttons itself.
+
+The blueprint also clears the notification on both once the request is answered, so a stale tap
+cannot grant time twice.
+
 ## Inventory of the child's apps
 
 Package names needed when writing rules:

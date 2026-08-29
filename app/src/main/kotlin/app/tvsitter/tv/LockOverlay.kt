@@ -8,6 +8,8 @@ package app.tvsitter.tv
 import android.content.Context
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
@@ -36,6 +38,36 @@ class LockOverlay(private val context: Context) {
     private val windowManager = context.getSystemService(WindowManager::class.java)
     private var root: FrameLayout? = null
     private var face: LinearLayout? = null
+
+    private val handler = Handler(Looper.getMainLooper())
+
+    /**
+     * Moves the words a little, slowly, for as long as the lock is up.
+     *
+     * Measured on this Philips: a static screen of ours for a few minutes brings up the
+     * firmware's own image-sticking protection, and its window sits **above** ours (#50). The
+     * lock keeps focus and keys throughout — but a parent walking in sees a drifting Philips
+     * logo instead of the reason the television stopped, and so does the child.
+     *
+     * Drifting a few pixels is what a television does about burn-in, and the hope is that a
+     * screen which is not static is one the firmware leaves alone. It costs nothing if that
+     * turns out to be wrong: the panel is being protected either way.
+     */
+    private val drift = object : Runnable {
+        private var step = 0
+
+        override fun run() {
+            val view = face ?: return
+            step = (step + 1) % DRIFT_STEPS
+            val angle = step * 2.0 * Math.PI / DRIFT_STEPS
+            view.animate()
+                .translationX((Math.cos(angle) * DRIFT_PX).toFloat())
+                .translationY((Math.sin(angle) * DRIFT_PX).toFloat())
+                .setDuration(DRIFT_GLIDE_MS)
+                .start()
+            handler.postDelayed(this, DRIFT_INTERVAL_MS)
+        }
+    }
     private var subtitleView: TextView? = null
     private var askButton: Button? = null
     private var pinButton: Button? = null
@@ -82,6 +114,8 @@ class LockOverlay(private val context: Context) {
         }
         root = container
         face = column
+        handler.removeCallbacks(drift)
+        handler.postDelayed(drift, DRIFT_INTERVAL_MS)
         askButton?.requestFocus()
         Log.i(
             EnforcerService.TAG,
@@ -91,6 +125,7 @@ class LockOverlay(private val context: Context) {
     }
 
     fun hide() {
+        handler.removeCallbacks(drift)
         val view = root ?: return
         runCatching { windowManager.removeViewImmediate(view) }
             .onFailure { Log.e(EnforcerService.TAG, "removeView() failed", it) }
@@ -210,5 +245,17 @@ class LockOverlay(private val context: Context) {
         const val BACKDROP_COLOR = 0xFF0B1017.toInt()
         const val SUBTITLE_COLOR = 0xFFB9C6D2.toInt()
         const val PADDING_PX = 24
+
+        /**
+         * How far and how often the words wander.
+         *
+         * Twelve pixels on a fifty-inch panel is invisible from a sofa and enough to be a
+         * different pixel, and forty seconds is slow enough that nobody watching would call it
+         * movement. The glide is long on purpose: a jump would read as a glitch.
+         */
+        const val DRIFT_PX = 12.0
+        const val DRIFT_STEPS = 8
+        const val DRIFT_INTERVAL_MS = 40_000L
+        const val DRIFT_GLIDE_MS = 4_000L
     }
 }
