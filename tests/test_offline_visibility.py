@@ -8,6 +8,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -20,6 +21,7 @@ from custom_components.tvsitter.number import DailyLimitNumber
 from custom_components.tvsitter.sensor import (
     ActiveAppSensor,
     RemainingTodaySensor,
+    RulesSensor,
     UsedTodaySensor,
 )
 from homeassistant.core import HomeAssistant
@@ -143,3 +145,68 @@ async def test_nothing_is_shown_before_the_first_report(hass: HomeAssistant) -> 
     assert UsedTodaySensor(client).available is False
     assert ScreenOnSensor(client).available is False
     assert ReportingSensor(client).available is True
+
+
+async def test_the_rules_in_force_are_visible(hass: HomeAssistant) -> None:
+    """#73. The TV keeps the rules, so it is the only thing that knows them.
+
+    Without this the daily limit is all Home Assistant can show, because the state
+    payload carries that one — and "why did it lock at half past seven" has no answer.
+    """
+    client = asleep(hass)
+    client._handle_rules(
+        SimpleNamespace(
+            topic=f"{PREFIX}/rules",
+            payload=json.dumps(
+                {
+                    "daily_limit_s": 5400,
+                    "days": {"sat": 7200},
+                    "windows": [{"id": "school", "from": "16:00", "to": "19:30"}],
+                }
+            ),
+        )
+    )
+
+    rules = RulesSensor(client)
+
+    assert rules.native_value == 4, "the revision the TV echoes in its state"
+    assert rules.extra_state_attributes["days"] == {"sat": 7200}
+    assert rules.extra_state_attributes["windows"][0]["id"] == "school"
+
+
+async def test_a_rule_this_build_never_heard_of_is_still_shown(
+    hass: HomeAssistant,
+) -> None:
+    """Opaque on purpose: a newer Home Assistant must not watch its own write vanish."""
+    client = asleep(hass)
+    client._handle_rules(
+        SimpleNamespace(
+            topic=f"{PREFIX}/rules",
+            payload=json.dumps({"daily_limit_s": 60, "bedtime_mood_lighting": "amber"}),
+        )
+    )
+
+    assert (
+        RulesSensor(client).extra_state_attributes["bedtime_mood_lighting"] == "amber"
+    )
+
+
+async def test_rubbish_on_the_rules_topic_keeps_the_last_good_answer(
+    hass: HomeAssistant,
+) -> None:
+    """Showing nothing reads as "enforcing nothing", which is the worse lie."""
+    client = asleep(hass)
+    good = SimpleNamespace(
+        topic=f"{PREFIX}/rules", payload=json.dumps({"daily_limit_s": 60})
+    )
+    client._handle_rules(good)
+
+    client._handle_rules(SimpleNamespace(topic=f"{PREFIX}/rules", payload="not json"))
+    client._handle_rules(SimpleNamespace(topic=f"{PREFIX}/rules", payload="[1, 2, 3]"))
+
+    assert RulesSensor(client).extra_state_attributes == {"daily_limit_s": 60}
+
+
+async def test_nothing_is_claimed_before_the_rules_arrive(hass: HomeAssistant) -> None:
+    """A retained topic that has never been written is not the same as no rules."""
+    assert RulesSensor(asleep(hass)).extra_state_attributes is None

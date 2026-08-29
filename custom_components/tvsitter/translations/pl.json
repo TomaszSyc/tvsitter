@@ -84,6 +84,9 @@
       },
       "remaining_today": {
         "name": "Pozostało dziś"
+      },
+      "rules": {
+        "name": "Reguły"
       }
     },
     "switch": {

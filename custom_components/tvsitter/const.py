@@ -55,6 +55,7 @@ SCHEMA_VERSION: Final = 1
 TOPIC_AVAILABILITY: Final = "availability"
 TOPIC_STATE: Final = "state"
 TOPIC_REQUEST: Final = "request"
+TOPIC_RULES: Final = "rules"
 TOPIC_COMMAND: Final = "cmd"
 
 PAYLOAD_ONLINE: Final = "online"

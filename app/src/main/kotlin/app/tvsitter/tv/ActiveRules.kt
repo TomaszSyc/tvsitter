@@ -33,6 +33,15 @@ class ActiveRules(private val context: Context) {
     /** The rules exactly as stored, so an incoming change can be folded into them. */
     private var stored: JsonObject = JsonObject(emptyMap())
 
+    /**
+     * The rules exactly as stored, including keys this build does not understand.
+     *
+     * Published rather than the parsed form on purpose: a newer Home Assistant sending a rule
+     * this television ignores should still see it come back, rather than watch it disappear and
+     * conclude the write failed.
+     */
+    val json: String get() = stored.toString()
+
     val dailyLimitSeconds: Long? get() = rules.dailyLimitSeconds
 
     suspend fun load() {

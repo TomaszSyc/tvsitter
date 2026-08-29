@@ -184,6 +184,26 @@ class MqttBridge(
             }
     }
 
+    /**
+     * Publishes the rules in force, retained.
+     *
+     * At least once, unlike state: state is republished on a heartbeat, so a lost one costs a
+     * minute, while rules change rarely and a lost publish would leave Home Assistant showing
+     * yesterday's schedule until somebody happened to edit something.
+     */
+    fun publishRules(json: String) {
+        val active = client?.takeIf { it.state.isConnected } ?: return
+        active.publishWith()
+            .topic(topics.rules)
+            .payload(json.toByteArray())
+            .qos(MqttQos.AT_LEAST_ONCE)
+            .retain(true)
+            .send()
+            .whenComplete { _, error ->
+                if (error != null) Log.w(EnforcerService.TAG, "mqtt: rules publish failed", error)
+            }
+    }
+
     fun publish(request: TimeRequest) {
         // A request is different: it must not be silently dropped, because a child pressed a
         // button and is waiting for an answer. Logged loudly so the failure is visible.

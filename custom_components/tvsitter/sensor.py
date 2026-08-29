@@ -14,7 +14,7 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorStateClass,
 )
-from homeassistant.const import UnitOfTime
+from homeassistant.const import EntityCategory, UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
@@ -35,6 +35,7 @@ async def async_setup_entry(
             ActiveAppSensor(client),
             UsedTodaySensor(client),
             RemainingTodaySensor(client),
+            RulesSensor(client),
         ]
     )
 
@@ -131,3 +132,41 @@ class RemainingTodaySensor(TvSitterEntity, SensorEntity):
         if snapshot is None:
             return None
         return {"limit_active": snapshot.remaining_seconds is not None}
+
+
+class RulesSensor(TvSitterEntity, SensorEntity):
+    """The rules the TV says it is enforcing, and which revision they are.
+
+    The television keeps the rules and enforces them offline (D3), so it is the only
+    thing that knows what is in force. Without this, Home Assistant can show the daily
+    limit — the state payload carries that one — and nothing else: not the week, not
+    the hours, not one app's budget. "Why did it lock at half past seven" is a question
+    a schedule invites and a dashboard could not answer.
+
+    Read-only, deliberately. Editing a week's schedule through entities is not the plan
+    (#60); seeing it is a different job and a much smaller one.
+
+    The revision is the state, because that is the part that changes meaningfully and
+    can be compared with the one the TV echoes in its state payload — the two agreeing
+    is the whole point of having a revision at all.
+    """
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_state_class = None
+
+    def __init__(self, client: TvSitterClient) -> None:
+        """Create the rules sensor."""
+        super().__init__(client, "rules")
+
+    @property
+    def native_value(self) -> int | None:
+        """Return the revision of the rules in force."""
+        snapshot = self._client.snapshot
+        return None if snapshot is None else snapshot.rules_rev
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Expose the rules themselves, exactly as the TV sent them."""
+        if self._client.rules is None:
+            return None
+        return dict(self._client.rules)

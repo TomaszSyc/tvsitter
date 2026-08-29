@@ -28,6 +28,8 @@ class Telemetry(
     private val context: Context,
     private val scope: CoroutineScope,
     private val snapshot: () -> StateSnapshot,
+    /** The rules exactly as stored, asked for rather than held: they change without us. */
+    private val rules: () -> String,
     private val onCommand: (Command) -> Unit,
 ) {
     private var bridge: MqttBridge? = null
@@ -51,7 +53,12 @@ class Telemetry(
 
         // Assigned before connecting, not inside `also`: the connected listener publishes
         // state through `bridge`, and it can fire before `also` has finished returning.
-        val fresh = MqttBridge(config, onCommand, onConnected = ::publishNow)
+        // Both on connect: a retained rules topic that is never written says the television is
+        // enforcing nothing, which is a worse lie than saying nothing at all.
+        val fresh = MqttBridge(config, onCommand, onConnected = {
+            publishNow()
+            publishRules(rules())
+        })
         bridge = fresh
         fresh.connect()
         heartbeatJob = scope.launch { heartbeat() }
@@ -116,6 +123,13 @@ class Telemetry(
             delay(HEARTBEAT_MS)
             publishNow()
         }
+    }
+
+    /** Sends the rules as they now stand, so Home Assistant can show what is being enforced. */
+    fun publishRules(json: String) {
+        val active = bridge ?: return
+        runCatching { active.publishRules(json) }
+            .onFailure { Log.w(EnforcerService.TAG, "telemetry: rules publish failed", it) }
     }
 
     private fun publishNow() {

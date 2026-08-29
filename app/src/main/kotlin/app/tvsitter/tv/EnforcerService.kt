@@ -126,7 +126,7 @@ class EnforcerService : Service() {
         // That is why locking from Home Assistant failed every time while the same lock
         // through the debug ADB hook worked: that one arrives via onStartCommand, which is
         // already on the main thread. `scope` is Dispatchers.Main.immediate.
-        telemetry = Telemetry(this, scope, ::currentState) { command ->
+        telemetry = Telemetry(this, scope, ::currentState, { activeRules?.json ?: "{}" }) { command ->
             scope.launch { handleCommand(command) }
         }
         foregroundApps = ForegroundAppMonitor(this) { pkg ->
@@ -292,6 +292,10 @@ class EnforcerService : Service() {
             is Command.Deny -> requests?.settle(command.requestId, minutes = null)
             is Command.SetRules -> scope.launch {
                 activeRules?.apply(command.rules, command.rev)
+                // Both: the state payload carries the revision, and the rules topic carries
+                // what that revision actually says. Sending one without the other leaves the
+                // two disagreeing about which is newer.
+                activeRules?.json?.let { telemetry?.publishRules(it) }
                 telemetry?.publishSoon()
             }
         }

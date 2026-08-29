@@ -22,6 +22,7 @@ from .const import (
     TOPIC_AVAILABILITY,
     TOPIC_COMMAND,
     TOPIC_REQUEST,
+    TOPIC_RULES,
     TOPIC_STATE,
 )
 from .models import StateSnapshot, TimeRequest, UnsupportedSchemaError
@@ -43,6 +44,7 @@ class TvSitterClient:
         self._prefix = topic_prefix
         self.name = name
         self.snapshot: StateSnapshot | None = None
+        self.rules: dict[str, Any] | None = None
         self._sent_rev = 0
         self.available = False
         # The last request the TV made, so an answer can be addressed without the caller
@@ -86,6 +88,14 @@ class TvSitterClient:
                 self._hass,
                 f"{self._prefix}/{TOPIC_REQUEST}",
                 self._handle_request,
+                qos=1,
+            )
+        )
+        self._unsubscribers.append(
+            await mqtt.async_subscribe(
+                self._hass,
+                f"{self._prefix}/{TOPIC_RULES}",
+                self._handle_rules,
                 qos=1,
             )
         )
@@ -214,6 +224,25 @@ class TvSitterClient:
         self.last_request = request
         for handle in list(self._request_listeners):
             handle(request)
+
+    @callback
+    def _handle_rules(self, message: mqtt.ReceiveMessage) -> None:
+        """Take the rules the TV says it is enforcing.
+
+        Kept as they arrive rather than parsed into fields. The engine owns their shape
+        and the contract keeps them opaque on purpose, so a rule this build has never
+        heard of is still visible to whoever is looking at the dashboard.
+        """
+        try:
+            rules = json.loads(message.payload)
+        except ValueError, TypeError:
+            _LOGGER.warning("%s sent rules that are not JSON", self.name)
+            return
+        if not isinstance(rules, dict):
+            _LOGGER.warning("%s sent rules that are not an object", self.name)
+            return
+        self.rules = rules
+        self._notify()
 
     @callback
     def _handle_availability(self, message: mqtt.ReceiveMessage) -> None:

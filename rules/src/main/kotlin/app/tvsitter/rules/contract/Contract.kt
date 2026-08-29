@@ -21,6 +21,17 @@ object Contract {
     const val TOPIC_AVAILABILITY: String = "availability"
     const val TOPIC_STATE: String = "state"
     const val TOPIC_REQUEST: String = "request"
+
+    /**
+     * The rules in force, retained.
+     *
+     * The television keeps them and enforces them offline (D3), so it is the only thing that
+     * knows what is actually being enforced. Without this, Home Assistant can show the daily
+     * limit — because the state payload carries it — and nothing else: not the week, not the
+     * hours, not one app's budget. "Why did it lock at half past seven" is unanswerable from a
+     * dashboard, which is the question a schedule invites.
+     */
+    const val TOPIC_RULES: String = "rules"
     const val TOPIC_COMMAND: String = "cmd"
 
     const val PAYLOAD_ONLINE: String = "online"
@@ -52,6 +63,7 @@ class Topics(prefix: String) {
     val availability: String get() = "$prefix/${Contract.TOPIC_AVAILABILITY}"
     val state: String get() = "$prefix/${Contract.TOPIC_STATE}"
     val request: String get() = "$prefix/${Contract.TOPIC_REQUEST}"
+    val rules: String get() = "$prefix/${Contract.TOPIC_RULES}"
     val command: String get() = "$prefix/${Contract.TOPIC_COMMAND}"
 
     override fun equals(other: Any?): Boolean = other is Topics && other.prefix == prefix

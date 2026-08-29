@@ -117,6 +117,27 @@ still works with no Home Assistant in reach:
 All of it survives a restart, because force-stopping the app is something a child can do from
 Settings.
 
+## `<p>/rules`
+
+The rules in force, exactly as the television has them, retained.
+
+```json
+{ "daily_limit_s": 5400, "days": { "sat": 7200 }, "warn_before_s": [900, 300] }
+```
+
+Published when they change and again on every connect. The television keeps the rules and
+enforces them offline (D3), so it is the only thing that knows what is actually in force —
+without this, Home Assistant can show the daily limit, because `state` carries that one, and
+nothing else. "Why did it lock at half past seven" is a question a schedule invites and a
+dashboard could not otherwise answer.
+
+Sent as stored rather than as understood, unknown keys and all: a newer Home Assistant writing a
+rule this television ignores should see it come back rather than watch it disappear and conclude
+the write failed. `rules_rev` in `state` says which revision this is.
+
+Retained, unlike `cmd`, and at least once, unlike `state`: rules change rarely, so a lost publish
+would leave a dashboard showing last week's schedule until somebody happened to edit something.
+
 ## `<p>/cmd`
 
 ```json
