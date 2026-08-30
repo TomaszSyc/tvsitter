@@ -763,3 +763,33 @@ def test_a_refusal_that_says_nothing_useful_gives_nothing() -> None:
     assert said("<html>500</html>") is None
     assert said('{"message": "   "}') is None
     assert said('{"code": 500}') is None
+
+
+@pytest.mark.parametrize(
+    "drawn",
+    [
+        grid_of(mon=["16:00", "16:30", "17:00"]),
+        grid_of(sat=[f"{hour:02d}:00" for hour in range(9, 21)]),
+        # Friday evening running into Saturday morning. Written from midnight because
+        # that is how the page sends it: the boxes go out in the order they sit in the
+        # row, so an evening past midnight arrives at both ends of Friday.
+        grid_of(fri=["00:00", "00:30", "22:00", "22:30", "23:00", "23:30"]),
+        grid_of(wed=["07:00", "07:30", "17:00", "17:30"], thu=["07:00", "07:30"]),
+        grid_of(**{day: ["20:00", "20:30"] for day in WEEK}),
+        grid_of(),
+    ],
+)
+async def test_a_week_that_was_drawn_comes_back_exactly_as_it_was_drawn(
+    drawn: dict[str, list[str]],
+) -> None:
+    """The panel holds the boxes a parent painted until the television reports them.
+
+    It decides the television has caught up by comparing the two weeks half hour for
+    half hour (#136), so a save that came back saying the same thing in different words
+    would leave the grid waiting for a set that had already agreed — for as long as the
+    wait lasts, and then it would redraw underneath them. Every window written here is
+    read straight back so that the comparison the page makes is one that can succeed.
+    """
+    written = await saved(with_rules(), drawn)
+
+    assert only(with_rules(windows=written))["hours"] == drawn

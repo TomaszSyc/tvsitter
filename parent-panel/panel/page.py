@@ -39,8 +39,8 @@ _STYLE = """
   --warn: #FFC46B;
   /* One half hour of the weekly grid, the row it sits in, the column the day is
      named in, and the strip the hours are named across. */
-  --cell: 14px;
-  --tall: 26px;
+  --cell: 15px;
+  --tall: 30px;
   --label: 2.9rem;
   --head: 1.15rem;
 }
@@ -422,7 +422,7 @@ input[type="checkbox"] {
   color: var(--muted);
   font-size: 0.7rem;
   font-variant-numeric: tabular-nums;
-  grid-column: span 6;
+  grid-column: span 4;
   line-height: var(--head);
 }
 .week {
@@ -455,6 +455,51 @@ input[type="checkbox"] {
 .cell:disabled, .day:disabled { cursor: default; }
 /* Read-only, so a day is a label rather than something that looks pressable. */
 .day:disabled { background: none; }
+/* A run of marked half hours has to read as one span of time rather than as a row of
+   dots. The gap between boxes stays, because a finger drawing across them needs to see
+   where one ends; a marked box paints over the gap to its right instead, so neighbours
+   join into a bar and a single half hour is still a box. */
+.cell.on, .cell.on:hover { box-shadow: 1px 0 0 0 var(--accent); }
+/* Where the hour named above the grid falls, carried down through the week. Without it
+   forty-eight identical boxes are a smear nobody can find half past six in — which is
+   the whole complaint against a grid that shows exactly the right thing. */
+.cell.mark { border-left: 1px solid rgba(143, 163, 179, 0.45); }
+.cell.on.mark { border-left-color: rgba(11, 16, 23, 0.35); }
+.tick { border-left: 1px solid rgba(143, 163, 179, 0.25); padding-left: 0.25rem; }
+/* Midnight and noon, which are the two the eye actually navigates by. */
+.cell.noon { border-left-color: rgba(143, 163, 179, 0.85); }
+.cell.on.noon { border-left-color: rgba(11, 16, 23, 0.6); }
+/* What is being drawn, said over the grid while it is drawn. A rectangle of boxes is
+   something to count; the hours it means are the decision. Fixed to the window so it
+   can sit above a finger anywhere on the week, and never under the pointer itself. */
+.range {
+  background: var(--raised);
+  border: 1px solid var(--edge);
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  padding: 0.3rem 0.6rem;
+  pointer-events: none;
+  position: fixed;
+  transform: translate(-50%, -150%);
+  white-space: nowrap;
+  z-index: 20;
+}
+.range b { color: var(--accent); font-weight: 600; }
+.range.clearing b { color: var(--warn); }
+/* Under the pointer instead of over it, for a gesture near the top of the window,
+   where above it would be off the screen altogether. */
+.range.below { transform: translate(-50%, 60%); }
+/* Drawn here, not yet on the television. Warning-coloured because the grid is saying
+   something other than what the set is enforcing, which is the one state this card was
+   built to never show silently. */
+.held {
+  color: var(--warn);
+  font-size: 0.85rem;
+  margin: 0.35rem 0 0;
+}
 """
 
 # The rail is markup rather than script because the destinations are the one thing on
@@ -539,11 +584,26 @@ _SCRIPT = """
   const SLOT_MINUTES = 30;
   const SLOTS = (24 * MINUTES_PER_HOUR) / SLOT_MINUTES;
 
-  /** How often the hour is named above the grid. All forty-eight would be a smear. */
-  const TICK = 6;
+  // How often the hour is named above the grid, and how often the line under that
+  // name is carried down through the week. All forty-eight names would be a smear;
+  // every third hour left the two a parent actually looks for — noon and six — with no
+  // name of their own, so it is every second one.
+  const TICK = 4;
 
   /** How long a keyed change waits for the next, so a held key is still one write. */
   const KEYED_MS = 400;
+
+  // Room kept between the readout of what is being drawn and the edge of the window,
+  // and how near the top of it the readout goes under the pointer rather than over.
+  const PADDING = 8;
+  const LOW = 64;
+
+  // How long the week a parent drew stays on the grid while the television has yet to
+  // report it back. Long enough to cover the write, the broker and a set that is
+  // thinking about it; short enough that a television which read the rule differently
+  // from this panel does not leave a picture of hours nobody is enforcing on the
+  // screen. A set that is asleep is not on this clock at all — it is waited for.
+  const AGREE_MS = 12000;
 
   // How long a parent PIN is, which is `ParentPin.LENGTH` on the television and
   // `parent_pin.LENGTH` in the integration. Checked here as well so that four digits
@@ -762,6 +822,10 @@ _SCRIPT = """
     await poll();
     if (answer && answer.ok) say(note, landed(body, done), false);
     else say(note, (answer && answer.error) || "Home Assistant refused it.", true);
+    // Handed back as well as said, because one caller has to tell the two apart: a
+    // week drawn on the grid stays there when it was taken and snaps back when it was
+    // not, and "was it taken" is not a question a sentence can be asked.
+    return answer;
   }
 
   /**
@@ -1601,9 +1665,11 @@ _SCRIPT = """
       "is left alone.");
     warning.append(sealedBy, take, kept);
     const lead = el("p", "hint",
-      "Drag across the boxes to allow viewing in them, or out of a marked box to " +
-      "clear. A day name takes the whole day. From the keyboard: arrows move, space " +
-      "marks, shift and an arrow paints.");
+      "A green box is half an hour the television may be watched in. Drag across the " +
+      "boxes to allow viewing in them, or out of a marked box to clear; the hours " +
+      "you are drawing are named above the pointer as you go. A day name takes the " +
+      "whole " +
+      "day. From the keyboard: arrows move, space marks, shift and an arrow paints.");
     const frame = el("div", "hoursbox");
     const names = el("div", "names");
     const scroller = el("div", "hours");
@@ -1613,6 +1679,17 @@ _SCRIPT = """
       "No half hour is marked, so the hours are not restricted at all: the " +
       "television may be watched at any time of day, within whatever the limits " +
       "above allow.");
+    // What the gesture means, over the boxes it means it on. Out of the reading order:
+    // every box already says its own day and half hour, and a screen reader following
+    // a drag across ninety of them does not need a ninety-first voice.
+    const range = el("div", "range");
+    range.setAttribute("aria-hidden", "true");
+    range.hidden = true;
+    // The week as it stands here while the television has yet to hold it. Said in the
+    // card rather than in the message under it, because a message goes away and this
+    // does not: it is a state the grid is in, not something that just happened.
+    const held = el("p", "held");
+    held.hidden = true;
     // Two of them, because two different things are pressed here. What the take-over
     // has to say belongs where the banner carrying that button was; what the grid has
     // to say belongs under the grid, beside the boxes a finger has just been on. One
@@ -1626,9 +1703,14 @@ _SCRIPT = """
     for (let slot = 0; slot < SLOTS; slot += TICK) {
       ticks.appendChild(el("div", "tick", clock(slot)));
     }
+    /** Whether the line under a named hour is carried down through this box. */
+    function ruled(slot) {
+      if (slot === 0 || slot === SLOTS / 2) return "cell mark noon";
+      return slot % TICK === 0 ? "cell mark" : "cell";
+    }
     scroller.append(ticks, week);
-    frame.append(names, scroller);
-    box.append(warning, took, lead, frame, note, open);
+    frame.append(names, scroller, range);
+    box.append(warning, took, lead, frame, held, note, open);
 
     // What is drawn, kept beside the boxes rather than read back off them: a gesture
     // asks what the week looked like before it started, and a class name cannot say.
@@ -1641,6 +1723,14 @@ _SCRIPT = """
     let lately = true;
     let painting = null;
     let pending = null;
+    // The week this parent last decided, and when. Between the finger lifting and the
+    // rules coming back round the broker there is a second or two in which Home
+    // Assistant still reports the old hours, and a poll landing inside it used to write
+    // them back over the boxes that had just been drawn. They returned when the write
+    // completed, so the grid blinked rather than lost the change — which is worse: it
+    // reads as the panel refusing something it had in fact taken (#136).
+    let wanted = null;
+    let wantedAt = 0;
 
     WEEK.forEach((day, row) => {
       const label = el("button", "day", day[2]);
@@ -1651,7 +1741,7 @@ _SCRIPT = """
       names.appendChild(label);
       const line = [];
       for (let slot = 0; slot < SLOTS; slot += 1) {
-        const cell = el("button", "cell");
+        const cell = el("button", ruled(slot));
         cell.type = "button";
         cell.tabIndex = -1;
         // Where a box is, on the box, because a pointer arrives as a point on the
@@ -1705,6 +1795,50 @@ _SCRIPT = """
       open.hidden = !ticked.every((line) => line.every((on) => !on));
     }
 
+    /** Whether the week Home Assistant reports is the one that was drawn here. */
+    function agrees(tv) {
+      const given = (tv && tv.hours) || {};
+      return WEEK.every((day) => {
+        const there = given[day[0]] || [];
+        const ours = wanted[day[0]] || [];
+        return there.length === ours.length &&
+          there.every((at, index) => at === ours[index]);
+      });
+    }
+
+    /**
+     * Whether the grid is the television's to draw on again.
+     *
+     * Three answers rather than two. The set agrees, and the week is its own once more.
+     * The set has not been told yet because it is asleep and the integration is holding
+     * the change (#135) — then what the parent drew stays exactly where they drew it,
+     * with a line under the grid saying why, for as long as that takes. Or the set is
+     * awake, nothing is being held, and the wait is up: it has read the rule
+     * differently from this panel, and the one enforcing the hours is the one that gets
+     * to say what they are.
+     */
+    function caught(tv) {
+      if (!wanted) return true;
+      if (agrees(tv)) wanted = null;
+      else if (tv && tv.pending_rules) {
+        held.textContent = "These hours are drawn here and waiting: the television " +
+          "is asleep, and they go to it the moment it is back.";
+        held.hidden = false;
+        return false;
+      } else if (Date.now() - wantedAt < AGREE_MS) return false;
+      else {
+        // Awake, holding nothing, and still enforcing something else: it has read the
+        // rule differently from this panel. The grid goes back to what is actually
+        // being enforced — said out loud, because hours quietly changing back under a
+        // parent who drew them is the complaint this whole hold exists to answer.
+        wanted = null;
+        say(note, "The television is enforcing hours other than the ones drawn here, " +
+          "so the grid has gone back to showing its own.", true);
+      }
+      held.hidden = true;
+      return true;
+    }
+
     /** Put what the television is enforcing on the grid, box by box. */
     function draw(tv) {
       const given = (tv && tv.hours) || {};
@@ -1728,6 +1862,56 @@ _SCRIPT = """
     }
 
     /**
+     * Say what is being drawn, over the box it is being drawn on.
+     *
+     * A rectangle of ticked boxes is something to count; "Mon to Wed, 16:00 to 19:30"
+     * is the decision itself, and it is the sentence a parent came here to write. Named
+     * as the gesture moves rather than once it ends, because the point of saying it is
+     * to be right before the finger lifts.
+     */
+    function speak(first, last, opens, shuts, on, where) {
+      const days = first === last
+        ? WEEK[first][1]
+        : WEEK[first][2] + "\u2013" + WEEK[last][2];
+      const span = clock(opens) + "\u2013" + clock(shuts + 1);
+      // A finger crossing one box fires a dozen moves, and every one of them used to
+      // build this sentence again. Only what it says can change what is on the screen.
+      if (range.said !== days + span + on) {
+        range.said = days + span + on;
+        range.textContent = "";
+        range.append(
+          el("span", null, (on ? "Allow " : "Clear ") + days + "\u00a0\u00b7\u00a0"),
+          el("b", null, span),
+        );
+        range.classList.toggle("clearing", !on);
+      }
+      // Kept inside the window rather than centred on a pointer that may be at the
+      // edge of it: a readout half off the screen is a readout that cannot be read.
+      const edge = range.offsetWidth / 2 + PADDING;
+      const wide = window.innerWidth || edge * 2;
+      range.classList.toggle("below", where.y < LOW);
+      range.style.left = Math.max(edge, Math.min(wide - edge, where.x)) + "px";
+      range.style.top = where.y + "px";
+      range.hidden = false;
+    }
+
+    /** Where to say it, for a gesture that arrives as a point on the screen. */
+    function at(event) {
+      return {x: event.clientX, y: event.clientY};
+    }
+
+    /** Where to say it, for one the keyboard is making, which has no pointer at all. */
+    function above(row, slot) {
+      const box = cells[row][slot].getBoundingClientRect();
+      return {x: box.left + box.width / 2, y: box.top};
+    }
+
+    /** Nothing is being drawn, so nothing is said over the boxes. */
+    function quiet() {
+      range.hidden = true;
+    }
+
+    /**
      * Draw the run between where the gesture started and where it has got to.
      *
      * A rectangle rather than a trail of everything the pointer has touched, because a
@@ -1736,7 +1920,7 @@ _SCRIPT = """
      * the gesture began, so dragging back shrinks the run rather than adding to it —
      * and a drag down the days sets the same evening on all of them at once.
      */
-    function stretch(row, slot) {
+    function stretch(row, slot, where) {
       const first = Math.min(painting.row, row);
       const last = Math.max(painting.row, row);
       const opens = Math.min(painting.slot, slot);
@@ -1749,6 +1933,7 @@ _SCRIPT = """
         }
       }
       tell();
+      speak(first, last, opens, shuts, painting.on, where || above(row, slot));
     }
 
     /** The box under a point, or nothing where the pointer has left the week. */
@@ -1779,6 +1964,10 @@ _SCRIPT = """
       }
       rove(cells[row][slot]);
       cells[row][slot].focus();
+      // Said for a keyed change as well as a dragged one, and about the box it landed
+      // on: an arrow paints one half hour at a time, so one half hour is the decision.
+      if (paint && !sealed()) speak(row, row, slot, slot, lately, above(row, slot));
+      else quiet();
     }
 
     /**
@@ -1792,6 +1981,7 @@ _SCRIPT = """
       clearTimeout(pending);
       pending = setTimeout(() => {
         pending = null;
+        quiet();
         commit();
       }, KEYED_MS);
     }
@@ -1812,15 +2002,26 @@ _SCRIPT = """
         }
         days[day[0]] = marked;
       });
+      // Held from here until the television reports these very hours back, so that the
+      // poll `act` is about to make cannot write the old week over the new one.
+      wanted = days;
+      wantedAt = Date.now();
       // Every day every time, marked and unmarked alike: an unmarked half hour has no
       // other way of being said, so a day left out would be a day with no viewing.
-      await act({id: view.id, action: "hours", days: days}, note, full
+      const answer = await act({id: view.id, action: "hours", days: days}, note, full
         ? "Saved. A week with nothing refused is no restriction, so it clears."
         : "Hours saved");
+      // Refused, so what is on the grid is a rule nowhere at all. Letting go of it is
+      // what snaps the week back to the television below.
+      if (!answer || !answer.ok) {
+        wanted = null;
+        held.hidden = true;
+      }
       // `act` has read the state back, so this is what the television has rather than
       // what was drawn at it. A refusal snaps the week back instead of leaving a grid
-      // nobody is enforcing on the screen.
-      if (!painting) draw(view.tv);
+      // nobody is enforcing on the screen; anything still waiting keeps the boxes as
+      // they were drawn.
+      if (!painting && caught(view.tv)) draw(view.tv);
     }
 
     week.addEventListener("pointerdown", (event) => {
@@ -1843,18 +2044,19 @@ _SCRIPT = """
       // Where the keyboard picks up next, without taking the focus off whatever has
       // it: a press is a place to draw, not a request to be moved.
       rove(cell);
-      stretch(cell.atDay, cell.atSlot);
+      stretch(cell.atDay, cell.atSlot, at(event));
     });
 
     week.addEventListener("pointermove", (event) => {
       if (!painting) return;
       const cell = under(document.elementFromPoint(event.clientX, event.clientY));
-      if (cell) stretch(cell.atDay, cell.atSlot);
+      if (cell) stretch(cell.atDay, cell.atSlot, at(event));
     });
 
     week.addEventListener("pointerup", () => {
       if (!painting) return;
       painting = null;
+      quiet();
       commit();
     });
 
@@ -1862,6 +2064,7 @@ _SCRIPT = """
       if (!painting) return;
       const was = painting.was;
       painting = null;
+      quiet();
       // The browser took the gesture away rather than the parent finishing it, so
       // nothing was decided here and nothing is written.
       for (let row = 0; row < WEEK.length; row += 1) {
@@ -1889,6 +2092,8 @@ _SCRIPT = """
         lately = !ticked[cell.atDay][cell.atSlot];
         mark(cell.atDay, cell.atSlot, lately);
         tell();
+        speak(cell.atDay, cell.atDay, cell.atSlot, cell.atSlot, lately,
+          above(cell.atDay, cell.atSlot));
         soon();
       }
     });
@@ -1920,11 +2125,20 @@ _SCRIPT = """
       cells.forEach((line) => line.forEach((cell) => { cell.disabled = off; }));
       lead.hidden = off;
       warning.hidden = !off;
+      // A helper owns the hours now, so a week drawn here before that is not waiting
+      // for anything: there is nowhere left for it to go.
+      if (off) {
+        wanted = null;
+        held.hidden = true;
+        quiet();
+      }
       if (off) {
         sealedBy.textContent = "Read from " + followed +
           " whenever it changes, so the grid below is read-only.";
       }
-      if (!busy()) draw(tv);
+      // Nothing under a finger is written over, and neither is a week that has been
+      // decided here and not yet reached the television.
+      if (!busy() && caught(tv)) draw(tv);
     });
   }
 
