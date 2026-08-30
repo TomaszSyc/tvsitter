@@ -48,6 +48,7 @@ MODULES = [
 PANEL_MODULES = [
     "panel",
     "panel.api",
+    "panel.blueprints",
     "panel.home_assistant",
     "panel.page",
     "panel.server",

@@ -2,7 +2,7 @@
 # the Core API and nothing else — no `services: mqtt:need`, no broker credentials, and no
 # second writer on topics whose safety rests on there being one.
 name: TV Sitter parent panel
-version: "0.7.2"
+version: "0.7.3"
 slug: tvsitter_panel
 description: The parent's pages for TV Sitter — what is on, what was watched, and the rules
 url: https://github.com/TomaszSyc/tvsitter/tree/main/parent-panel
@@ -30,5 +30,11 @@ ingress_port: 8099
 panel_icon: mdi:television-play
 panel_title: TV Sitter
 homeassistant_api: true
+# Read and write, because the point is to put a file where Home Assistant reads
+# blueprints from — the copy step `docs/setup.md` has been asking a person to do by hand
+# since M3 (#104). Nothing else in the configuration directory is touched.
+map:
+  - type: homeassistant_config
+    read_only: false
 options: {}
 schema: {}

@@ -23,6 +23,7 @@ from typing import Any
 from aiohttp import ClientError, ClientSession, web
 
 from .api import apply, snapshot
+from .blueprints import install
 from .home_assistant import HomeAssistant
 from .page import render_shell
 
@@ -149,6 +150,12 @@ def build() -> web.Application:
     async def close_session(app: web.Application) -> None:
         await app["session"].close()
 
+    async def write_blueprints(app: web.Application) -> None:
+        # On every start, not only the first: an update carries a new blueprint and the
+        # copy in the configuration directory is the one Home Assistant actually reads.
+        install()
+
+    app.on_startup.append(write_blueprints)
     app.on_startup.append(open_session)
     app.on_cleanup.append(close_session)
     return app

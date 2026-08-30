@@ -1,0 +1,233 @@
+# TV Sitter — parental control for Android TV / Google TV.
+# Copyright (C) 2026 Tomasz Syc
+# SPDX-License-Identifier: AGPL-3.0-only
+blueprint:
+  name: TV Sitter — a child asks for more time
+  description: >-
+    Turns a request from the TV into a notification on your phone with buttons, and turns a
+    tap on one of those buttons back into an answer the TV acts on.
+
+    The request id travels inside the action name, so an answer settles the request it was
+    asked about rather than whichever one is newest. The notification is tagged with the
+    same id, so a second request replaces its own notification instead of stacking, and
+    answering clears it from the phone.
+  domain: automation
+  author: Tomasz Syc
+  input:
+    request_event:
+      name: The TV
+      description: The time-request event of the television being asked about.
+      selector:
+        entity:
+          filter:
+            - integration: tvsitter
+              domain: event
+    notify_action:
+      name: Notification action
+      description: >-
+        The old-style notify action for the parent's phone, such as
+        notify.mobile_app_pixel_9_pro. It has to be the old service rather than a notify
+        entity: action buttons only work there, and they are the whole point.
+      selector:
+        text:
+    also_notify:
+      name: Notify a second device
+      description: >-
+        Turn this on to notify a watch as well, and know what it does and does not buy.
+
+        Turn it on if you wear one. Measured on a Pixel Watch: with the companion app
+        installed on the watch, a notification sent only to the phone does not arrive on the
+        wrist at all — an app shipping its own watch app opts out of Android's bridging to
+        avoid duplicates — while a notification sent to the watch directly does arrive, and
+        the buttons work. The companion documentation lists only channel, message,
+        notification_icon, tag, title and vibrationPattern for Wear OS, so that the buttons
+        work is better than the documentation promises rather than something to rely on.
+      default: false
+      selector:
+        boolean:
+    second_notify_action:
+      name: Second notification action
+      description: >-
+        Used only when the switch above is on, for example
+        notify.mobile_app_pixel_watch_4.
+      default: notify.persistent_notification
+      selector:
+        text:
+    first_offer:
+      name: First offer
+      description: Minutes on the first button.
+      default: 15
+      selector:
+        number:
+          min: 1
+          max: 120
+          unit_of_measurement: min
+    second_offer:
+      name: Second offer
+      description: Minutes on the second button.
+      default: 30
+      selector:
+        number:
+          min: 1
+          max: 240
+          unit_of_measurement: min
+    expiry_seconds:
+      name: How long the question stands
+      description: >-
+        After this the notification disappears from the phone. Keep it in step with the
+        expiry on the TV, or the phone will offer an answer the television has stopped
+        waiting for.
+      default: 600
+      selector:
+        number:
+          min: 60
+          max: 3600
+          unit_of_measurement: s
+
+# Parallel because the two halves are unrelated: a second child asking must not queue
+# behind a parent who has not answered the first one yet.
+mode: parallel
+max_exceeded: silent
+
+triggers:
+  - trigger: state
+    entity_id: !input request_event
+    # Only the `to` side is guarded here. Guarding the `from` side as well ate the first
+    # request after every Home Assistant restart: the entity comes up `unknown`, so a
+    # genuine press moved it `unknown` -> timestamp and `not_from` dropped it without a
+    # word. Measured — a child pressed the button, the event entity fired, and the
+    # automation's last run was six days old.
+    #
+    # What that guard was for is still real: a restored or re-announced state carries the
+    # old request's id, and without something to stop it the parent is asked again about a
+    # question they answered. The freshness condition below does that job properly, because
+    # an event entity's state *is* the moment it fired.
+    not_to:
+      - unavailable
+      - unknown
+    id: asked
+  - trigger: event
+    event_type: mobile_app_notification_action
+    id: answered
+
+conditions: []
+
+actions:
+  - choose:
+      - alias: The child asked
+        conditions:
+          - condition: trigger
+            id: asked
+          # An event entity's state is the moment it last fired, so anything that is not a
+          # timestamp is the entity appearing or disappearing rather than a request.
+          - condition: template
+            value_template: >-
+              {{ trigger.to_state.attributes.get('id') is not none }}
+          # And the moment has to be now. A restored state after a restart, or the entity
+          # being re-announced, carries the timestamp of the request it was about — which is
+          # how a parent gets asked again about something they answered. Two minutes is
+          # slack for a slow broker, not a window anybody waits in.
+          - alias: The request is happening now, not being replayed
+            condition: template
+            value_template: >-
+              {{ (now() - as_datetime(trigger.to_state.state)).total_seconds() < 120 }}
+        sequence:
+          # The offers are assigned to variables because a blueprint input cannot be
+          # read from inside a template: `!input` is substituted into the YAML, and
+          # `{{ first_offer }}` would render as nothing at all.
+          - variables:
+              first: !input first_offer
+              second: !input second_offer
+              req_id: "{{ trigger.to_state.attributes.id }}"
+              minutes: "{{ trigger.to_state.attributes.asked_minutes | int(15) }}"
+              # Never the package name: a parent reading "com.google.android.youtube.tv"
+              # on a phone at nine in the evening learns nothing.
+              what: >-
+                {{ trigger.to_state.attributes.app_name or 'the TV' }}
+          # Two slots rather than a list, because a list needs `repeat.item` in the action
+          # name and Home Assistant rejects that when saving: it renders the template with no
+          # variables and refuses the empty service name. Two named inputs are substituted at
+          # load time and validate.
+          - action: !input notify_action
+            data:
+              # The app name first, because on a watch the title is what the eye lands on and
+              # "More TV?" alone does not say which television or what is playing on it.
+              title: "{{ what }} — more time?"
+              message: >-
+                Asking for {{ minutes }} more minutes.
+              data:
+                tag: "tvsitter-{{ req_id }}"
+                importance: high
+                timeout: !input expiry_seconds
+                actions: &offers
+                  - action: "TVSITTER-GRANT-{{ first }}-{{ req_id }}"
+                    title: "+{{ first }} min"
+                  - action: "TVSITTER-GRANT-{{ second }}-{{ req_id }}"
+                    title: "+{{ second }} min"
+                  - action: "TVSITTER-DENY-0-{{ req_id }}"
+                    title: Not now
+          - action: !input second_notify_action
+            enabled: !input also_notify
+            data:
+              # The app name first, because on a watch the title is what the eye lands on and
+              # "More TV?" alone does not say which television or what is playing on it.
+              title: "{{ what }} — more time?"
+              message: >-
+                Asking for {{ minutes }} more minutes.
+              data:
+                tag: "tvsitter-{{ req_id }}"
+                importance: high
+                timeout: !input expiry_seconds
+                actions: *offers
+
+      - alias: A parent answered
+        conditions:
+          - condition: trigger
+            id: answered
+          - condition: template
+            value_template: >-
+              {{ (trigger.event.data.action | default('', true)).startswith('TVSITTER-') }}
+        sequence:
+          # action is TVSITTER-<verb>-<minutes>-<req_id>. The id is carried in the button
+          # rather than looked up, so answering an old notification still answers the
+          # request it was about. Rejoined from the fourth part on, so an id that ever
+          # contains a dash is not quietly truncated.
+          - variables:
+              parts: "{{ trigger.event.data.action.split('-') }}"
+              answered_id: "{{ parts[3:] | join('-') }}"
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ parts[1] == 'GRANT' }}"
+                sequence:
+                  - action: tvsitter.grant_time
+                    target:
+                      entity_id: !input request_event
+                    data:
+                      minutes: "{{ parts[2] | int }}"
+                      req_id: "{{ answered_id }}"
+              - conditions:
+                  - condition: template
+                    value_template: "{{ parts[1] == 'DENY' }}"
+                sequence:
+                  - action: tvsitter.deny_time
+                    target:
+                      entity_id: !input request_event
+                    data:
+                      req_id: "{{ answered_id }}"
+
+          # Answered, so it comes off the devices. Left up, a parent taps it again later in
+          # good faith and nothing happens: the television ignores an answer to a request it
+          # has already settled, which is safe and completely silent. `timeout` covers the
+          # case nobody answers; this covers the case somebody did.
+          - action: !input notify_action
+            data:
+              message: clear_notification
+              data:
+                tag: "tvsitter-{{ answered_id }}"
+          - action: !input second_notify_action
+            enabled: !input also_notify
+            data:
+              message: clear_notification
+              data:
+                tag: "tvsitter-{{ answered_id }}"

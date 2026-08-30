@@ -11,12 +11,14 @@ repos:
       - id: end-of-file-fixer
       - id: check-yaml
         # Blueprints are Home Assistant YAML, where `!input` is a tag this loader has
-        # never heard of. Checked below instead, for syntax only.
-        exclude: ^blueprints/
+        # never heard of. Checked below instead, for syntax only. Two directories: the
+        # source, and the copy the panel's image carries because a Docker build cannot
+        # reach outside its own context. A test keeps the two identical.
+        exclude: ^(parent-panel/)?blueprints/
       - id: check-yaml
         name: check-yaml (Home Assistant tags)
         alias: check-yaml-ha
-        files: ^blueprints/
+        files: ^(parent-panel/)?blueprints/
         args: [--unsafe]
       - id: check-json
       - id: check-merge-conflict

@@ -287,8 +287,9 @@ and answer the most recent request without one.
 
 The notification with buttons is a blueprint, in
 [`blueprints/automation/tvsitter/more_time_request.yaml`](../blueprints/automation/tvsitter/more_time_request.yaml).
-Until this repository is public and the blueprint can be imported by URL, copy it into
-`config/blueprints/automation/tvsitter/` and reload automations. It asks for two things: the
+**The parent panel writes it for you** — every start, so an update carries the current one. If you
+are not running the panel, copy it into `config/blueprints/automation/tvsitter/` and reload
+automations. It asks for two things: the
 TV's time-request event, and the notify action for the parent's phone.
 
 That action has to be the old-style `notify.mobile_app_…` service rather than a notify

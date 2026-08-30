@@ -13,6 +13,10 @@ COPY requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt && rm /tmp/requirements.txt
 
 COPY panel /opt/panel
+# Carried in the image rather than fetched at run time: the blueprint the panel installs
+# has to be the one this version was built with, and a panel that reaches the network to
+# find out what to write is a panel that behaves differently on a bad day.
+COPY blueprints /opt/blueprints
 COPY run.sh /run.sh
 RUN chmod a+x /run.sh
 
