@@ -26,7 +26,10 @@ Three rules the correctness of the whole thing rests on:
 2. `cmd` is **never** retained. A retained `{"op":"lock"}` would mean the lock comes back
    on its own, for no reason, after every broker or TV restart. Locking a television that
    is switched off therefore cannot work by leaving a message on the broker: Home Assistant
-   holds the intention instead and sends it when the TV reports in (D24).
+   holds the intention instead and sends it when the TV reports in (D24). The same road is
+   taken by a rule changed while the set sleeps — the change waits in Home Assistant and
+   goes out on the reconnect (D37) — and by rules only: a command is a moment, and one
+   replayed three days later is a television locking itself at breakfast.
 3. `state` is retained, so Home Assistant knows the state immediately after a restart
    instead of waiting for the next tick.
 
@@ -258,7 +261,19 @@ taking down a bedtime lock is not a decision to hand over the rest of the day's 
 correct parent PIN at the television means exactly the same thing.
 
 A `set_rules` whose `rev` is not higher than the current `rules_rev` is ignored, which
-protects against a duplicated message rolling the rules back.
+protects against a duplicated message rolling the rules back. A sender therefore takes the
+number **as it publishes**, never when the change was made: a revision reserved while the
+television was unreachable can be overtaken by the set editing its own rules (D31), and
+would then be dropped on arrival with nothing said anywhere.
+
+A sender holding several changes for a sleeping television folds them into **one** payload
+rather than sending a queue of them. They are deltas of the same object, so the fold is the
+merge below with one difference that matters: a `null` is carried as a value instead of
+being acted on. It has not met the rules yet, so "set the limit, then clear it" has to
+arrive as `{"daily_limit_s": null}` — folding it the way the television merges would produce
+`{}`, which changes nothing and leaves the limit standing. One composition cannot be
+expressed at all: a `null` on a container followed by keys inside it needs two payloads,
+since a delta can either clear a container or reach into it.
 
 `set_rules` **merges** into the rules already in force, and a key carrying `null` removes
 it. So `{"daily_limit_s": null}` lifts the daily limit and leaves everything else alone,

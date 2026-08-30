@@ -46,6 +46,11 @@ RULE_APPS_ALLOWED = "apps_allowed"
 # published beside the rules because the hours are what it affects.
 RULE_FOLLOWING = "following_schedule"
 
+# What the integration accepted for a set that was asleep and has not sent on yet. It
+# sits beside the rules and is not one: a rule here is what the television is enforcing,
+# and this is what it is going to be enforcing instead.
+RULE_PENDING = "pending_rules"
+
 # The grid is half-hourly. Finer would be a row of ninety-six boxes to tap on a phone;
 # coarser would not express the half past four a school day actually starts at.
 SLOT_MINUTES = 30
@@ -118,6 +123,7 @@ def described(
         "windows": windows(television.rules.get(RULE_WINDOWS)),
         "following_schedule": following(television),
         "hours": hours(television.rules.get(RULE_WINDOWS)),
+        "pending_rules": pending(television),
         "trouble": trouble(television),
     }
 
@@ -235,6 +241,23 @@ def following(television: Television) -> str | None:
     """
     said = television.rules.get(RULE_FOLLOWING)
     return said if isinstance(said, str) and said else None
+
+
+def pending(television: Television) -> dict[str, Any] | None:
+    """Say what has been accepted for this television but not reached it yet.
+
+    A rule changed while the set is asleep is held rather than refused: the integration
+    merges it and publishes it when the television comes back. Nothing when nothing is
+    waiting, and an empty object is nothing waiting rather than a change of no rules —
+    the page draws a warning off this, and one over an empty object would be a warning
+    about nothing.
+
+    Handed on exactly as it arrived. Which rules are waiting is the television's own
+    vocabulary and the page turns them into English; anything it does not recognise is
+    named by its key, which is an uglier sentence than a wrong one and a truer one.
+    """
+    said = television.rules.get(RULE_PENDING)
+    return said if isinstance(said, dict) and said else None
 
 
 def hours(said: Any) -> dict[str, list[str]]:
@@ -416,6 +439,8 @@ async def apply(
             )
         case "stop_following":
             await stop_following(home, television)
+        case "forget_pending":
+            await forget_pending(home, television)
         case "hours":
             refuse_while_following(television)
             await home.call(
@@ -499,6 +524,23 @@ async def stop_following(home: HomeAssistant, television: Television) -> None:
     """
     await home.call(
         DOMAIN, "forget_schedule", {"entity_id": entity(television, "rules")}
+    )
+
+
+async def forget_pending(home: HomeAssistant, television: Television) -> None:
+    """Throw away a change the television never woke up to take.
+
+    For a set that is not coming back — sold, moved, replaced — the alternative is a
+    panel that warns about a waiting change for ever, and a parent who cannot tell that
+    warning from one about a set that is merely asleep.
+
+    Nothing in force changes: what is thrown away is what has not been sent. Sent
+    whichever way the rules stand, like `forget_schedule` and for the same reason — the
+    page offers this against a state one poll out of date, so a set that has just woken
+    and taken the change has nothing to forget rather than a refusal to show for it.
+    """
+    await home.call(
+        DOMAIN, "forget_pending_rules", {"entity_id": entity(television, "rules")}
     )
 
 

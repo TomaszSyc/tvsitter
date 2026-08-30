@@ -21,7 +21,6 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.const import EntityCategory, UnitOfTime
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_platform
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -35,12 +34,14 @@ from .const import (
     ATTR_MINUTES,
     ATTR_PACKAGE,
     ATTR_PACKAGES,
+    ATTR_PENDING_RULES,
     ATTR_SCHEDULE,
     ATTR_WINDOWS,
     RULE_APP_LIMITS,
     RULE_APPS_ALLOWED,
     RULE_DAYS,
     RULE_WINDOWS,
+    SERVICE_FORGET_PENDING_RULES,
     SERVICE_FORGET_SCHEDULE,
     SERVICE_SET_ALLOWED_APPS,
     SERVICE_SET_APP_LIMIT,
@@ -194,6 +195,15 @@ async def async_setup_entry(
         None,
         "async_forget_schedule",
     )
+    # For a change that is never going to land: a television sold, a prefix retyped.
+    # No fields, like the one above and for the same reason — what is waiting is
+    # something the entry already knows, and naming it again would only let somebody
+    # name the wrong thing and be told nothing happened.
+    platform.async_register_entity_service(
+        SERVICE_FORGET_PENDING_RULES,
+        None,
+        "async_forget_pending_rules",
+    )
 
 
 class ActiveAppSensor(TvSitterEntity, SensorEntity):
@@ -336,12 +346,18 @@ class RulesSensor(TvSitterEntity, SensorEntity):
 
         Shown even before the rules arrive: a helper can be followed while the set is
         asleep, and that is precisely when a grid is most likely to be edited.
+
+        The change still waiting for the television belongs here too. A rule changed
+        while the set sleeps is now held rather than refused (#135), and a change
+        accepted silently that has not happened yet would be worse than the refusal it
+        replaced — so a panel has to be able to say what is waiting, and for which set.
         """
         rules = self._client.rules
         followed = self._client.followed_schedule
+        pending = self._client.pending_rules
         snapshot = self._client.snapshot
         exempt = list(snapshot.exempt_apps) if snapshot else []
-        if rules is None and followed is None and not exempt:
+        if rules is None and followed is None and pending is None and not exempt:
             return None
         attributes = dict(rules or {})
         # This side owns the name outright, which is why the television's is dropped
@@ -360,6 +376,14 @@ class RulesSensor(TvSitterEntity, SensorEntity):
         # the only thing that can answer it — so its value is kept rather than dropped.
         if exempt:
             attributes[ATTR_EXEMPT_APPS] = exempt
+        # Dropped before it is set, exactly like the helper above and for the same
+        # reason: only Home Assistant knows what it is holding, and a television
+        # echoing this word could otherwise promise a panel a change nobody queued.
+        # Absent rather than an empty object when nothing waits, so "nothing waiting"
+        # cannot be read as a change with nothing in it.
+        attributes.pop(ATTR_PENDING_RULES, None)
+        if pending is not None:
+            attributes[ATTR_PENDING_RULES] = pending
         return attributes
 
     async def async_set_schedule(self, day: str, minutes: float | None = None) -> None:
@@ -369,7 +393,6 @@ class RulesSensor(TvSitterEntity, SensorEntity):
         numbers, and an action that takes all seven means retyping the six that are not
         changing, which is how a Saturday quietly loses its limit.
         """
-        self._require_a_listening_tv()
         seconds = None if minutes is None else int(minutes * SECONDS_PER_MINUTE)
         await self._client.async_set_rules({RULE_DAYS: {day: seconds}})
 
@@ -380,7 +403,6 @@ class RulesSensor(TvSitterEntity, SensorEntity):
         there is nothing to merge onto. An empty list is no restriction rather than a
         closed day — the same reading the engine has had since M4 (D27).
         """
-        self._require_a_listening_tv()
         await self._client.async_set_rules({RULE_WINDOWS: list(windows)})
 
     async def async_use_schedule(self, schedule: str) -> None:
@@ -427,7 +449,6 @@ class RulesSensor(TvSitterEntity, SensorEntity):
         cannot express: zero there means blocked, and blocked is not the same as
         running on the day's allowance.
         """
-        self._require_a_listening_tv()
         seconds = None if minutes is None else int(minutes * SECONDS_PER_MINUTE)
         await self._client.async_set_rules({RULE_APP_LIMITS: {package: seconds}})
 
@@ -444,15 +465,21 @@ class RulesSensor(TvSitterEntity, SensorEntity):
         this says whether. An app has to pass both, and both are ways of saying no, so
         there is no case where the two disagree (#75).
         """
-        self._require_a_listening_tv()
         await self._client.async_set_rules({RULE_APPS_ALLOWED: list(packages)})
 
-    def _require_a_listening_tv(self) -> None:
-        """Refuse rather than write into the dark."""
-        if not self._client.available:
-            raise ServiceValidationError(
-                f"{self._client.name} is not listening; the change would go nowhere"
-            )
+    async def async_forget_pending_rules(self) -> None:
+        """Throw away a rule change that is waiting for a television.
+
+        The counterpart of holding one at all. A change held for a set that is never
+        coming back — sold, replaced, or addressed by a prefix somebody has since
+        retyped — would otherwise sit on the config entry for ever, with this sensor
+        promising a panel something that will never happen.
+
+        Nothing is written to the television and nothing already in force is touched:
+        this throws away a change that never left, which is the opposite of undoing one
+        that did.
+        """
+        self._client.forget_pending_rules()
 
 
 class BonusTodaySensor(TvSitterEntity, SensorEntity):

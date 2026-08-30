@@ -14,7 +14,6 @@ from typing import Any
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.const import STATE_OFF, STATE_ON, EntityCategory
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.util import dt as dt_util
@@ -295,8 +294,10 @@ class BlockSettingsSwitch(TvSitterEntity, SwitchEntity):
         await self._set(False)
 
     async def _set(self, blocked: bool) -> None:
-        if not self._client.available:
-            raise ServiceValidationError(
-                f"{self._client.name} is not listening; the change would go nowhere"
-            )
+        """Write the rule, now or as soon as the television is listening.
+
+        A rule rather than a command — whether Settings is reachable is a state, and it
+        is as true tomorrow as it is tonight — so a change made while the set sleeps
+        waits for it instead of being refused (#135).
+        """
         await self._client.async_set_rules({RULE_BLOCK_SETTINGS: blocked})

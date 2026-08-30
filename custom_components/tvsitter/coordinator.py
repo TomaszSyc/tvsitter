@@ -29,7 +29,9 @@ from homeassistant.helpers.event import (
 from homeassistant.util import dt as dt_util
 
 from .const import (
+    CONF_PENDING_RULES,
     CONF_SCHEDULE,
+    MAX_MERGE_DEPTH,
     OP_SET_RULES,
     PAYLOAD_ONLINE,
     QUIET_AFTER_SECONDS,
@@ -54,6 +56,43 @@ from .models import (
 from .schedules import windows_from
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def merge_pending(
+    earlier: dict[str, Any], later: dict[str, Any], depth: int = 1
+) -> dict[str, Any]:
+    """Fold two waiting `set_rules` deltas into one that means both, the later winning.
+
+    Not the television's merge, and the difference is the whole reason this is written
+    out rather than borrowed. `Rules.merge` folds a delta into the rules *in force*,
+    where a `null` is an instruction to remove a key and so leaves nothing behind. Here
+    both sides are deltas and neither has met the rules yet, so a `null` is a removal
+    still on its way and is carried as a value. Folding it the television's way would
+    turn "set the limit, then clear it" into an empty payload — and an empty payload
+    changes nothing, so the limit would stand.
+
+    Everything else matches D26, because what this builds is read by that merge: objects
+    fold key by key, so two apps' budgets cannot displace each other; arrays and scalars
+    replace whole, because a window in a list has no key to merge on; and it stops
+    folding at the depth the set stops merging at.
+
+    The one composition it cannot express is a `null` on a container followed by keys
+    inside it — "clear every app budget, then give Netflix half an hour" needs two
+    payloads, since a delta can either clear a container or reach into it. The later
+    word wins there, which keeps the change somebody made last. Nothing here writes that
+    shape: every rule key this integration sends has a fixed one, and the only nulls it
+    sends sit on scalars or on keys inside a container.
+    """
+    folded = dict(earlier)
+    for key, value in later.items():
+        standing = folded.get(key)
+        deep = isinstance(value, dict) and isinstance(standing, dict)
+        folded[key] = (
+            merge_pending(standing, value, depth + 1)
+            if deep and depth < MAX_MERGE_DEPTH
+            else value
+        )
+    return folded
 
 
 class TvSitterClient:
@@ -89,6 +128,10 @@ class TvSitterClient:
         self._alert_listeners: list[Callable[[Alert], None]] = []
         self._quiet_timer: Callable[[], None] | None = None
         self._sent_rev = 0
+        # A rule change made while the set was asleep, waiting for it to say hello.
+        # Read back from the entry here rather than when the first change is made, so a
+        # restart picks it up before anything can fold a second change onto nothing.
+        self._pending_rules: dict[str, Any] | None = self._restore_pending()
         self.available = False
         # The last request the TV made, so an answer can be addressed without the caller
         # having to carry the id around. A blueprint answering a notification does carry
@@ -204,10 +247,167 @@ class TvSitterClient:
         it is ahead,
         which is what happens after a restart of Home Assistant, or when something else
         has been writing rules.
+
+        Held rather than refused while the set is not listening (#135). The refusal
+        was right about the wire and wrong about the product: `<p>/cmd` is not retained,
+        so a `set_rules` published now really would be lost — but the answer to that is
+        to send it when the set comes back, not to tell a parent who has just drawn a
+        week to come back later. A rule is a state somebody wants the television to be
+        in, and it is still wanted an hour later.
+
+        Only rules come this way. A command is a moment — a lock, an unlock, a grant, a
+        sleep timer armed for tonight — and one replayed on Thursday is a television
+        locking itself at breakfast for a reason nobody remembers. That is the line D30
+        drew when it made the sleep timer a command rather than a rule.
+        """
+        if not self.available:
+            self._hold(rules)
+            return
+        await self._publish_rules(rules)
+
+    async def _publish_rules(self, rules: dict[str, Any]) -> None:
+        """Put one rules delta on the wire, taking its revision as it goes.
+
+        The one place a revision is spent, which is what keeps the guard working: a
+        number reserved when a change was held could be overtaken while the set slept —
+        by the television editing its own rules (D31), or by a second thing writing them
+        — and would arrive too low to be accepted, with nothing said anywhere.
         """
         await self.async_send(
             {"op": OP_SET_RULES, "rev": self._next_revision(), "rules": rules}
         )
+
+    @property
+    def pending_rules(self) -> dict[str, Any] | None:
+        """The change waiting for the television, or nothing when none is.
+
+        Read by the rules sensor, so a panel can say what has been accepted and has not
+        yet happened. Silently accepting a change that has not happened would be worse
+        than the refusal this replaced.
+        """
+        return self._pending_rules
+
+    @callback
+    def _hold(self, rules: dict[str, Any]) -> None:
+        """Keep a change until the set is listening, folding it into whatever waits.
+
+        Folded rather than stacked. They are deltas of one object, so three edits become
+        one payload and one revision — where a queue of them would spend a revision each
+        to arrive in an order nothing guarantees. `merge_pending` says what the folding
+        does, and where it differs from the television's own.
+        """
+        waiting = self._pending_rules
+        self._pending_rules = (
+            dict(rules) if waiting is None else merge_pending(waiting, rules)
+        )
+        self._remember_pending()
+        _LOGGER.info(
+            "%s is not listening; holding %s until it is",
+            self.name,
+            ", ".join(sorted(self._pending_rules)),
+        )
+        self._notify()
+
+    async def async_send_pending_rules(self) -> None:
+        """Send the change that was waiting for the television.
+
+        Cleared as it goes rather than when the set confirms, which is the bargain
+        the lock switch already struck: the holding exists to survive the wait, and
+        after that the television's own reports are the truth again. It also means a
+        change the set declines cannot become a payload resent for ever.
+
+        Once it is on the wire, though, and not before. A broker refusing the publish is
+        the one moment where "sent" and "asked for" come apart, and dropping a week
+        somebody drew because the broker hiccuped would be this feature failing at the
+        only job it has.
+        """
+        rules = self._pending_rules
+        if rules is None:
+            return
+        _LOGGER.info(
+            "%s is back; sending the %s that was waiting",
+            self.name,
+            ", ".join(sorted(rules)),
+        )
+        await self._publish_rules(rules)
+        # Unless something was held again while that was in flight, which means the set
+        # dropped off mid-publish. That change is somebody's and has not been sent.
+        if self._pending_rules is rules:
+            self._pending_rules = None
+            self._remember_pending()
+        self._notify()
+
+    @callback
+    def forget_pending_rules(self) -> None:
+        """Throw away a change waiting for a television that is not coming back.
+
+        A set sold or a prefix retyped leaves a change that can never land, and without
+        this it sits on the entry for ever with the panel promising it.
+
+        Doing nothing when nothing is waiting is the point rather than an oversight, for
+        the reason `forget_schedule` gives: an action that can fail for having already
+        happened is one nobody dares press. The entry is cleared whatever memory holds,
+        so a stored change this build would not restore — one written against another
+        payload schema — is got rid of by the same button.
+        """
+        self._pending_rules = None
+        self._remember_pending()
+        self._notify()
+
+    @callback
+    def _remember_pending(self) -> None:
+        """Write what is waiting to the config entry, or take it off again.
+
+        The entry rather than a restored entity state: a rules delta is not one value an
+        entity could carry back, and a parent who drew a week must not lose it because
+        Home Assistant updated overnight. The payload schema travels with it, because a
+        delta only means anything against the contract it was written for.
+        """
+        if self.entry is None:
+            return
+        options = {
+            key: value
+            for key, value in self.entry.options.items()
+            if key != CONF_PENDING_RULES
+        }
+        if self._pending_rules is not None:
+            options[CONF_PENDING_RULES] = {
+                "schema": SCHEMA_VERSION,
+                "rules": self._pending_rules,
+            }
+        # Writing the same options back is not free — it wakes every listener on the
+        # entry and rewrites the store — and forgetting a change that was never there is
+        # the common case, since a panel offering the button cannot know what waits.
+        if dict(self.entry.options) == options:
+            return
+        self._hass.config_entries.async_update_entry(self.entry, options=options)
+
+    def _restore_pending(self) -> dict[str, Any] | None:
+        """Pick up a change left waiting by a Home Assistant that has restarted.
+
+        Refused rather than guessed at when it was stored against another payload
+        schema, for the reason every payload reader here refuses one: past that point
+        the meaning of the keys cannot be assumed, and a rules delta that means
+        something else is a television enforcing something nobody asked for. Said out
+        loud, because the cost of dropping it is a week somebody has to draw again — and
+        left on the entry, so `forget_pending_rules` is what finally clears it.
+        """
+        stored = self.entry.options.get(CONF_PENDING_RULES) if self.entry else None
+        if stored is None:
+            return None
+        schema = stored.get("schema") if isinstance(stored, dict) else None
+        rules = stored.get("rules") if isinstance(stored, dict) else None
+        if schema != SCHEMA_VERSION or not isinstance(rules, dict):
+            _LOGGER.warning(
+                "%s: a rule change was waiting, stored for payload schema %s where "
+                "this build speaks %s. It has not been sent; make the change again",
+                self.name,
+                schema,
+                SCHEMA_VERSION,
+            )
+            return None
+        _LOGGER.debug("%s: picked up a rule change that was waiting", self.name)
+        return dict(rules)
 
     @property
     def followed_schedule(self) -> str | None:
@@ -311,6 +511,10 @@ class TvSitterClient:
         if self.rules is not None and self.rules.get(RULE_WINDOWS) == windows:
             return
         if not self.available:
+            # Left for the reconnect rather than held like a rule change, and the
+            # difference matters: this is a copy of a grid that may be drawn on again
+            # before the set wakes. Re-reading the helper then gives the hours as they
+            # are, where a held payload would give the hours as they were.
             _LOGGER.debug(
                 "%s: not listening, leaving %s for later", self.name, entity_id
             )
@@ -512,12 +716,18 @@ class TvSitterClient:
         was = self.available
         self.available = message.payload.strip() == PAYLOAD_ONLINE
         _LOGGER.debug("%s is %s", self.name, "online" if self.available else "offline")
-        # A grid edited while the set was asleep is sent now. Without this the schedule
-        # and the television drift apart in silence, which is the failure the whole
-        # follow-the-helper arrangement exists to avoid.
+        # Everything that was waiting on the set goes now. Without this the rules and
+        # the television drift apart in silence, which is the failure the whole
+        # arrangement exists to avoid.
         followed = self.followed_schedule
-        if self.available and not was and followed:
-            self._hass.async_create_task(self.async_import_schedule(followed))
+        if self.available and not was:
+            # The held change first, because it is what somebody actually asked for and
+            # nothing else remembers it. The helper second, so a grid edited since has
+            # the last word on the hours — which is what following one means.
+            if self._pending_rules is not None:
+                self._hass.async_create_task(self.async_send_pending_rules())
+            if followed:
+                self._hass.async_create_task(self.async_import_schedule(followed))
         self._notify()
 
     @callback

@@ -239,6 +239,10 @@
         }
       }
     },
+    "forget_pending_rules": {
+      "name": "Discard the waiting rule change",
+      "description": "Throws away a rule change that has been waiting for a television to come back — one that has been sold, replaced, or is addressed by a topic prefix that has since changed. The rules the television is enforcing are not touched: what this discards never left Home Assistant. Nothing happens if no change is waiting."
+    },
     "forget_schedule": {
       "name": "Stop taking the hours from a schedule",
       "description": "Stops following the schedule helper, so the hours can be edited by hand again. The hours the helper wrote are left exactly as they are — this stops the following, it does not undo them — and nothing happens if no helper is being followed."

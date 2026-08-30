@@ -13,12 +13,13 @@ from unittest.mock import patch
 
 import pytest
 
-from custom_components.tvsitter.button import ClearLimitButton
+from custom_components.tvsitter.button import ClearLimitButton, ClearPinButton
 from custom_components.tvsitter.coordinator import TvSitterClient
 from custom_components.tvsitter.models import StateSnapshot
 from custom_components.tvsitter.number import (
     AppLimitNumber,
     DailyLimitNumber,
+    DayLimitNumber,
     SleepTimerNumber,
     WarnBeforeNumber,
 )
@@ -33,8 +34,9 @@ PREFIX = "tvsitter/salon"
 def make_client(hass: HomeAssistant, available: bool = True) -> TvSitterClient:
     """Build a client with nothing subscribed; these tests only publish.
 
-    Marked as listening, because that is what these tests are about. Writing to a
-    television that is not is refused on purpose (#90), and has its own tests.
+    Marked as listening, because that is what these tests are about. A rule written to
+    a television that is not waits for it instead of going out (#135), which is what
+    test_pending_rules.py is about.
     """
     client = TvSitterClient(hass, name="TV Salon", topic_prefix=PREFIX)
     client.available = available
@@ -347,16 +349,56 @@ async def test_an_empty_list_is_no_restriction(hass: HomeAssistant) -> None:
     assert await written(RulesSensor(client).async_set_windows([])) == {"windows": []}
 
 
-async def test_a_rule_change_needs_a_television_that_is_listening(
+async def test_a_rule_change_waits_for_a_television_that_is_not_listening(
     hass: HomeAssistant,
 ) -> None:
-    """Refuse rather than write into the dark: a lost rule change is silent."""
+    """#135. Every rule write comes down this road, so every one of them waits.
+
+    They used to be refused. The refusal was right about the wire and wrong about the
+    product: a parent who has drawn a week has not asked whether the set is awake.
+    """
+    client = make_client(hass, available=False)
+    sensor = RulesSensor(client)
+
+    with patch("homeassistant.components.mqtt.async_publish") as publish:
+        await sensor.async_set_windows([])
+        await AppLimitNumber(client, "com.netflix.ninja").async_set_native_value(30)
+        await sensor.async_set_schedule("sat", 120)
+        await sensor.async_set_allowed_apps(["com.netflix.ninja"])
+        await sensor.async_set_app_limit("com.disney.disneyplus")
+        await BlockSettingsSwitch(client).async_turn_on()
+        await WarnBeforeNumber(client).async_set_native_value(15)
+        await DayLimitNumber(client, "sun").async_set_native_value(60)
+        await ClearLimitButton(client).async_press()
+
+    publish.assert_not_called()
+    assert set(client.pending_rules) == {
+        "windows",
+        "app_limits_s",
+        "days",
+        "apps_allowed",
+        "block_settings",
+        "warn_before_s",
+        "daily_limit_s",
+    }
+
+
+async def test_a_command_still_needs_a_television_that_is_listening(
+    hass: HomeAssistant,
+) -> None:
+    """The line #135 drew: a rule is a state, a command is a moment.
+
+    A bedtime armed tonight and delivered on Friday, or a PIN a parent believes is on
+    the set and is not, are both worse than being told now.
+    """
     client = make_client(hass, available=False)
 
     with pytest.raises(ServiceValidationError):
-        await RulesSensor(client).async_set_windows([])
+        await SleepTimerNumber(client).async_set_native_value(30)
     with pytest.raises(ServiceValidationError):
-        await AppLimitNumber(client, "com.netflix.ninja").async_set_native_value(30)
+        await ClearPinButton(client).async_press()
+
+    assert client.pending_rules is None
 
 
 async def test_an_app_limit_can_be_taken_away(hass: HomeAssistant) -> None:

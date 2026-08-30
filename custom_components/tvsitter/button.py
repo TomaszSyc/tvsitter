@@ -49,11 +49,12 @@ class ClearLimitButton(TvSitterEntity, ButtonEntity):
         `set_rules` merges, so naming one key with null removes exactly that rule.
         Sending an empty object would change nothing, and sending a whole rules object
         would mean knowing every rule in force — which this cannot and should not.
+
+        Lifting a limit is a rule, so pressing this on a sleeping television holds it
+        until the set is listening rather than refusing it (#135). The null survives the
+        wait as a value: a change waiting to remove a rule is not the same as no change
+        waiting, and folding it the television's way would lose exactly that.
         """
-        if not self._client.available:
-            raise ServiceValidationError(
-                f"{self._client.name} is not listening; the change would go nowhere"
-            )
         await self._client.async_set_rules({RULE_DAILY_LIMIT: None})
 
 
@@ -80,6 +81,11 @@ class ClearPinButton(TvSitterEntity, ButtonEntity):
         A null hash, spelled out rather than left implicit: the TV refuses a `set_pin`
         with no `hash` key at all, so that a truncated command cannot quietly strip the
         PIN off a television.
+
+        Still refused while the set is asleep, unlike the rule write on the button
+        above. A PIN is a command: the parent who pressed this would believe the
+        television has no PIN, and find out otherwise in front of the lock screen
+        (#135).
         """
         if not self._client.available:
             raise ServiceValidationError(

@@ -514,6 +514,94 @@ async def test_a_grid_that_is_not_a_grid_is_refused_in_words() -> None:
     assert str(refusal.value).endswith(".")
 
 
+HELD = {"windows": [{"id": "1600-1930", "from": "16:00", "to": "19:30"}]}
+
+
+def test_nothing_is_waiting_until_the_integration_says_so() -> None:
+    """The ordinary case is a television that took the change, so it says nothing."""
+    assert only(with_rules(windows=[SCHOOL]))["pending_rules"] is None
+
+
+def test_a_change_the_set_slept_through_is_handed_on_whole() -> None:
+    """The page names the rules that are waiting, so it is given all of them."""
+    written = only(with_rules(pending_rules=HELD))
+
+    assert written["pending_rules"] == HELD
+
+
+def test_a_change_of_no_rules_at_all_is_nothing_waiting() -> None:
+    """A warning about an empty object would be a warning about nothing."""
+    assert only(with_rules(pending_rules={}))["pending_rules"] is None
+
+
+def test_something_that_is_not_a_change_is_nothing_waiting() -> None:
+    """It arrives from a sensor attribute, so it is read rather than trusted."""
+    assert only(with_rules(pending_rules=["windows"]))["pending_rules"] is None
+    assert only(with_rules(pending_rules="windows"))["pending_rules"] is None
+
+
+def test_waiting_and_following_are_two_different_questions() -> None:
+    """One is a change that has not landed; the other is where the hours come from."""
+    written = only(
+        with_rules(
+            pending_rules=HELD,
+            following_schedule="schedule.viewing_hours",
+            windows=[SCHOOL],
+        )
+    )
+
+    assert written["pending_rules"] == HELD
+    assert written["following_schedule"] == "schedule.viewing_hours"
+    # And what is drawn is still what the television is enforcing, not what is coming.
+    assert written["hours"]["mon"] == SCHOOL_SLOTS
+
+
+async def test_a_waiting_change_can_be_thrown_away_from_the_panel() -> None:
+    """For a set that is not coming back, which is the only way the warning ends."""
+    home = Recorder()
+
+    await apply(home, [with_rules(pending_rules=HELD)], forget())
+
+    assert home.calls == [
+        ("tvsitter", "forget_pending_rules", {"entity_id": "sensor.r"})
+    ]
+
+
+async def test_throwing_a_waiting_change_away_writes_no_rules_at_all() -> None:
+    """What goes is what never reached the set; what it is enforcing is untouched."""
+    home = Recorder()
+    one = with_rules(pending_rules=HELD, windows=[SCHOOL])
+
+    await apply(home, [one], forget())
+
+    assert [service for _, service, _ in home.calls] == ["forget_pending_rules"]
+    assert only(one)["hours"]["mon"] == SCHOOL_SLOTS
+
+
+async def test_throwing_away_is_safe_with_nothing_waiting() -> None:
+    """The page offers it against a state one poll old, so it cannot be a refusal."""
+    home = Recorder()
+
+    await apply(home, [with_rules()], forget())
+
+    assert home.calls == [
+        ("tvsitter", "forget_pending_rules", {"entity_id": "sensor.r"})
+    ]
+
+
+async def test_throwing_a_waiting_change_away_needs_a_rules_sensor() -> None:
+    """An older integration is missing one control rather than broken."""
+    with pytest.raises(ValueError) as refusal:
+        await apply(Recorder(), [television()], forget())
+
+    assert "rules" in str(refusal.value)
+
+
+def forget() -> dict[str, Any]:
+    """Build the one request that throws a waiting change away."""
+    return {"id": DEVICE, "action": "forget_pending"}
+
+
 LAST_SEVEN_DAYS = [
     {"package": "com.youtube", "name": "YouTube", "minutes": 312.5},
     {"package": "com.netflix", "name": "Netflix", "minutes": 88.0},

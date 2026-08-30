@@ -135,15 +135,13 @@ class DailyLimitNumber(TvSitterEntity, NumberEntity):
         The revision comes back in the next state payload, so the two sides can be seen
         to agree rather than assumed to.
 
-        Refused outright while the TV is not listening. This entity stays readable then,
-        because the limit in force is still the limit in force (#90) — but commands are
-        never retained, so a limit set now would go nowhere and the box would show a
-        number nobody is enforcing. Saying so beats accepting it.
+        Held rather than refused while the TV is not listening. It used to be refused,
+        because a command is never retained and a limit set now would go nowhere — true
+        of the wire and wrong about the product. A limit is a state somebody wants the
+        set to be in, and it is still wanted when the set wakes, so the client keeps it
+        and sends it then (#135). The box goes on reading the limit in force, which is
+        still the limit in force (#90); what is waiting is on the rules sensor.
         """
-        if not self._client.available:
-            raise ServiceValidationError(
-                f"{self._client.name} is not listening; the limit would go nowhere"
-            )
         await self._client.async_set_rules(
             {RULE_DAILY_LIMIT: int(value * SECONDS_PER_MINUTE)}
         )
@@ -210,11 +208,10 @@ class WarnBeforeNumber(TvSitterEntity, NumberEntity):
         return [item for item in raw if isinstance(item, int)]
 
     async def async_set_native_value(self, value: float) -> None:
-        """Set one warning, or none at all."""
-        if not self._client.available:
-            raise ServiceValidationError(
-                f"{self._client.name} is not listening; the change would go nowhere"
-            )
+        """Set one warning, or none at all.
+
+        A rule, so it waits for a sleeping television rather than being refused (#135).
+        """
         seconds = int(value * SECONDS_PER_MINUTE)
         await self._client.async_set_rules(
             {RULE_WARN_BEFORE: [] if seconds <= 0 else [seconds]}
@@ -257,7 +254,13 @@ class SleepTimerNumber(TvSitterEntity, NumberEntity):
         return None
 
     async def async_set_native_value(self, value: float) -> None:
-        """Arm the timer, or cancel one already set."""
+        """Arm the timer, or cancel one already set.
+
+        Still refused while the set is asleep, where every rule on this platform now
+        waits instead. This is the exception the line is drawn around: a bedtime is one
+        evening's decision, not a state (D30), and one held from Tuesday and delivered
+        on Friday is a television locking itself for a reason nobody remembers (#135).
+        """
         if not self._client.available:
             raise ServiceValidationError(
                 f"{self._client.name} is not listening; nothing would be armed"
@@ -317,11 +320,10 @@ class AppLimitNumber(TvSitterEntity, NumberEntity):
         return None if not isinstance(seconds, int) else seconds / SECONDS_PER_MINUTE
 
     async def async_set_native_value(self, value: float) -> None:
-        """Give this app its own budget, or take it away."""
-        if not self._client.available:
-            raise ServiceValidationError(
-                f"{self._client.name} is not listening; the change would go nowhere"
-            )
+        """Give this app its own budget, or take it away.
+
+        A rule, so it waits for a sleeping television rather than being refused (#135).
+        """
         await self._client.async_set_rules(
             {RULE_APP_LIMITS: {self._package: int(value * SECONDS_PER_MINUTE)}}
         )
@@ -368,11 +370,10 @@ class DayLimitNumber(TvSitterEntity, NumberEntity):
         return None if not isinstance(seconds, int) else seconds / SECONDS_PER_MINUTE
 
     async def async_set_native_value(self, value: float) -> None:
-        """Give this day its own allowance."""
-        if not self._client.available:
-            raise ServiceValidationError(
-                f"{self._client.name} is not listening; the change would go nowhere"
-            )
+        """Give this day its own allowance.
+
+        A rule, so it waits for a sleeping television rather than being refused (#135).
+        """
         await self._client.async_set_rules(
             {RULE_DAYS: {self._day: int(value * SECONDS_PER_MINUTE)}}
         )

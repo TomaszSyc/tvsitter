@@ -126,6 +126,15 @@ forget_schedule:
       integration: tvsitter
       domain: sensor
 
+# Throws away a rule change that is waiting for a television which never comes back — a set
+# sold, a prefix retyped. No fields, for the same reason as the one above, and it touches
+# nothing the television is already enforcing: what it discards never left Home Assistant.
+forget_pending_rules:
+  target:
+    entity:
+      integration: tvsitter
+      domain: sensor
+
 # Which apps exist for this child at all. Sent whole every time — an allow-list has no key to
 # merge onto — and an empty list allows everything rather than nothing.
 set_allowed_apps:

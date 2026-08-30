@@ -75,15 +75,19 @@ p { margin: 0; }
   margin-bottom: 0.8rem;
   padding: 0.85rem 1.1rem;
 }
-/* A banner that hands back the thing it took away: the sentence, the button out, and
-   underneath both the promise that nothing is being given up by pressing it. */
-.banner.offer {
+/* Two banners that hand a decision back rather than only reporting one: the
+   sentence, the button, and underneath both the promise of what pressing it does not
+   do. One offers the hours back off a helper; the other throws away a change the
+   television never woke up to take. */
+.banner.offer,
+.banner.waiting {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
   gap: 0.7rem 1rem;
 }
-.banner.offer .said { flex: 1 1 15rem; }
+.banner.offer .said, .banner.waiting .said { flex: 1 1 15rem; }
+.banner.waiting button { flex: none; }
 .banner.offer button, .banner.offer button:hover {
   background: var(--accent);
   color: var(--backdrop);
@@ -261,9 +265,33 @@ input[type="checkbox"] {
 .tick { align-items: center; display: flex; gap: 0.45rem; }
 .hint, .note { flex-basis: 100%; font-size: 0.85rem; }
 .hint { color: var(--muted); }
-.note { color: var(--accent); }
-.note:empty { display: none; }
-.note.bad { color: var(--warn); }
+/*
+ * What one control has to say for itself, drawn under that control.
+ *
+ * A row rather than a line, because a refusal stays until somebody dismisses it and
+ * the button that does that belongs beside the words rather than under them. Long
+ * words break: Home Assistant's own refusals quote entity ids, and one of those is
+ * wider than a phone.
+ */
+.note {
+  align-items: flex-start;
+  color: var(--accent);
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.3rem;
+}
+.note .words { min-width: 0; overflow-wrap: anywhere; }
+.note button { flex: none; font-size: 0.8rem; padding: 0.2rem 0.7rem; }
+/* A refusal is the one message nobody catches, so it is the one that stays — and one
+   that stays is drawn as something still on the page rather than as a line of text
+   that happens not to have gone. */
+.note.bad {
+  background: var(--backdrop);
+  border-left: 3px solid var(--warn);
+  border-radius: 10px;
+  color: var(--warn);
+  padding: 0.5rem 0.7rem;
+}
 /*
  * The week as one strip, not as seven forms.
  *
@@ -479,7 +507,25 @@ _SCRIPT = """
 
   const MINUTES_PER_HOUR = 60;
   const POLL_MS = 5000;
-  const NOTE_MS = 3000;
+
+  /*
+   * How long a confirmation stands: the time it takes to notice one and read it.
+   *
+   * Not a round number, because nothing about reading a sentence is round. The fixed
+   * part is finding a line that has just appeared and being sure of it once it has
+   * been read; the rest is the sentence itself at two hundred words a minute, which
+   * is unhurried silent reading — what somebody standing in a doorway holding a
+   * phone actually does. So "Saved" is gone in one and seven tenths of a second, the
+   * longest of the written confirmations runs to fourteen words and stands for five
+   * and six tenths, and one that has to add that the set is asleep stands longer
+   * again, because it is longer to read.
+   *
+   * Three seconds flat for every one of them was the fault: "Saved. An empty list is
+   * no restriction: every app is allowed again." cannot be read in three seconds by
+   * somebody who was looking at the television when it appeared.
+   */
+  const NOTICE_MS = 1400;
+  const PER_WORD_MS = 300;
 
   /** How long a change the integration answers for itself is given to land. */
   const SETTLE_MS = 700;
@@ -514,9 +560,27 @@ _SCRIPT = """
     ArrowDown: [1, 0],
   };
 
+  // The two actions that send the television nothing at all: they change what Home
+  // Assistant does about a set, not what the set is enforcing. Neither of them can be
+  // waiting for a television to wake up, however much else is.
+  const UNSENT = ["stop_following", "forget_pending"];
+
   // The destinations, in the rail's order, keyed the way the address bar spells them.
   // The first is the start destination and the answer to anything unrecognised.
   const WHERE = ["now", "today", "rules", "apps"];
+
+  // The rules a television carries, in the words this page calls them by. A key it
+  // has never heard of is said exactly as it arrived: an ugly name for a change that
+  // is waiting beats a wrong one, and only the set knows what it sends.
+  const RULES = {
+    daily_limit_s: "the daily limit",
+    warn_before_s: "the warning before the end",
+    block_settings: "the Settings block",
+    app_limits_s: "the app budgets",
+    days: "the week's allowances",
+    windows: "the hours",
+    apps_allowed: "the allowed apps",
+  };
 
   // The week in the order a week is read, keyed the way the state keys it.
   const WEEK = [
@@ -608,16 +672,69 @@ _SCRIPT = """
     return Math.max(0, Math.min(howMany - 1, place));
   }
 
+  /**
+   * Where one control says what came of it, built to sit under that control.
+   *
+   * One of these per thing that can be changed rather than one for the page: a
+   * confirmation in a corner is a confirmation about nothing in particular, and a
+   * refusal in one is a refusal the next success anywhere else wipes out before
+   * anybody has read it.
+   */
+  function notice() {
+    const node = el("div", "note");
+    // Announced rather than only shown. "Saving\u2026" puts the region on the page
+    // before the answer replaces it, which is what makes the answer carry: a live
+    // region that appears and speaks in the same breath is one nothing reads out.
+    node.setAttribute("role", "status");
+    node.words = el("p", "words");
+    node.drop = el("button", null, "Dismiss");
+    node.drop.type = "button";
+    node.drop.addEventListener("click", () => { clear(node); });
+    node.appendChild(node.words);
+    clear(node);
+    return node;
+  }
+
+  /** Nothing to say, and no room held open while there is nothing. */
+  function clear(note) {
+    hold(note, "");
+    note.hidden = true;
+  }
+
   function hold(note, words) {
     clearTimeout(note.timer);
-    note.textContent = words;
+    note.timer = null;
+    note.words.textContent = words;
+    note.hidden = false;
+    // Taken out rather than hidden. A note with nothing to dismiss should have no
+    // button in it at all: what the note says is then all the note contains.
+    note.drop.remove();
     note.classList.remove("bad");
   }
 
+  /**
+   * Say what came of it, and decide there and then whether it goes on its own.
+   *
+   * A confirmation goes: it is read at a glance and after that it is in the way. A
+   * refusal never does. It is the one message that matters, it is the one a parent
+   * watching the television rather than the phone misses, and there is no way to ask
+   * for it a second time \u2014 so it stands until the next change on this control
+   * goes through, or until it is dismissed by hand.
+   */
   function say(note, words, bad) {
     hold(note, words);
-    note.classList.toggle("bad", Boolean(bad));
-    note.timer = setTimeout(() => { note.textContent = ""; }, NOTE_MS);
+    if (bad) {
+      note.classList.add("bad");
+      note.appendChild(note.drop);
+      return;
+    }
+    note.timer = setTimeout(() => { clear(note); }, dwell(words));
+  }
+
+  /** How long that particular sentence takes to notice and to read. */
+  function dwell(words) {
+    const many = String(words).split(/\\s+/).filter(Boolean).length;
+    return NOTICE_MS + PER_WORD_MS * many;
   }
 
   /**
@@ -639,9 +756,34 @@ _SCRIPT = """
     } catch (failure) {
       answer = {ok: false, error: "The panel could not reach the add-on."};
     }
-    if (answer && answer.ok) say(note, done || "Saved", false);
-    else say(note, (answer && answer.error) || "Home Assistant refused it.", true);
+    // Read the state back before saying anything about it. Whether a change is in
+    // force or waiting for a sleeping television is the state's answer and not this
+    // one's, and a confirmation written before the read would be a guess.
     await poll();
+    if (answer && answer.ok) say(note, landed(body, done), false);
+    else say(note, (answer && answer.error) || "Home Assistant refused it.", true);
+  }
+
+  /**
+   * What a change that was taken actually amounts to, now the state has been read.
+   *
+   * A rule changed while the set is asleep is accepted and held rather than refused,
+   * and "Saved" on its own would leave a parent believing a rule is running that is
+   * not \u2014 which is worse than the refusal this replaced, because a refusal at
+   * least leaves them knowing where they stand.
+   */
+  function landed(body, done) {
+    const view = views.get(body.id);
+    const took = done || "Saved";
+    if (UNSENT.indexOf(body.action) >= 0) return took;
+    if (!view || !view.tv || !view.tv.pending_rules) return took;
+    return ended(took) + " The television is asleep, so it is waiting rather than " +
+      "in force, and goes the moment the set is back.";
+  }
+
+  /** End a sentence that may have ended already, so two can be joined. */
+  function ended(words) {
+    return /[.!?]$/.test(words) ? words : words + ".";
   }
 
   function warn(words) {
@@ -828,7 +970,7 @@ _SCRIPT = """
     const left = figure(figures, "Left today");
     const lock = el("button", "lock");
     lock.type = "button";
-    const note = el("p", "note");
+    const note = notice();
     const foot = el("p", "foot");
     box.append(trouble, pills, figures, lock, note, foot);
 
@@ -872,7 +1014,7 @@ _SCRIPT = """
     box.appendChild(el("p", "hint",
       "Home Assistant hashes it and sends the hash, so the television is never told " +
       "the digits typed here."));
-    const note = el("p", "note");
+    const note = notice();
     const row = line(box);
     seq += 1;
     const input = el("input");
@@ -1077,6 +1219,7 @@ _SCRIPT = """
    * the three a rule belongs in.
    */
   function rulesPane(view) {
+    heldBack(view);
     const box = card(view, "rules", "Every day");
     const daily = number(view, box, "Daily limit", "daily_limit",
       (tv) => tv.daily_limit);
@@ -1094,12 +1237,65 @@ _SCRIPT = """
     const days = el("div", "allowances");
     // One note for the card. Seven of them were seven places a refusal could turn up
     // and seven blank lines holding the room open for it while none had.
-    const note = el("p", "note");
+    const note = notice();
     week.append(lead, days, note);
     WEEK.forEach((day) => weekLine(view, days, day[0], day[1], day[2], note));
     view.updates.push((tv) => { lead.textContent = shared(tv.daily_limit); });
 
     hoursCard(view);
+  }
+
+  /**
+   * The change that has been taken but has not reached the television.
+   *
+   * A rule changed while the set is asleep is accepted and held rather than refused,
+   * and a page that drew it as done would be worse than one that refused it: a
+   * refusal leaves a parent knowing the rule is not running, and a silent hold leaves
+   * them certain it is.
+   *
+   * Above the three cards rather than beside one control, because what is waiting may
+   * be several rules at once and because it changes how everything below is read \u2014
+   * the numbers and the grid are what the television is still enforcing, not what is
+   * coming. Whoever is looking at the rules is looking at this first.
+   *
+   * The note is outside the banner and stays behind it: throwing a change away is the
+   * one press here that makes the banner vanish, and a confirmation inside something
+   * that disappears is a confirmation nobody reads.
+   */
+  function heldBack(view) {
+    const holder = el("div");
+    const box = el("div", "banner waiting");
+    const said = el("p", "said");
+    const forget = el("button", "danger", "Throw the change away");
+    forget.type = "button";
+    const aside = el("p", "aside",
+      "For a television that is not coming back. What goes is only what has not " +
+      "reached it: the set keeps enforcing exactly what it is enforcing now.");
+    const note = notice();
+    box.append(said, forget, aside);
+    holder.append(box, note);
+    view.panes.get("rules").appendChild(holder);
+
+    forget.addEventListener("click", () => {
+      act({id: view.id, action: "forget_pending"}, note,
+        "Thrown away. The television keeps the rules it already had.");
+    });
+
+    view.updates.push((tv) => {
+      const held = tv.pending_rules;
+      box.hidden = !held;
+      if (!held) return;
+      said.textContent = "Waiting for " + tv.name + " rather than in force: " +
+        listed(held) + ". The set was asleep when it was changed, so everything " +
+        "below is what it is still enforcing until it is back.";
+    });
+  }
+
+  /** Which rules are waiting, listed the way somebody would say them aloud. */
+  function listed(held) {
+    const said = Object.keys(held || {}).map((key) => RULES[key] || key);
+    if (said.length < 2) return said[0] || "a change";
+    return said.slice(0, -1).join(", ") + " and " + said[said.length - 1];
   }
 
   /**
@@ -1120,7 +1316,7 @@ _SCRIPT = """
     input.step = "1";
     input.inputMode = "numeric";
     tag.htmlFor = input.id;
-    const note = el("p", "note");
+    const note = notice();
     row.append(tag, input, el("span", "unit", "min"));
     if (tip) row.appendChild(el("p", "hint", tip));
     row.appendChild(note);
@@ -1166,7 +1362,7 @@ _SCRIPT = """
     const tag = el("label", "tick");
     tag.htmlFor = input.id;
     tag.append(input, el("span", null, label));
-    const note = el("p", "note");
+    const note = notice();
     row.append(tag);
     if (tip) row.appendChild(el("p", "hint", tip));
     row.appendChild(note);
@@ -1321,7 +1517,7 @@ _SCRIPT = """
     const tag = el("label", "tick");
     tag.htmlFor = box.id;
     tag.append(box, el("span", null, "Allowed"));
-    const note = el("p", "note");
+    const note = notice();
     node.append(who, budget, el("span", "unit", "min"), tag, note);
 
     budget.addEventListener("change", () => {
@@ -1417,7 +1613,12 @@ _SCRIPT = """
       "No half hour is marked, so the hours are not restricted at all: the " +
       "television may be watched at any time of day, within whatever the limits " +
       "above allow.");
-    const note = el("p", "note");
+    // Two of them, because two different things are pressed here. What the take-over
+    // has to say belongs where the banner carrying that button was; what the grid has
+    // to say belongs under the grid, beside the boxes a finger has just been on. One
+    // note for both would put half its messages at the wrong end of a tall card.
+    const took = notice();
+    const note = notice();
     week.setAttribute("role", "group");
     week.setAttribute("aria-label", "The half hours viewing is allowed in");
     // The empty box above Monday, which is the strip of hours the days line up with.
@@ -1427,10 +1628,7 @@ _SCRIPT = """
     }
     scroller.append(ticks, week);
     frame.append(names, scroller);
-    // The note sits where the banner was rather than below the grid: what it has to
-    // say about the take-over is said after the banner carrying that button has gone,
-    // and a confirmation under a grid this tall is a confirmation off the screen.
-    box.append(warning, note, lead, frame, open);
+    box.append(warning, took, lead, frame, note, open);
 
     // What is drawn, kept beside the boxes rather than read back off them: a gesture
     // asks what the week looked like before it started, and a class name cannot say.
@@ -1708,7 +1906,7 @@ _SCRIPT = """
      * anything.
      */
     take.addEventListener("click", async () => {
-      await act({id: view.id, action: "stop_following"}, note,
+      await act({id: view.id, action: "stop_following"}, took,
         "The hours are yours to draw on, and not one of them has changed.");
       if (sealed()) setTimeout(poll, SETTLE_MS);
       else keyed.focus();

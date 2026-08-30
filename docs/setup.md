@@ -207,6 +207,28 @@ revision the two sides agree on. The revision is why every write goes through on
 TV ignores a `set_rules` whose revision is not higher than the one it holds, so two changes
 in a row have to count up even before the TV has answered.
 
+### Changing a rule while the television is off
+
+Rules can be changed whenever you like. The set does not have to be awake: commands are never
+retained, so nothing is put on the broker — the change waits in Home Assistant and goes out the
+moment the television reports in. Several changes made in one sitting arrive as one write, and
+the last thing you said about a rule is the one that lands.
+
+While something is waiting, `sensor.…_rules` carries it as a `pending_rules` attribute, so a
+dashboard or the parent panel can say what has been accepted and has not happened yet. It is
+absent when nothing is waiting.
+
+`tvsitter.forget_pending_rules`, against the same rules sensor, throws a waiting change away —
+for a television that is not coming back: sold, replaced, or addressed by a topic prefix that has
+since changed. It takes no fields, it touches nothing the set is already enforcing, and calling
+it when nothing is waiting does nothing rather than failing.
+
+What still needs the television awake is anything that is a moment rather than a state: a grant,
+the parent PIN, and the sleep timer. One of those replayed days later is a television locking
+itself at breakfast for a reason nobody remembers. The lock switch is the exception it has always
+been — it stays operable and remembers what you asked for, since the moment you most want it is
+the moment the set is off, and it drops a remembered unlock after fifteen minutes.
+
 ### The hours viewing is allowed
 
 Home Assistant already has a weekly grid with a proper editor — the **Schedule** helper — and the

@@ -3,6 +3,12 @@
 The version is one SemVer for the whole product (D6): the panel, the integration and the
 Android app share `version.txt` and share a tag.
 
+## 0.9.0
+
+- A rule changed while the television sleeps is held and sent when it wakes, and the page
+  says so rather than showing it as in force.
+- A confirmation stays long enough to read; a refusal does not disappear at all.
+
 ## 0.8.4
 
 - A refusal says why: which television is not listening, rather than a shrug.

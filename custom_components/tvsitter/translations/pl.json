@@ -239,6 +239,10 @@
         }
       }
     },
+    "forget_pending_rules": {
+      "name": "Odrzuć oczekującą zmianę reguł",
+      "description": "Odrzuca zmianę reguł, która czeka na powrót telewizora — sprzedanego, wymienionego albo adresowanego prefiksem tematu, który od tego czasu się zmienił. Reguły egzekwowane przez telewizor pozostają nietknięte: to, co zostaje odrzucone, nigdy nie opuściło Home Assistant. Jeśli nic nie czeka, nic się nie dzieje."
+    },
     "forget_schedule": {
       "name": "Przestań brać godziny z harmonogramu",
       "description": "Przestaje podążać za pomocnikiem Harmonogram, więc godziny znów można edytować ręcznie. Godziny zapisane przez pomocnika zostają dokładnie takie, jakie są — to przerywa podążanie, a nie cofa godzin — a jeśli nie ma za czym podążać, nic się nie dzieje."

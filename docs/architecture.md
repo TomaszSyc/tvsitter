@@ -1334,3 +1334,76 @@ each set publishes what it has used, and each set subtracts its peers before dec
 television still decides for itself, and a broker that is down means each counts only its own —
 over-granting rather than over-blocking, which is the direction everything here fails in. Never a
 central evaluator. Not being built now; filed so the door stays open.
+
+### D37 — a rule waits for the television; a command does not (2026-08-30)
+
+#135 arrived as a refusal that read wrong: a parent painted a week in the panel and was told
+"TV Salon is not listening; the change would go nowhere". The refusal was right about the
+wire and wrong about the product. `<p>/cmd` is deliberately not retained — a retained `lock`
+would come back after every broker restart (D5) — so a `set_rules` published to a sleeping
+television really is lost. But the answer to that is to send it when the set comes back, not
+to make a parent wait for a television.
+
+The integration already did exactly this for one case: `async_import_schedule` deferred when
+the set was not listening, and the reconnect sent it. The same road, now taken by every rule
+change.
+
+**The line: a rule is a state, a command is a moment.** A rule is a state somebody wants the
+television to be in, and it is still wanted an hour later — a daily limit, a day's allowance,
+an app's budget, the viewing hours, the allow-list, the warning ladder, whether Settings is
+reachable. A command is one moment: a lock, an unlock, a grant, a PIN, and a sleep timer
+armed for tonight. Replaying a moment from three days ago is how a television locks itself at
+breakfast for a reason nobody remembers, so commands still refuse while the set is asleep.
+This is the same distinction D30 drew when it made the sleep timer a command rather than a
+rule, and it is why the sleep timer sits on the same platform as four rules and behaves
+unlike all of them.
+
+The lock keeps the arrangement it already had, which is neither: it remembers an intention
+with a fifteen-minute deadline on an unlock (#48, #89). A lock is a moment, but the moment a
+parent most wants it is the moment the set is off, and the deadline is what stops last
+night's decision handing over this evening.
+
+**Held changes fold; they do not queue.** They are `set_rules` deltas over one object, so
+three edits become one payload and one revision, where a queue of three would spend a
+revision each to arrive in an order nothing guarantees. The fold is the merge of D26 with one
+deliberate difference: a `null` is carried as a value rather than acted on. `Rules.merge`
+folds a delta into the rules *in force*, where a `null` removes a key and leaves nothing
+behind; here neither side has met the rules yet, so "set the limit, then clear it" has to
+arrive as `{"daily_limit_s": null}`. Folding it the television's way would produce `{}`,
+which changes nothing, and the limit would still be standing. Everything else matches,
+because what this builds is read by that merge — objects fold key by key, arrays and scalars
+replace whole, and it stops folding at the same four levels.
+
+One composition cannot be expressed as a single delta at all: a `null` on a container
+followed by keys inside it, since a delta can either clear a container or reach into it. The
+later word wins there. Nothing in the integration writes that shape — every rule key it sends
+has a fixed one, and the only nulls it sends sit on scalars or on keys inside a container —
+so the divergence is recorded rather than worked around.
+
+**The revision is taken when the payload is published**, never when the change was made. The
+television ignores a `set_rules` whose `rev` is not higher than the one it holds, and it edits
+its own rules too (D31), so a number reserved while it slept could be overtaken and dropped on
+arrival with nothing said anywhere — which is #72 again, one step further along.
+
+**It survives a restart, on the config entry.** A parent who drew a week must not lose it
+because Home Assistant updated overnight, and the entry is the only thing here that outlives
+the process. The payload schema is stored with the delta, and a delta written against another
+one is refused rather than guessed at — past a schema change the meaning of the keys cannot be
+assumed, and a rules delta that means something else is a television enforcing something
+nobody asked for. That costs a week somebody has to draw again, which is why it is a warning
+rather than a debug line.
+
+**It is visible and it is removable.** The rules sensor publishes `pending_rules` beside the
+rules in force, absent when nothing waits, and the integration owns the name outright the way
+it owns `following_schedule` — a television echoing the word back could otherwise announce a
+change nobody made. Silently accepting a change that has not happened would be worse than the
+refusal this replaced. `tvsitter.forget_pending_rules` throws one away, for a set that is
+never coming back: sold, replaced, or addressed by a prefix somebody has since retyped. It
+clears the entry whatever memory holds, so the one change this build would not restore is not
+also the one nobody can get rid of.
+
+**The followed hours keep their own road.** `async_import_schedule` still leaves a grid for
+the reconnect rather than holding a payload, and re-reads the helper when the set wakes. A
+held payload would be the grid as it was; the helper may be drawn on again before the
+television comes back, and re-reading gives the hours as they are. That is what following one
+means.

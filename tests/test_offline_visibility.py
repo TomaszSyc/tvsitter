@@ -17,7 +17,7 @@ from custom_components.tvsitter.binary_sensor import ReportingSensor, ScreenOnSe
 from custom_components.tvsitter.button import ClearLimitButton
 from custom_components.tvsitter.coordinator import TvSitterClient
 from custom_components.tvsitter.models import StateSnapshot
-from custom_components.tvsitter.number import DailyLimitNumber
+from custom_components.tvsitter.number import DailyLimitNumber, SleepTimerNumber
 from custom_components.tvsitter.sensor import (
     ActiveAppSensor,
     RemainingTodaySensor,
@@ -110,32 +110,54 @@ async def test_reporting_says_what_availability_used_to_say(
     assert reporting.is_on is True
 
 
-async def test_a_limit_cannot_be_set_on_a_television_that_is_not_listening(
+async def test_a_limit_set_on_a_television_that_is_not_listening_waits_for_it(
     hass: HomeAssistant,
 ) -> None:
-    """Commands are never retained, so it would go nowhere and look as if it had not."""
+    """#135. It used to be refused, and the refusal was the wrong half of the truth.
+
+    Commands are never retained, so publishing now really would go nowhere. But a limit
+    is a state somebody wants the set to be in, and it is still wanted when the set
+    wakes — so nothing goes on the wire and the change is kept instead.
+    """
     client = asleep(hass)
 
-    with (
-        patch("homeassistant.components.mqtt.async_publish") as publish,
-        pytest.raises(ServiceValidationError),
-    ):
+    with patch("homeassistant.components.mqtt.async_publish") as publish:
         await DailyLimitNumber(client).async_set_native_value(30)
 
     publish.assert_not_called()
+    assert client.pending_rules == {"daily_limit_s": 1800}
 
 
-async def test_clearing_a_limit_is_refused_the_same_way(hass: HomeAssistant) -> None:
-    """Readable is not the same as writable, and this is the line between them."""
+async def test_clearing_a_limit_waits_the_same_way(hass: HomeAssistant) -> None:
+    """And the null survives the wait, because removing a rule is a change too."""
+    client = asleep(hass)
+
+    with patch("homeassistant.components.mqtt.async_publish") as publish:
+        await ClearLimitButton(client).async_press()
+
+    publish.assert_not_called()
+    assert client.pending_rules == {"daily_limit_s": None}
+
+
+async def test_a_bedtime_still_cannot_be_armed_on_a_sleeping_television(
+    hass: HomeAssistant,
+) -> None:
+    """The other half of #135, and the line the whole change is drawn around.
+
+    A rule waits because it is a state. A sleep timer is one evening's decision (D30),
+    and one accepted tonight and delivered on Friday is a television locking itself for
+    a reason nobody remembers — so this one still says so rather than remembering it.
+    """
     client = asleep(hass)
 
     with (
         patch("homeassistant.components.mqtt.async_publish") as publish,
         pytest.raises(ServiceValidationError),
     ):
-        await ClearLimitButton(client).async_press()
+        await SleepTimerNumber(client).async_set_native_value(30)
 
     publish.assert_not_called()
+    assert client.pending_rules is None
 
 
 async def test_nothing_is_shown_before_the_first_report(hass: HomeAssistant) -> None:

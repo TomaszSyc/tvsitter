@@ -128,6 +128,7 @@
     "set_app_limit": "mdi:timer-lock-outline",
     "use_schedule": "mdi:calendar-import",
     "forget_schedule": "mdi:calendar-remove",
+    "forget_pending_rules": "mdi:playlist-remove",
     "set_allowed_apps": "mdi:playlist-check"
   }
 }

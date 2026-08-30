@@ -120,15 +120,35 @@ SERVICE_USE_SCHEDULE: Final = "use_schedule"
 SERVICE_FORGET_SCHEDULE: Final = "forget_schedule"
 ATTR_SCHEDULE: Final = "schedule"
 
+# The way to throw away a rule change that is waiting for a television which is not
+# coming back — a set sold, a prefix retyped. Without it the change haunts the entry for
+# ever, and the panel goes on promising something that will never land (#135).
+SERVICE_FORGET_PENDING_RULES: Final = "forget_pending_rules"
+
 # Where the chosen schedule helper is remembered, so an edit to it still reaches the
 # television after a restart.
 CONF_SCHEDULE: Final = "schedule_entity"
+
+# Where a rule change waiting for a sleeping television is kept. On the config entry
+# rather than in memory: a parent who drew a week must not lose it because Home
+# Assistant updated overnight, and nothing else here outlives the process (#135).
+CONF_PENDING_RULES: Final = "pending_rules"
+
+# How deep two waiting changes are folded together before the later one simply wins.
+# The same bound the television's own merge uses (D26): folding deeper than the set
+# merges would build a payload that does not mean what it will do on arrival.
+MAX_MERGE_DEPTH: Final = 4
 
 # How the followed helper is published, on the rules sensor beside the rules themselves.
 # It shares those attributes with whatever the television sends, and the rules are
 # opaque by design — so this name is spoken for, and a rule key must never claim it.
 ATTR_EXEMPT_APPS: Final = "exempt_apps"
 ATTR_FOLLOWING_SCHEDULE: Final = "following_schedule"
+
+# And how a change still waiting for the set is published, on the same sensor. Spoken
+# for exactly like the helper above: only Home Assistant knows what it is holding, so a
+# television echoing this word must not be able to promise a change nobody queued.
+ATTR_PENDING_RULES: Final = "pending_rules"
 
 KIND_MORE_TIME: Final = "more_time"
 
