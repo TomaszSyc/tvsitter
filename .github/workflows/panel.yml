@@ -1,0 +1,88 @@
+name: Parent panel
+
+# The add-on's image, built here rather than on somebody's television box: a build that
+# happens on the Supervisor is slow, and when it fails it fails where nobody is looking.
+#
+# On a pull request the image is built and thrown away, which is the part that catches a
+# broken Dockerfile. It is pushed only from main, and tagged with the product version as
+# well as `main`, so `image:` in config.yaml resolves for whatever version is released.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "parent-panel/**"
+      - "version.txt"
+      - ".github/workflows/panel.yml"
+  pull_request:
+    paths:
+      - "parent-panel/**"
+      - "version.txt"
+      - ".github/workflows/panel.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    name: Image (${{ matrix.arch }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Whatever config.yaml claims, and a test enforces that these two agree. An
+        # architecture built but not claimed is waste; claimed but not built is an
+        # install that fails on a pull.
+        include:
+          - arch: aarch64
+            platform: linux/arm64
+          - arch: amd64
+            platform: linux/amd64
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Read the product version
+        id: product
+        run: echo "version=$(cat version.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Read the base image
+        id: base
+        run: |
+          base=$(grep "^  ${{ matrix.arch }}:" parent-panel/build.yaml | cut -d' ' -f4)
+          echo "from=$base" >> "$GITHUB_OUTPUT"
+
+      # One image per architecture rather than one manifest holding both: that is the
+      # shape the Supervisor asks for, with `{arch}` substituted into `image:`.
+      - uses: docker/setup-qemu-action@v3
+        if: matrix.arch != 'amd64'
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Sign in to ghcr.io
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Lower-cased because a registry path must be, and the owner here is not.
+      - name: Work out the image name
+        id: name
+        run: |
+          owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "image=ghcr.io/$owner/tvsitter-parent-panel-${{ matrix.arch }}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: parent-panel
+          platforms: ${{ matrix.platform }}
+          build-args: BUILD_FROM=${{ steps.base.outputs.from }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: |
+            ${{ steps.name.outputs.image }}:${{ steps.product.outputs.version }}
+            ${{ steps.name.outputs.image }}:main
+          cache-from: type=gha,scope=${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.arch }}

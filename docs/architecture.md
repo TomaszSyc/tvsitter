@@ -1222,3 +1222,39 @@ changes state at every block boundary, and a revision spent to say nothing is no
 number the two sides use to agree.
 
 `tvsitter.set_windows` stays for the shapes a weekly grid cannot draw.
+
+### D34 — the parent panel talks to Home Assistant, never to the broker
+
+#99 left three shapes open and the rest of M8 waited on this. The panel speaks to Home Assistant
+over its API and the integration stays the only thing that speaks the MQTT contract.
+
+**Why not the broker.** `services: mqtt:need` would hand the panel the credentials and it could
+publish `set_rules` itself. It would then be a second writer on topics whose safety rests on one:
+`rules_rev` is guarded by `max(seen, sent) + 1` inside one client, and two clients cannot see each
+other's `sent`. That is #72 again, in a worse form — two implementations of the same contract, in
+two languages, that have to agree about merge semantics, about what a null means at depth, and
+about which revision wins. Two ways of writing the same thing is how they come to disagree, which
+is the same argument that put the television's own settings screen through `set_rules` (D31)
+rather than beside it.
+
+**Why not the other way round** — the panel as the only writer, the integration read-only. It is
+the cheapest thing to reason about and it strands every household not on HA OS or Supervised.
+Add-ons do not exist there; the integration does. Per #60 the panel is an addition and never a
+replacement, so it cannot be the only road to a rule.
+
+**What that costs.** Everything the panel wants to change has to exist as an entity or an action
+first. That is now a much smaller cost than when #99 was written: M6 gave the integration a number
+per app, a number per day, three rule-writing actions and a schedule import, and `RulesSensor` is
+no longer read-only. Where a page needs something that is not there, the answer is to add it to
+the integration — not to open a second channel to the broker.
+
+**What a household without the panel gets:** everything that enforces, every entity, every action,
+and the dashboard of #27. The panel adds pages, setup that is otherwise manual (#104), and the
+shapes Home Assistant configuration does not have (#105). It requires the integration; the
+integration does not require it.
+
+**Naming.** Home Assistant renamed add-ons to Apps in 2026.2, and this repository already has an
+`app/` that is the Android module. User-facing text calls this the **parent panel**, and says "a
+Home Assistant App" only where the Supervisor's own noun is needed. Repository text keeps "add-on"
+for the Supervisor concept it names — `repository.yaml`, `config.yaml`, the build workflow — and
+the folder is `parent-panel/` rather than `addon/`.

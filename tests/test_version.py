@@ -19,6 +19,8 @@ ROOT = Path(__file__).resolve().parent.parent
 VERSION_FILE = ROOT / "version.txt"
 MANIFEST = ROOT / "custom_components" / "tvsitter" / "manifest.json"
 APP_BUILD = ROOT / "app" / "build.gradle.kts"
+ADDON_CONFIG = ROOT / "parent-panel" / "config.yaml"
+ADDON_BUILD = ROOT / "parent-panel" / "build.yaml"
 
 SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
 
@@ -56,3 +58,28 @@ def test_the_app_reads_the_version_rather_than_repeating_it() -> None:
     assert "versionName = productVersion" in build
     literals = re.findall(r'versionName\s*=\s*"([^"]+)"', build)
     assert not literals, f"versionName is hard-coded: {literals}"
+
+
+def test_the_panel_carries_the_product_version() -> None:
+    """The Supervisor reads this one, and it is the third copy of the same number.
+
+    Quoted in the YAML on purpose: `0.6.10` unquoted is a float that loses its last
+    digit, and the Supervisor would then offer an update from 0.6.9 to 0.6.1.
+    """
+    written = ADDON_CONFIG.read_text(encoding="utf-8")
+    quoted = re.search(r'^version:\s*"([^"]+)"\s*$', written, re.MULTILINE)
+
+    assert quoted, "the add-on version must be quoted, or YAML reads it as a number"
+    assert quoted.group(1) == product_version()
+
+
+def test_the_panel_claims_only_what_is_built() -> None:
+    """An app offered for an arch nobody built is an install that fails on a pull.
+
+    The Supervisor hides an app whose `arch` does not match the machine, which is a
+    much better failure than an image that is not there.
+    """
+    claimed = set(re.findall(r"^  - (\w+)$", ADDON_CONFIG.read_text(), re.MULTILINE))
+    built = set(re.findall(r"^  (\w+):", ADDON_BUILD.read_text(), re.MULTILINE))
+
+    assert claimed == built, f"config.yaml claims {claimed}, build.yaml has {built}"

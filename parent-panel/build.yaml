@@ -1,0 +1,6 @@
+# The Supervisor's own Python bases, which already carry s6-overlay, the CA bundle and a
+# non-ancient OpenSSL. Pinned rather than floating: an app that builds differently in June
+# than it did in May is an app nobody can reproduce a bug on.
+build_from:
+  aarch64: ghcr.io/home-assistant/aarch64-base-python:3.13-alpine3.21
+  amd64: ghcr.io/home-assistant/amd64-base-python:3.13-alpine3.21

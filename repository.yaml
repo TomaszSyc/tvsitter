@@ -1,0 +1,7 @@
+# This repository is three things at once, which is what D6 bought by keeping the halves
+# together: HACS reads `custom_components/` and `hacs.json`, the Supervisor reads this file
+# and the folders beside it, and Gradle reads `app/` and `rules/`. None of them forbids the
+# others. A household adds the repository twice — once in HACS, once under Settings > Apps.
+name: TV Sitter
+url: https://github.com/TomaszSyc/tvsitter
+maintainer: Tomasz Syc <tomasz.syc@outlook.com>

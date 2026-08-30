@@ -85,6 +85,12 @@ already follows the HACS layout). Until then, copy `custom_components/tvsitter/`
 `config/custom_components/` and restart Home Assistant, then add "TV Sitter" from Devices &
 Services.
 
+**The parent panel** is optional and Home Assistant OS or Supervised only, because Apps do not
+exist on Container or Core. It adds pages the integration cannot — see
+[`parent-panel/`](parent-panel/). Everything that enforces a rule works without it; it talks to
+Home Assistant rather than to your broker, so the integration stays the only thing that speaks
+to a television.
+
 ## What it cannot do
 
 Measured on the television it runs on, rather than guessed:

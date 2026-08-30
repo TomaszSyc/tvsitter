@@ -245,6 +245,24 @@ No custom card is shipped with it. A Lovelace card is a separate HACS category f
 integration, which by D6 means either a second repository or serving frontend code from this one,
 and the built-in cards answer every question on the list.
 
+## The parent panel
+
+Optional, and Home Assistant OS or Supervised only — Apps do not exist on Container or Core.
+The panel is a second interface onto the integration, not a second way to reach the televisions:
+it talks to Home Assistant and never to your broker, so the integration stays the only thing
+publishing a rule change (D34).
+
+Add this repository under **Settings > Apps > App store**, three-dot menu, **Repositories**:
+
+```
+https://github.com/TomaszSyc/tvsitter
+```
+
+Then install **TV Sitter parent panel**. It appears in the sidebar and has nothing to configure.
+
+Today it is one page listing the televisions the integration can see. Everything the integration
+already does — the entities, the actions, the dashboard above — works without it.
+
 ## Answering a request from your phone
 
 When the child presses "ask a parent for more time", the TV publishes on `<prefix>/request`

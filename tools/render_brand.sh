@@ -29,4 +29,10 @@ done
 rsvg-convert -w 256 -h 256 brand/mark.svg -o brand/icon.png
 rsvg-convert -w 512 -h 512 brand/mark.svg -o brand/icon@2x.png
 
+# The Supervisor's app store: a square icon at 128, and a logo it lays out at 250x100. The
+# logo is the banner, which already carries the name — the store shows no label under it
+# either, so the same reasoning applies.
+rsvg-convert -w 128 -h 128 brand/mark.svg -o parent-panel/icon.png
+rsvg-convert -w 250 -h 100 brand/banner.svg -o parent-panel/logo.png
+
 echo "brand assets rendered"
