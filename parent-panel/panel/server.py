@@ -16,7 +16,7 @@ import logging
 
 from aiohttp import ClientError, ClientSession, web
 
-from .home_assistant import HomeAssistant, televisions
+from .home_assistant import HomeAssistant
 from .page import render
 
 _LOGGER = logging.getLogger("panel")
@@ -41,15 +41,18 @@ async def index(request: web.Request) -> web.Response:
             )
         )
     try:
-        states = await home.states()
+        found = await home.televisions()
+    except PermissionError as refused:
+        _LOGGER.error("%s", refused)
+        return html(render([], "Home Assistant refused the token this App was given."))
     except (ClientError, TimeoutError) as failure:
         # Logged with the reason and shown without it: the page is read by a parent and
         # the log is read by whoever is fixing it.
-        _LOGGER.warning("could not read the states: %s", failure)
+        _LOGGER.warning("could not read Home Assistant: %s", failure)
         return html(
             render([], "Home Assistant did not answer. It may still be starting.")
         )
-    return html(render(televisions(states)))
+    return html(render(found))
 
 
 async def health(request: web.Request) -> web.Response:

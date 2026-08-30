@@ -41,6 +41,38 @@ MODULES = [
 ]
 
 
+# The panel's modules, imported for the same reason as the integration's — and after the
+# reason arrived. `server.py` imported a name that had become a method two commits
+# earlier, and nothing noticed until the container refused to start: every panel test
+# imported the two modules it exercised and never the one that wires them together.
+PANEL_MODULES = [
+    "panel",
+    "panel.home_assistant",
+    "panel.page",
+    "panel.server",
+]
+
+
+@pytest.mark.parametrize("module", PANEL_MODULES)
+def test_panel_module_imports(module: str) -> None:
+    """Import the module and let any failure surface as a test failure."""
+    assert importlib.import_module(module) is not None
+
+
+def test_every_panel_module_is_covered() -> None:
+    """A new module must not slip past this check by simply not being listed."""
+    package = Path(__file__).resolve().parent.parent / "parent-panel" / "panel"
+    on_disk = {
+        f"panel.{path.stem}" if path.stem != "__init__" else "panel"
+        for path in package.glob("*.py")
+        if path.stem != "__main__"
+    }
+
+    assert on_disk == set(PANEL_MODULES), (
+        f"not listed: {sorted(on_disk - set(PANEL_MODULES))}"
+    )
+
+
 @pytest.mark.parametrize("module", MODULES)
 def test_module_imports(module: str) -> None:
     """Import the module and let any failure surface as a test failure."""
