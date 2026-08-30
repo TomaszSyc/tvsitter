@@ -1885,6 +1885,9 @@ _SCRIPT = """
         );
         range.classList.toggle("clearing", !on);
       }
+      // Shown before it is measured, because a hidden box has no width and the very
+      // first thing said would be placed as though it were a point.
+      range.hidden = false;
       // Kept inside the window rather than centred on a pointer that may be at the
       // edge of it: a readout half off the screen is a readout that cannot be read.
       const edge = range.offsetWidth / 2 + PADDING;
@@ -1892,7 +1895,6 @@ _SCRIPT = """
       range.classList.toggle("below", where.y < LOW);
       range.style.left = Math.max(edge, Math.min(wide - edge, where.x)) + "px";
       range.style.top = where.y + "px";
-      range.hidden = false;
     }
 
     /** Where to say it, for a gesture that arrives as a point on the screen. */

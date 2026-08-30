@@ -21,6 +21,14 @@ jobs:
           # Home Assistant 2026.8 requires >= 3.14.2; an older runner cannot install it.
           python-version: "3.14"
 
+      # The panel's page is JavaScript, and two tests run it: one parses it, one drives
+      # the weekly grid on a small DOM. Both skip themselves where there is no Node,
+      # which is the right thing on somebody's laptop and the wrong thing here — this
+      # is where a page that will not parse has to be caught.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "26"
+
       - name: Install tooling
         run: pip install -r requirements-dev.txt
 
