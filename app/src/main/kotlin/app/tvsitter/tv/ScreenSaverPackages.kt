@@ -28,6 +28,9 @@ class ScreenSaverPackages(context: Context) {
 
     fun contains(packageName: String?): Boolean = packageName != null && packageName in packages
 
+    /** The whole set, for the state payload that tells Home Assistant what it cannot rule on. */
+    val all: Set<String> get() = packages
+
     private fun resolve(context: Context): Set<String> {
         val found = runCatching {
             context.packageManager

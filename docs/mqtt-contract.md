@@ -72,6 +72,12 @@ Three rules the correctness of the whole thing rests on:
   different thing and one Play reviews harder (#14).
 - `active_window` — identifier of the rule window in force, so that "why did it block me
   right now" is answerable.
+- `exempt_apps` — packages no rule can reach: this app, the home screen and any screen saver.
+  Resolved on the television from the platform, which is the only place they are known, and
+  published so that nothing offers a control for them. The engine exempts them from an
+  allow-list on purpose (D35) — the answer to "the launcher is not allowed" would be to send the
+  television to the launcher, every ten seconds, for as long as it was on. Absent or empty means
+  none are known, which is not a promise that none exist.
 - `lock_reason` — why the screen is covered, or `null` when it is not. One of `daily_limit`,
   `app_limit`, `app_not_allowed`, `outside_window`, or `manual` for a lock a parent asked for. A parent's own lock
   outranks whatever the rules were saying at the time: they asked for it, and "the day's

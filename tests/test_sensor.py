@@ -14,8 +14,13 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.tvsitter.const import QUIET_AFTER_SECONDS
+from custom_components.tvsitter.const import (
+    CONF_SCHEDULE,
+    DOMAIN,
+    QUIET_AFTER_SECONDS,
+)
 from custom_components.tvsitter.coordinator import TvSitterClient
 from custom_components.tvsitter.models import StateSnapshot
 from custom_components.tvsitter.sensor import (
@@ -24,6 +29,7 @@ from custom_components.tvsitter.sensor import (
     LastReportedSensor,
     LimitTodaySensor,
     RemainingTodaySensor,
+    RulesSensor,
     UsedTodaySensor,
     UsedYesterdaySensor,
 )
@@ -354,3 +360,88 @@ def test_every_entity_has_an_icon() -> None:
         )
 
     assert set(document["services"]) <= set(icons["services"])
+
+
+RULES = {
+    "daily_limit_s": 5400,
+    "windows": [{"id": "school", "from": "16:00", "to": "19:30"}],
+}
+
+
+def following(
+    hass: HomeAssistant, schedule: str | None, **rules: object
+) -> RulesSensor:
+    """Build a rules sensor for a TV whose entry may name a schedule helper.
+
+    Through the entry's options rather than a field on the client, because that is where
+    the integration reads it and the point of the attribute is that the two agree.
+    """
+    options = {} if schedule is None else {CONF_SCHEDULE: schedule}
+    entry = MockConfigEntry(domain=DOMAIN, options=options)
+    client = TvSitterClient(hass, name="TV Salon", topic_prefix=PREFIX, entry=entry)
+    client.rules = dict(RULES) | rules
+    return RulesSensor(client)
+
+
+async def test_the_followed_schedule_is_published(hass: HomeAssistant) -> None:
+    """#119. A panel drawing its own grid has to know the import will overwrite it.
+
+    The helper was remembered on the config entry and nowhere anything outside the
+    integration could read it, so the hours could be edited in good faith and silently
+    undone on the next import.
+    """
+    attributes = following(hass, "schedule.viewing_hours").extra_state_attributes
+
+    assert attributes["following_schedule"] == "schedule.viewing_hours"
+
+
+async def test_the_rules_are_all_still_there(hass: HomeAssistant) -> None:
+    """The attribute sits beside them; it does not replace or reshape them."""
+    attributes = following(hass, "schedule.viewing_hours").extra_state_attributes
+
+    assert attributes["daily_limit_s"] == 5400
+    assert attributes["windows"][0]["id"] == "school"
+
+
+async def test_following_nothing_says_nothing(hass: HomeAssistant) -> None:
+    """Absent rather than null: a null reads as a helper that has gone missing."""
+    attributes = following(hass, None).extra_state_attributes
+
+    assert "following_schedule" not in attributes
+    assert attributes == RULES
+
+
+async def test_a_television_cannot_claim_to_be_following_a_helper(
+    hass: HomeAssistant,
+) -> None:
+    """The rules are opaque, but this name is Home Assistant's answer, not the set's.
+
+    A television echoing the word back would otherwise have the panel lock a grid
+    against an import nobody set up — or, worse, name the wrong helper for it.
+    """
+    claimed = following(hass, None, following_schedule="schedule.invented")
+    overruled = following(hass, "schedule.real", following_schedule="schedule.invented")
+
+    assert "following_schedule" not in claimed.extra_state_attributes
+    assert overruled.extra_state_attributes["following_schedule"] == "schedule.real"
+
+
+async def test_a_client_without_an_entry_still_reads(hass: HomeAssistant) -> None:
+    """Nothing remembers a helper without one, and asking must not be an error."""
+    client = TvSitterClient(hass, name="TV Salon", topic_prefix=PREFIX)
+    client.rules = dict(RULES)
+
+    assert client.followed_schedule is None
+    assert RulesSensor(client).extra_state_attributes == RULES
+
+
+async def test_a_helper_is_worth_saying_before_the_rules_arrive(
+    hass: HomeAssistant,
+) -> None:
+    """One can be followed while the set is asleep, which is when a grid gets edited."""
+    entry = MockConfigEntry(domain=DOMAIN, options={CONF_SCHEDULE: "schedule.hours"})
+    client = TvSitterClient(hass, name="TV Salon", topic_prefix=PREFIX, entry=entry)
+
+    assert RulesSensor(client).extra_state_attributes == {
+        "following_schedule": "schedule.hours"
+    }

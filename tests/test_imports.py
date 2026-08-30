@@ -15,6 +15,7 @@ from __future__ import annotations
 import importlib
 from importlib.metadata import requires, version
 from pathlib import Path
+import re
 
 import pytest
 
@@ -110,3 +111,37 @@ def test_the_test_harness_and_home_assistant_agree() -> None:
 
     assert pinned, "the harness no longer pins homeassistant; check what changed"
     assert pinned[0] == installed, f"harness wants {pinned[0]}, got {installed}"
+
+
+def test_every_action_in_services_yaml_is_registered_exactly_once() -> None:
+    """The names in `services.yaml` and the names registered have to be the same set.
+
+    They were not. `SERVICE_SET_ALLOWED_APPS` was inserted above `SERVICE_SET_APP_LIMIT`
+    by a replace that matched twice: once in the import list, where it belonged, and
+    once in the call registering the app-limit action, where it took the name's place.
+    Home Assistant was then offered `set_allowed_apps` twice and `set_app_limit` never,
+    and every test still passed: they all call the entity's method directly, and none
+    ever asked what the platform had been told.
+    """
+    package = Path(__file__).resolve().parent.parent / "custom_components" / "tvsitter"
+    const = (package / "const.py").read_text(encoding="utf-8")
+
+    names = dict(re.findall(r'^(SERVICE_\w+):\s*Final\s*=\s*"([^"]+)"', const, re.M))
+    declared = set(
+        re.findall(r"^(\w+):$", (package / "services.yaml").read_text(), re.M)
+    )
+
+    registered: list[str] = []
+    for source in package.glob("*.py"):
+        for constant in re.findall(
+            r"async_register_entity_service\(\s*(SERVICE_\w+)", source.read_text()
+        ):
+            registered.append(names[constant])
+
+    assert sorted(registered) == sorted(set(registered)), (
+        f"registered more than once: {sorted(registered)}"
+    )
+    assert set(registered) == declared, (
+        f"only in code: {sorted(set(registered) - declared)}; "
+        f"only in services.yaml: {sorted(declared - set(registered))}"
+    )

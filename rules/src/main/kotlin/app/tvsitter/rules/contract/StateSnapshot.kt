@@ -55,6 +55,19 @@ data class StateSnapshot(
     @SerialName("until_s") val untilSeconds: Int? = null,
     @SerialName("rules_rev") val rulesRev: Int = 0,
     /**
+     * Packages the rules cannot touch, so nothing offers a control for them.
+     *
+     * The engine exempts this app and the launcher from an allow-list on purpose (D35) — the
+     * answer to "the launcher is not allowed" would be to send the television to the launcher,
+     * every ten seconds, for as long as it was on. A tick beside one of these does nothing,
+     * and a control that does nothing is worse than none.
+     *
+     * Published because only the television knows them: they are resolved from the platform,
+     * and Home Assistant has no way to ask (#130). Empty from a set that has not been updated,
+     * which reads as "nothing known to be exempt" rather than as a promise.
+     */
+    @SerialName("exempt_apps") val exemptApps: List<String> = emptyList(),
+    /**
      * Whether the television can still draw over other apps, and still read usage.
      *
      * Either being false means the product is not working, and both are one Settings screen

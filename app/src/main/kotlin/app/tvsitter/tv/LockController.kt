@@ -177,6 +177,21 @@ class LockController(
     }
 
     /**
+     * Packages a rule cannot reach, gathered where they are already known.
+     *
+     * This app and the home screen, because sending either of them home is a fight with
+     * nobody — and a screen saver, which is the television idling rather than a child getting
+     * round anything (#95). The engine already exempts them (D35); this is only the list said
+     * out loud, so nothing draws a control that would be ignored (#130).
+     */
+    val exemptPackages: Set<String>
+        get() = buildSet {
+            add(context.packageName)
+            displacer.homePackage?.let { add(it) }
+            addAll(screenSavers.all)
+        }
+
+    /**
      * What the lock is calling itself, or null when it is not up.
      *
      * The same words the child is reading on the lock screen at that moment, rather than a

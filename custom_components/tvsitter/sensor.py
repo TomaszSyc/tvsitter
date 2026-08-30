@@ -30,6 +30,7 @@ from homeassistant.util import dt as dt_util
 from . import TvSitterConfigEntry
 from .const import (
     ATTR_DAY,
+    ATTR_FOLLOWING_SCHEDULE,
     ATTR_MINUTES,
     ATTR_PACKAGE,
     ATTR_PACKAGES,
@@ -159,7 +160,6 @@ async def async_setup_entry(
     # is for the two things a number cannot say: a budget for an app the television
     # has never opened, and taking a budget away — zero is a block, not an absence.
     platform.async_register_entity_service(
-        SERVICE_SET_ALLOWED_APPS,
         SERVICE_SET_APP_LIMIT,
         {
             vol.Required(ATTR_PACKAGE): cv.string,
@@ -317,10 +317,31 @@ class RulesSensor(TvSitterEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
-        """Expose the rules themselves, exactly as the TV sent them."""
-        if self._client.rules is None:
+        """Expose the rules themselves, and which schedule helper is writing the hours.
+
+        The helper belongs here rather than on a sensor of its own because it is the
+        reason some of these rules are what they are. A panel drawing its own weekly
+        grid needs to know that the next import will overwrite whatever it writes, and
+        nothing outside the integration could find that out (D33).
+
+        Shown even before the rules arrive: a helper can be followed while the set is
+        asleep, and that is precisely when a grid is most likely to be edited.
+        """
+        rules = self._client.rules
+        followed = self._client.followed_schedule
+        if rules is None and followed is None:
             return None
-        return dict(self._client.rules)
+        attributes = dict(rules or {})
+        # This side owns the name outright, which is why the television's is dropped
+        # first rather than merely overwritten. The rules are opaque and a set may send
+        # a key of any spelling, but only Home Assistant knows what it is following, and
+        # a set that could name a helper could make the panel lock a grid nothing is
+        # importing. Absent rather than null when none is followed, so "not following"
+        # reads as that instead of as a helper that has gone missing.
+        attributes.pop(ATTR_FOLLOWING_SCHEDULE, None)
+        if followed is not None:
+            attributes[ATTR_FOLLOWING_SCHEDULE] = followed
+        return attributes
 
     async def async_set_schedule(self, day: str, minutes: float | None = None) -> None:
         """Give one day of the week its own allowance, or take the override away.

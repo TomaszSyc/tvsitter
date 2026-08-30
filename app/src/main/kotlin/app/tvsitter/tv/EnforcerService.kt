@@ -491,6 +491,9 @@ class EnforcerService : Service() {
             lockReason = locks?.lockReason,
             untilSeconds = judgement?.remainingSeconds?.toInt(),
             rulesRev = activeRules?.revision ?: 0,
+            // What a rule cannot reach, so Home Assistant does not offer a control for it.
+            // Sorted, so two payloads holding the same set are the same bytes.
+            exemptApps = locks?.exemptPackages.orEmpty().sorted(),
             canOverlay = permissions?.canOverlay != false,
             canUsage = permissions?.canUsage != false,
             // Whether a PIN exists and when it last changed, never the PIN or its hash. A

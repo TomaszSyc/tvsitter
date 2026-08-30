@@ -52,7 +52,7 @@ class ContractCodecTest {
                 "schema", "ts", "fw", "screen_on", "locked", "app_id", "app_name",
                 "used_today_s", "limit_today_s", "remaining_today_s", "bonus_today_s", "per_app",
                 "per_app_names",
-                "active_window", "lock_reason", "until_s", "rules_rev",
+                "active_window", "lock_reason", "until_s", "rules_rev", "exempt_apps",
                 "can_overlay", "can_usage", "pin_set",
                 "pin_changed_at", "pin_changed_by",
             ),

@@ -134,3 +134,25 @@ def test_rubbish_is_rejected_loudly() -> None:
     """Anything undecodable has to raise, so the caller can log and move on."""
     with pytest.raises(ValueError):
         StateSnapshot.from_payload("not json at all")
+
+
+def test_the_exempt_packages_come_through_as_a_tuple() -> None:
+    """#130. A frozen dataclass holding a list is frozen in name only."""
+    snapshot = StateSnapshot.from_payload(
+        json.dumps(
+            {
+                "schema": 1,
+                "ts": 1,
+                "exempt_apps": ["app.tvsitter.tv", "com.google.android.tvlauncher"],
+            }
+        )
+    )
+
+    assert snapshot.exempt_apps == ("app.tvsitter.tv", "com.google.android.tvlauncher")
+
+
+def test_a_television_that_says_nothing_exempts_nothing() -> None:
+    """An older build sends no such key: "none known" rather than a promise."""
+    snapshot = StateSnapshot.from_payload(json.dumps({"schema": 1, "ts": 1}))
+
+    assert snapshot.exempt_apps == ()

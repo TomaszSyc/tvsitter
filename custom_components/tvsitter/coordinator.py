@@ -209,6 +209,18 @@ class TvSitterClient:
             {"op": OP_SET_RULES, "rev": self._next_revision(), "rules": rules}
         )
 
+    @property
+    def followed_schedule(self) -> str | None:
+        """Which schedule helper the hours are being taken from, if any.
+
+        Asked of the config entry every time rather than kept beside it: a second copy
+        is one more thing to keep in step, and this one would go stale exactly when it
+        mattered — after a restart, with a helper still being followed.
+        """
+        if self.entry is None:
+            return None
+        return self.entry.options.get(CONF_SCHEDULE)
+
     async def async_follow_schedule(self, entity_id: str) -> None:
         """Take the hours from a schedule helper now, and whenever it is edited.
 
@@ -470,7 +482,7 @@ class TvSitterClient:
         # A grid edited while the set was asleep is sent now. Without this the schedule
         # and the television drift apart in silence, which is the failure the whole
         # follow-the-helper arrangement exists to avoid.
-        followed = self.entry.options.get(CONF_SCHEDULE) if self.entry else None
+        followed = self.followed_schedule
         if self.available and not was and followed:
             self._hass.async_create_task(self.async_import_schedule(followed))
         self._notify()

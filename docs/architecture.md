@@ -1223,6 +1223,24 @@ number the two sides use to agree.
 
 `tvsitter.set_windows` stays for the shapes a weekly grid cannot draw.
 
+**Amended (#132).** The reasoning above holds while the panel is a status board and fails once it
+is the thing a parent uses. Sending somebody out of the page into a helper's settings dialog is
+the same complaint #119 made about sending them to a service call, and the answer is the same: the
+control belongs where the thing is shown.
+
+So the panel has its own weekly grid, at half-hour resolution — the rules are `HH:MM` and a school
+evening ends at 19:30, so hours would be too coarse — and it writes through `tvsitter.set_windows`
+like every other rule change.
+
+The helper is not dropped. While one is being followed the integration re-imports it whenever it
+changes, so a grid that wrote over the top would be undone with nothing said; the grid is
+read-only then and names the helper. Which means the integration has to publish what it is
+following, and now does, on the rules sensor.
+
+Two editors for one rule, with one of them switched off whenever the other owns it. That is
+weaker than "one editor" and it is what having both costs — a house that has drawn its week on a
+Schedule helper keeps it, and a house that has not never learns the helper exists.
+
 ### D34 — the parent panel talks to Home Assistant, never to the broker
 
 #99 left three shapes open and the rest of M8 waited on this. The panel speaks to Home Assistant
