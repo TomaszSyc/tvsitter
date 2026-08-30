@@ -47,6 +47,7 @@ MODULES = [
 # imported the two modules it exercised and never the one that wires them together.
 PANEL_MODULES = [
     "panel",
+    "panel.api",
     "panel.home_assistant",
     "panel.page",
     "panel.server",

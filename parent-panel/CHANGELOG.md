@@ -3,6 +3,11 @@
 The version is one SemVer for the whole product (D6): the panel, the integration and the
 Android app share `version.txt` and share a tag.
 
+## 0.7.0
+
+- The panel is a control page rather than a status board: what is on, today by app, and
+  every rule editable in place.
+
 ## 0.6.24
 
 - The page actually renders: the server was importing a name that had become a method.

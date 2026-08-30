@@ -250,7 +250,8 @@ and the built-in cards answer every question on the list.
 Optional, and Home Assistant OS or Supervised only — Apps do not exist on Container or Core.
 The panel is a second interface onto the integration, not a second way to reach the televisions:
 it talks to Home Assistant and never to your broker, so the integration stays the only thing
-publishing a rule change (D34).
+publishing a rule change (D34). Everything above — the entities, the actions, the dashboard —
+works without it, and a household that never installs it loses no enforcement.
 
 Add this repository under **Settings > Apps > App store**, three-dot menu, **Repositories**:
 
@@ -260,8 +261,19 @@ https://github.com/TomaszSyc/tvsitter
 
 Then install **TV Sitter parent panel**. It appears in the sidebar and has nothing to configure.
 
-Today it is one page listing the televisions the integration can see. Everything the integration
-already does — the entities, the actions, the dashboard above — works without it.
+What it adds over the dashboard is a page that both shows and changes. One card per television
+carries what the set is doing now, what it has watched today and yesterday, and the rules that
+made those figures — the daily limit, the sleep timer, the warning, a limit per day of the week,
+a budget per app with the allow-list beside it, and buttons for the lock, the Settings block and
+clearing the limit. The rules revision is on the card as well, which is the only honest answer to
+whether a change has reached the television.
+
+Two things stay where they are. The parent PIN is shown but set from the device page, because the
+hashing lives there. The hours viewing is allowed in are shown but drawn on the Schedule
+helper above, because Home Assistant already has that editor.
+
+[`parent-panel/DOCS.md`](../parent-panel/DOCS.md) is the fuller version, including what the panel
+cannot do yet.
 
 ## Answering a request from your phone
 

@@ -8,17 +8,24 @@ the remote that a parent answers with one tap on their phone.
 
 Runs on your network. No cloud, no subscription.
 
-> **Status: alpha.** The first three milestones are done, and the parts they cover work on
-> real hardware: the TV publishes its state over MQTT, counts screen time against a day that
-> starts at 04:00, enforces a daily limit behind a lock screen, and a child can ask for more
-> time from the remote and have a parent answer it from their phone. A PIN lifts the lock at
-> the set itself, with no Home Assistant in reach, and can be changed there too.
+> **Status: alpha, and in daily use on one television.** Everything below works on real
+> hardware rather than in a test: the TV counts screen time against a day that starts at 04:00,
+> enforces the rules behind a lock screen, and a child can ask for more time from the remote and
+> have a parent answer it with one tap on a phone. A PIN lifts the lock at the set itself with no
+> Home Assistant in reach.
 >
-> Rules are in: a different limit per day of the week, hours viewing is allowed in, a budget per
-> app, blocking one outright, and a sleep timer. The television says why it locked, and Home
-> Assistant shows what is being enforced, graphs what was watched and keeps yesterday. It also
-> raises an alarm when somebody is at it — a keypad shut, a clock moved, a permission taken away,
-> the app stopped. Nothing has been designed to be looked at from a sofa yet (M6).
+> The rules are a daily limit, a different one per day of the week, the hours viewing is allowed
+> in, a budget per app, an allow-list of the apps a child may open at all, and a sleep timer. All
+> of them can be set from Home Assistant **or from the television**, behind the parent PIN. The
+> television says why it locked, and Home Assistant graphs what was watched and keeps yesterday.
+> It raises an alarm when somebody is at it: a keypad shut, a clock moved, a permission taken
+> away, the app stopped.
+>
+> The screens are designed for a sofa now — a rail, three destinations, focus you can see across
+> a room. The parent panel is a page that changes things now, not only a status board: one card
+> per television with what is on, today's figures, the rules, the week, a budget per app and the
+> allow-list. What is still thin: it is the youngest part of the project, and there are no
+> screenshots in this README yet, which is the next thing worth fixing.
 >
 > **Tested on exactly one television** — a Philips Google TV TA5 on Android 14. If you try it
 > on another, a [device report](../../issues/new?template=03-device-report.yml) is the most
@@ -40,6 +47,8 @@ and those are the reason for this project.
 | **"More time" request from the TV → actionable notification for the parent** | no | **done — the main reason this exists** |
 | **Usage statistics and history** | no | **done** — per app, graphable, with yesterday kept |
 | **At-a-glance "is the TV on, what is running"** | no | **done** |
+| An allow-list — only these apps, rather than not that one | no | **done** |
+| Rules changed at the television, with Home Assistant down | no | **done** |
 | Where the data lives | vendor cloud | your MQTT broker and your Home Assistant |
 
 ## How it works
@@ -48,11 +57,21 @@ and those are the reason for this project.
 ┌─ Android TV / Google TV ─────────────────────┐        ┌─ Home Assistant ─────────────┐
 │ EnforcerService (foreground service)         │        │ custom_components/tvsitter   │
 │  • detects the foreground app (usage events) │        │  • entities: screen, app,    │
-│  • draws a lock screen over other apps       │  MQTT  │    time left, lock switch    │
-│  • counts screen time                        │◄──────►│  • time requests → push      │
+│  • draws a lock screen over other apps       │  MQTT  │    time left, lock switch,   │
+│  • counts screen time                        │◄──────►│    a number per rule         │
+│  • rules edited at the set, behind the PIN   │        │  • time requests → push      │
 │ RulesEngine (:rules, plain Kotlin)           │        │  • dashboard and statistics  │
-└──────────────────────────────────────────────┘        └──────────────────────────────┘
+└──────────────────────────────────────────────┘        └──────────────┬───────────────┘
+                                                                       │ Home Assistant API
+                                                        ┌──────────────┴───────────────┐
+                                                        │ parent-panel (a HA App)      │
+                                                        │  • its own pages via Ingress │
+                                                        │  • optional, HA OS only      │
+                                                        └──────────────────────────────┘
 ```
+
+The panel never speaks MQTT. It asks Home Assistant, so the integration stays the only thing
+that writes a rule — see D34.
 
 **No accessibility service.** The permission asked for is "draw on top", not "read everything
 on screen and every keystroke" — and merely having an accessibility service enabled stops
@@ -123,9 +142,9 @@ Measured on the television it runs on, rather than guessed:
 | M3 | time requests | button on the TV → actionable notification → granted time | done |
 | M4 | rules | weekly schedule, allowed time windows, per-app budgets, app blocking, sleep timer | done |
 | M5 | statistics and anti-tamper | per-app history, a closed day, alarms when somebody is at it | done |
-| M6 | interface and graphics | screens designed for a ten-foot view, real artwork, the words a child reads | |
-| M7 | going public | documentation, release, HACS submission | |
-| M8 | parent add-on | the weekly schedule, per-app budgets and history in a page of their own, through Ingress | |
+| M6 | interface and graphics | screens designed for a ten-foot view, real artwork, the words a child reads | done |
+| M7 | going public | this repository, opened | done |
+| M8 | parent panel | pages of their own through Ingress, and the shapes Home Assistant configuration does not have | in progress |
 
 ## License
 
