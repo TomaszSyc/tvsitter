@@ -24,6 +24,10 @@ from .home_assistant import DOMAIN, WEEK, HomeAssistant, Television
 # The rules the television echoes back, under the names it sends them by. Only the two
 # list-shaped ones are read here; the rest have entities of their own that say the same
 # thing, and reading a number twice is how the two come to disagree.
+# This app's own package. Written here rather than discovered: it is a constant of the
+# product — the panel, the integration and the television are one thing with one name.
+OURS = "app.tvsitter.tv"
+
 RULE_WINDOWS = "windows"
 RULE_APPS_ALLOWED = "apps_allowed"
 
@@ -83,10 +87,36 @@ def apps(television: Television, allowed: list[str]) -> list[dict[str, Any]]:
             "allowed": not allowed or package in allowed,
         }
         for package in television.apps
+        if worth_showing(package, television, allowed)
     ]
     # Name as the tie-break: the registry hands these over in whatever order it holds
     # them, and two apps on nought minutes would otherwise swap places on a refresh.
     return sorted(listed, key=lambda app: (-app["minutes"], app["name"]))
+
+
+def worth_showing(package: str, television: Television, allowed: list[str]) -> bool:
+    """Say whether an app belongs on a page a parent is deciding things on.
+
+    Two kinds are dropped, and both would otherwise be controls that lie.
+
+    This app is never listed. The engine exempts it and the launcher from an allow-list
+    on purpose (D35): a parent who ticked four apps would leave the launcher off it, and
+    the answer to "the launcher is not allowed" would be to send the television to the
+    launcher, forever. A tick beside TV Sitter would do nothing, and a control that does
+    nothing is worse than none. The launcher is not known here — its own issue.
+
+    And a package with no time, no budget and no place on the allow-list is not
+    something anybody watched: `android` and `com.android.systemui` arrive because the
+    set charges them the odd second between apps. Anything a parent has decided about
+    stays, however little it has run.
+    """
+    if package == OURS:
+        return False
+    return bool(
+        television.app_minutes(package)
+        or television.app_limit(package) is not None
+        or package in allowed
+    )
 
 
 def windows(said: Any) -> list[dict[str, Any]]:

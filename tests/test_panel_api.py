@@ -152,3 +152,62 @@ def test_what_is_wrong_is_said_in_words() -> None:
 
     assert written["trouble"]
     assert all(isinstance(line, str) and line.strip() for line in written["trouble"])
+
+
+def with_noise() -> Television:
+    """Build a television whose per-app list is mostly not apps.
+
+    Which is what a real one reports: the set charges the odd second to `android` and to
+    the system UI between one app and the next, and it charges time to this app too.
+    """
+    one = television(rules="52")
+    for package, name, minutes in (
+        ("com.netflix", "Netflix", "74.5"),
+        ("android", "android", "0"),
+        ("com.android.systemui", "com.android.systemui", "0"),
+        ("app.tvsitter.tv", "TV Sitter", "28.3"),
+    ):
+        one.apps[package] = {
+            "sensor": f"sensor.{package}",
+            "limit": f"number.{package}",
+        }
+        one.states[f"sensor.{package}"] = {
+            "state": minutes,
+            "attributes": {"friendly_name": f"TV Salon {name}"},
+        }
+        one.states[f"number.{package}"] = {"state": "unknown", "attributes": {}}
+    return one
+
+
+def test_this_app_is_never_offered_as_something_to_block() -> None:
+    """The engine exempts it (D35), so a control for it would do nothing at all."""
+    written = only(with_noise())
+
+    assert "app.tvsitter.tv" not in [app["package"] for app in written["apps"]]
+
+
+def test_a_package_nobody_watched_is_not_an_app() -> None:
+    """`android` on nought minutes is the set drawing breath, not something watched."""
+    written = only(with_noise())
+
+    assert [app["package"] for app in written["apps"]] == ["com.netflix"]
+
+
+def test_an_app_a_parent_has_decided_about_stays_however_little_it_ran() -> None:
+    """A budget of zero is a blocked app, and a blocked app has to remain visible."""
+    one = with_noise()
+    one.states["number.android"] = {"state": "0", "attributes": {}}
+
+    assert "android" in [app["package"] for app in only(one)["apps"]]
+
+
+def test_an_allow_listed_app_stays_even_with_nothing_watched() -> None:
+    """It is named in a rule, so it is a row a parent expects to find and untick."""
+    one = with_noise()
+    one.entities["rules"] = "sensor.r"
+    one.states["sensor.r"] = {
+        "state": "52",
+        "attributes": {"apps_allowed": ["com.android.systemui"]},
+    }
+
+    assert "com.android.systemui" in [app["package"] for app in only(one)["apps"]]
