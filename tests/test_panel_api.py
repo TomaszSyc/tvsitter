@@ -873,3 +873,63 @@ def test_rubbish_where_the_installed_apps_should_be_is_ignored() -> None:
     one.states["sensor.r"]["attributes"]["launchable_apps"] = "all of them"
 
     assert [app["package"] for app in only(one)["apps"]] == ["com.netflix.ninja"]
+
+
+def test_the_week_drops_the_seconds_the_system_was_charged() -> None:
+    """#140. The set charges `android` the odd second between one app and the next.
+
+    Today's list has always dropped those; the seven days did not, so one page answered
+    the same question two ways — and one of the answers named the operating system as
+    something a child had watched.
+    """
+    one = with_rules(
+        launchable_apps={"com.netflix.ninja": "Netflix"},
+    )
+    week = [
+        {"package": "com.netflix.ninja", "name": "Netflix", "minutes": 185},
+        {
+            "package": "com.android.systemui",
+            "name": "com.android.systemui",
+            "minutes": 2.5,
+        },
+        {"package": "android", "name": "android", "minutes": 0.1},
+    ]
+
+    written = only(one, by_app=week)
+
+    assert [app["package"] for app in written["week_by_app"]] == ["com.netflix.ninja"]
+
+
+def test_a_set_that_cannot_enumerate_keeps_the_week_it_had() -> None:
+    """A chart with the system in it beats no chart at all."""
+    week = [
+        {"package": "com.netflix.ninja", "name": "Netflix", "minutes": 185},
+        {"package": "android", "name": "android", "minutes": 0.1},
+    ]
+
+    written = only(with_rules(), by_app=week)
+
+    assert len(written["week_by_app"]) == 2
+
+
+def test_the_week_still_drops_what_no_rule_can_reach() -> None:
+    """The launcher is the set idling, however much of the week it accounts for."""
+    one = with_rules(
+        exempt_apps=["com.google.android.tvlauncher"],
+        launchable_apps={
+            "com.google.android.tvlauncher": "Google TV",
+            "com.netflix.ninja": "Netflix",
+        },
+    )
+    week = [
+        {
+            "package": "com.google.android.tvlauncher",
+            "name": "Google TV",
+            "minutes": 302.8,
+        },
+        {"package": "com.netflix.ninja", "name": "Netflix", "minutes": 185},
+    ]
+
+    written = only(one, by_app=week)
+
+    assert [app["package"] for app in written["week_by_app"]] == ["com.netflix.ninja"]

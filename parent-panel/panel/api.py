@@ -119,7 +119,7 @@ def described(
         # Two weeks, and the names keep them apart: `week` is a rule — what each day of
         # the week allows — and `week_by_app` is what happened over the last seven days.
         "week": {day: television.number(f"limit_{day}") for day in WEEK},
-        "week_by_app": weekly(by_app, exempt),
+        "week_by_app": weekly(by_app, exempt, installed(television)),
         "apps": apps(television, allowed, exempt, installed(television)),
         "allowed_apps": allowed,
         "exempt_apps": exempt,
@@ -132,16 +132,28 @@ def described(
 
 
 def weekly(
-    by_app: list[dict[str, Any]] | None, exempt: list[str]
+    by_app: list[dict[str, Any]] | None,
+    exempt: list[str],
+    on_it: dict[str, str] | None = None,
 ) -> list[dict[str, Any]]:
-    """Hand on the seven days as they were read, without the apps no rule reaches.
+    """Hand on the seven days as they were read, without what nobody watched.
 
-    The same packages the daily list drops, dropped from the same page: a parent
-    reading the two lists side by side would take an app missing from one and present
-    in the other for a fault. And they are the launcher and this app's own lock screen,
-    which is the set idling rather than anything anybody sat down to watch.
+    Two things are dropped, and both would otherwise be a figure that is not about
+    anything. The packages no rule reaches, which are the launcher and this app's own
+    lock screen: the set idling rather than something somebody sat down to watch, and
+    the same ones the daily list drops — a parent reading the two side by side would
+    take an app missing from one and present in the other for a fault.
+
+    And anything the set does not list as installed. The television charges the odd
+    second to `android` and `com.android.systemui` between one app and the next, and
+    the recorder keeps that like any other figure, so a week ends up with three rows
+    naming the operating system (#140). A set that cannot enumerate says nothing, and
+    then this drops nothing: a chart with the system in it beats no chart at all.
     """
-    return [app for app in by_app or [] if app.get("package") not in exempt]
+    listed = [app for app in by_app or [] if app.get("package") not in exempt]
+    if not on_it:
+        return listed
+    return [app for app in listed if app.get("package") in on_it]
 
 
 def exempt_apps(television: Television) -> list[str]:
