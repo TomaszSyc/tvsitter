@@ -32,11 +32,14 @@ from .const import (
     ATTR_DAY,
     ATTR_MINUTES,
     ATTR_PACKAGE,
+    ATTR_PACKAGES,
     ATTR_SCHEDULE,
     ATTR_WINDOWS,
     RULE_APP_LIMITS,
+    RULE_APPS_ALLOWED,
     RULE_DAYS,
     RULE_WINDOWS,
+    SERVICE_SET_ALLOWED_APPS,
     SERVICE_SET_APP_LIMIT,
     SERVICE_SET_SCHEDULE,
     SERVICE_SET_WINDOWS,
@@ -156,6 +159,7 @@ async def async_setup_entry(
     # is for the two things a number cannot say: a budget for an app the television
     # has never opened, and taking a budget away — zero is a block, not an absence.
     platform.async_register_entity_service(
+        SERVICE_SET_ALLOWED_APPS,
         SERVICE_SET_APP_LIMIT,
         {
             vol.Required(ATTR_PACKAGE): cv.string,
@@ -164,6 +168,14 @@ async def async_setup_entry(
             ),
         },
         "async_set_app_limit",
+    )
+    # Which apps exist for this child at all — a different question from how long each
+    # run. An empty list is no restriction rather than a locked television — what
+    # every list-shaped rule here means (D27), and the reading that fails recoverably.
+    platform.async_register_entity_service(
+        SERVICE_SET_ALLOWED_APPS,
+        {vol.Required(ATTR_PACKAGES): vol.All(cv.ensure_list, [cv.string])},
+        "async_set_allowed_apps",
     )
     # The weekly grid a schedule helper already draws, rather than a second editor here.
     # Home Assistant has the better one and it is built in (#119).
@@ -361,6 +373,22 @@ class RulesSensor(TvSitterEntity, SensorEntity):
         self._require_a_listening_tv()
         seconds = None if minutes is None else int(minutes * SECONDS_PER_MINUTE)
         await self._client.async_set_rules({RULE_APP_LIMITS: {package: seconds}})
+
+    async def async_set_allowed_apps(self, packages: list[str]) -> None:
+        """Say which apps this child may open at all, or lift the restriction.
+
+        The whole list every time, like the windows: an allow-list has no key a parent
+        names, so there is nothing to merge onto. An empty list allows everything, which
+        is not the same as allowing nothing — a rule that fails towards nothing enforced
+        is recoverable, and one that fails towards a television nobody can use is a
+        parent locked out by a typo.
+
+        Beside the per-app budgets rather than instead of them: a budget says how long,
+        this says whether. An app has to pass both, and both are ways of saying no, so
+        there is no case where the two disagree (#75).
+        """
+        self._require_a_listening_tv()
+        await self._client.async_set_rules({RULE_APPS_ALLOWED: list(packages)})
 
     def _require_a_listening_tv(self) -> None:
         """Refuse rather than write into the dark."""

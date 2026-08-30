@@ -116,3 +116,17 @@ use_schedule:
       selector:
         entity:
           domain: schedule
+
+# Which apps exist for this child at all. Sent whole every time — an allow-list has no key to
+# merge onto — and an empty list allows everything rather than nothing.
+set_allowed_apps:
+  target:
+    entity:
+      integration: tvsitter
+      domain: sensor
+  fields:
+    packages:
+      required: true
+      example: '["com.netflix.ninja", "com.google.android.youtube.tv"]'
+      selector:
+        object:

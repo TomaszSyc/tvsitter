@@ -344,13 +344,35 @@ class LockController(
             banner.hide()
         }
 
-        effects.displace?.let { app ->
-            Log.i(EnforcerService.TAG, "rules: $app has used its own time, sending the TV home")
-            displacer.sendHome()
-            // Said out loud, because from the sofa an app closed itself for no reason and the
-            // obvious move is to open it again — whose only answer was another trip home (#97).
-            banner.show(context.getString(R.string.app_out_of_time, appName(app)))
-        }
+        effects.displace?.let { app -> sendHome(app) }
+    }
+
+    /**
+     * Sends one app away, unless it is one of the ones there is nowhere to send.
+     *
+     * The launcher and this app are exempt, and have to be. A block-list could never name them
+     * — nobody sets a budget on the home screen — but an allow-list blocks by omission, so a
+     * parent ticking four apps would leave the launcher off the list, and the answer to "the
+     * launcher is not allowed" would be to send the television to the launcher. Every ten
+     * seconds, for as long as the set was on.
+     *
+     * A screen saver for the same reason as behind a lock: it is the television idling, not a
+     * child getting round anything (#95).
+     */
+    private fun sendHome(app: String) {
+        if (app == context.packageName || app == displacer.homePackage) return
+        if (screenSavers.contains(app)) return
+
+        val notAllowed = state.lastDecision?.reason == LockReason.APP_NOT_ALLOWED
+        Log.i(
+            EnforcerService.TAG,
+            "rules: $app is ${if (notAllowed) "not allowed" else "out of time"}, sending the TV home",
+        )
+        displacer.sendHome()
+        // Said out loud, because from the sofa an app closed itself for no reason and the
+        // obvious move is to open it again — whose only answer was another trip home (#97).
+        val words = if (notAllowed) R.string.app_not_allowed else R.string.app_out_of_time
+        banner.show(context.getString(words, appName(app)))
     }
 
     private fun show(reason: String?) {

@@ -111,6 +111,7 @@ RULE_BLOCK_SETTINGS: Final = "block_settings"
 RULE_APP_LIMITS: Final = "app_limits_s"
 RULE_DAYS: Final = "days"
 RULE_WINDOWS: Final = "windows"
+RULE_APPS_ALLOWED: Final = "apps_allowed"
 
 SERVICE_USE_SCHEDULE: Final = "use_schedule"
 ATTR_SCHEDULE: Final = "schedule"
@@ -126,11 +127,13 @@ SERVICE_DENY_TIME: Final = "deny_time"
 SERVICE_SET_SCHEDULE: Final = "set_schedule"
 SERVICE_SET_WINDOWS: Final = "set_windows"
 SERVICE_SET_APP_LIMIT: Final = "set_app_limit"
+SERVICE_SET_ALLOWED_APPS: Final = "set_allowed_apps"
 ATTR_MINUTES: Final = "minutes"
 ATTR_REQUEST_ID: Final = "req_id"
 ATTR_DAY: Final = "day"
 ATTR_WINDOWS: Final = "windows"
 ATTR_PACKAGE: Final = "package"
+ATTR_PACKAGES: Final = "packages"
 
 # The wire spelling of the days, which is what the rules object uses. Short and lower
 # case because that is what the engine parses; the interface translates them.

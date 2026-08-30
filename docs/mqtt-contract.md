@@ -73,7 +73,7 @@ Three rules the correctness of the whole thing rests on:
 - `active_window` — identifier of the rule window in force, so that "why did it block me
   right now" is answerable.
 - `lock_reason` — why the screen is covered, or `null` when it is not. One of `daily_limit`,
-  `app_limit`, `outside_window`, or `manual` for a lock a parent asked for. A parent's own lock
+  `app_limit`, `app_not_allowed`, `outside_window`, or `manual` for a lock a parent asked for. A parent's own lock
   outranks whatever the rules were saying at the time: they asked for it, and "the day's
   allowance is gone" would answer a question nobody put.
 - `until_s` — how long viewing may still go on, counting whichever rule binds first, or `null`
@@ -269,6 +269,7 @@ this walks a payload that arrived over the network.
     { "id": "weekend", "from": "09:00", "to": "21:00", "days": ["sat", "sun"] }
   ],
   "app_limits_s": { "com.netflix.ninja": 1800, "com.twitch.android.app": 0 },
+  "apps_allowed": ["com.netflix.ninja", "com.google.android.youtube.tv"],
   "warn_before_s": [900, 300],
   "block_settings": false
 }
@@ -283,6 +284,7 @@ is where a misreading turns into a television that enforces the opposite of what
 | `days.<day>` | that day takes `daily_limit_s` | removes the override | no viewing that day | — |
 | `windows` | hours not restricted | removes them | — | hours not restricted |
 | `app_limits_s.<pkg>` | app has no budget of its own | removes its budget | **app is blocked** | — |
+| `apps_allowed` | every app allowed | removes it | — | **every app allowed** |
 | `warn_before_s` | the default, five minutes | back to the default | no warning | no warning |
 | `block_settings` | Settings reachable | reachable | — | — |
 
@@ -296,6 +298,17 @@ is where a misreading turns into a television that enforces the opposite of what
 - `app_limits_s` is keyed by package and counts against the same screen time as the daily budget.
   A blocked app is one with a budget of zero; there is no separate block list, because zero
   already means "none of that" everywhere else here.
+- `apps_allowed` is the other question: not how long an app may run, but whether it exists for
+  this child at all. An app has to pass both, and both are ways of saying no, so the two cannot
+  disagree about the same app. It is a list because a budget of zero is a block-list, and a
+  block-list is wrong the moment something new is installed.
+  An **empty list allows every app**, which is the same reading `windows` has and for the same
+  reason: a rule that fails towards nothing enforced is recoverable, and one that fails towards a
+  television nobody can use is a parent locked out by a typo. An entry that is not a string is
+  dropped on its own rather than taking the list with it.
+  An app that is not on the list is sent to the home screen and the screen is **not** covered, the
+  same as an app out of its own time (D28) — and it loses to every reason that covers the screen,
+  because the hours and the day's allowance stop everything rather than one app.
 - `warn_before_s` is seconds before the end, and the TV uses them farthest first. A single number
   is accepted where a list belongs. Duplicates and zeros are dropped: zero is how "no warning" is
   spelled, and the same warning twice is one warning.

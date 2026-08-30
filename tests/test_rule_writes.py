@@ -388,3 +388,22 @@ async def test_following_a_schedule_does_not_need_a_listening_tv(
         await RulesSensor(client).async_use_schedule("schedule.hours")
 
     followed.assert_called_once_with("schedule.hours")
+
+
+async def test_the_allow_list_is_sent_whole(hass: HomeAssistant) -> None:
+    """#75. It has no key a parent names, so there is nothing to merge onto."""
+    client = make_client(hass)
+    allowed = ["com.netflix.ninja", "com.google.android.youtube.tv"]
+
+    assert await written(RulesSensor(client).async_set_allowed_apps(allowed)) == {
+        "apps_allowed": allowed
+    }
+
+
+async def test_an_empty_allow_list_allows_everything(hass: HomeAssistant) -> None:
+    """The direction this fails in matters: a typo must not lock a parent out."""
+    client = make_client(hass)
+
+    assert await written(RulesSensor(client).async_set_allowed_apps([])) == {
+        "apps_allowed": []
+    }

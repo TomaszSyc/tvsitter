@@ -238,6 +238,16 @@
           "description": "The schedule helper to follow."
         }
       }
+    },
+    "set_allowed_apps": {
+      "name": "Set the apps this child may open",
+      "description": "Says which apps exist for this child at all. Send the whole list every time; an empty list allows every app rather than none.",
+      "fields": {
+        "packages": {
+          "name": "Packages",
+          "description": "The package ids of the apps that are allowed."
+        }
+      }
     }
   }
 }

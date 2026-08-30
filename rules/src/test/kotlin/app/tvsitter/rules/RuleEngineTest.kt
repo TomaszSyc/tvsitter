@@ -375,4 +375,92 @@ class RuleEngineTest {
         assertEquals(BudgetVerdict.WITHIN, judgement.state)
         assertNull(judgement.remainingSeconds)
     }
+
+    @Test
+    fun `an app nobody allowed is sent home and the screen is left alone`() {
+        val rules = Rules(allowedApps = setOf("com.netflix.ninja"))
+
+        val judgement = engine.judge(rules, onDay("2026-08-24"), "com.twitch.tv", at("2026-08-24T17:00:00"))
+
+        assertEquals(BudgetVerdict.WITHIN, judgement.state)
+        assertEquals(LockReason.APP_NOT_ALLOWED, judgement.reason)
+        assertEquals("com.twitch.tv", judgement.decision.displaceApp)
+    }
+
+    @Test
+    fun `an app on the list is judged like any other`() {
+        val rules = Rules(allowedApps = setOf("com.netflix.ninja"), dailyLimitSeconds = 3600)
+        val used = onDay("2026-08-24").copy(usedMillis = 600_000)
+
+        val judgement = engine.judge(rules, used, "com.netflix.ninja", at("2026-08-24T17:00:00"))
+
+        assertEquals(BudgetVerdict.WITHIN, judgement.state)
+        assertNull(judgement.decision.displaceApp)
+        assertEquals(3000L, judgement.remainingSeconds)
+    }
+
+    @Test
+    fun `an empty allow-list is no restriction, not a locked television`() {
+        val judgement = engine.judge(Rules.NONE, onDay("2026-08-24"), "com.twitch.tv", at("2026-08-24T17:00:00"))
+
+        assertEquals(Judgement.NOTHING, judgement)
+    }
+
+    @Test
+    fun `an allow-list does not decide anything when no app is in front`() {
+        val rules = Rules(allowedApps = setOf("com.netflix.ninja"), dailyLimitSeconds = 3600)
+
+        val judgement = engine.judge(rules, onDay("2026-08-24"), null, at("2026-08-24T17:00:00"))
+
+        assertNotEquals(LockReason.APP_NOT_ALLOWED, judgement.reason)
+    }
+
+    @Test
+    fun `an allowed app with a spent budget is still out of time`() {
+        val rules = Rules(
+            allowedApps = setOf("com.netflix.ninja"),
+            appLimitSeconds = mapOf("com.netflix.ninja" to 1800),
+        )
+        val used = onDay("2026-08-24").copy(perAppMillis = mapOf("com.netflix.ninja" to 1_800_000))
+
+        val judgement = engine.judge(rules, used, "com.netflix.ninja", at("2026-08-24T17:00:00"))
+
+        assertEquals(LockReason.APP_LIMIT, judgement.reason)
+        assertEquals("com.netflix.ninja", judgement.decision.displaceApp)
+    }
+
+    @Test
+    fun `outside the hours the screen is covered, whatever app is in front`() {
+        val rules = Rules(allowedApps = setOf("com.netflix.ninja"), windows = listOf(school))
+
+        val judgement = engine.judge(rules, onDay("2026-08-24"), "com.twitch.tv", at("2026-08-24T21:00:00"))
+
+        assertEquals(BudgetVerdict.SPENT, judgement.state)
+        assertEquals(LockReason.OUTSIDE_WINDOW, judgement.reason)
+        assertNull(judgement.decision.displaceApp)
+    }
+
+    @Test
+    fun `a spent day covers the screen rather than sending one app home`() {
+        val rules = Rules(allowedApps = setOf("com.netflix.ninja"), dailyLimitSeconds = 3600)
+        val used = onDay("2026-08-24").copy(usedMillis = 3_600_000)
+
+        val judgement = engine.judge(rules, used, "com.twitch.tv", at("2026-08-24T17:00:00"))
+
+        assertEquals(BudgetVerdict.SPENT, judgement.state)
+        assertEquals(LockReason.DAILY_LIMIT, judgement.reason)
+    }
+
+    @Test
+    fun `out of its own time beats not being allowed, since both send it home`() {
+        val rules = Rules(
+            allowedApps = setOf("com.netflix.ninja"),
+            appLimitSeconds = mapOf("com.twitch.tv" to 0),
+        )
+
+        val judgement = engine.judge(rules, onDay("2026-08-24"), "com.twitch.tv", at("2026-08-24T17:00:00"))
+
+        assertEquals(LockReason.APP_LIMIT, judgement.reason)
+        assertEquals("com.twitch.tv", judgement.decision.displaceApp)
+    }
 }

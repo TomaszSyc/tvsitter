@@ -238,6 +238,16 @@
           "description": "Pomocnik, za którym ma podążać."
         }
       }
+    },
+    "set_allowed_apps": {
+      "name": "Ustaw aplikacje dozwolone dla dziecka",
+      "description": "Określa, które aplikacje w ogóle istnieją dla tego dziecka. Wysyłaj całą listę za każdym razem; pusta lista pozwala na wszystkie, a nie na żadną.",
+      "fields": {
+        "packages": {
+          "name": "Pakiety",
+          "description": "Identyfikatory pakietów dozwolonych aplikacji."
+        }
+      }
     }
   }
 }

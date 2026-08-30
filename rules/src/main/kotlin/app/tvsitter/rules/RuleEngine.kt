@@ -28,6 +28,15 @@ enum class LockReason(val wire: String) {
 
     /** This app's own allowance is gone. The rest of the television is unaffected. */
     APP_LIMIT("app_limit"),
+
+    /**
+     * This app is not one of the ones allowed. The rest of the television is unaffected.
+     *
+     * Last, so it loses every tie. A child sent home wants to know what is actually stopping
+     * them, and "not one of your apps" is the least useful of the answers when another one
+     * also applies — the hours or the day's allowance end for everything, not just this.
+     */
+    APP_NOT_ALLOWED("app_not_allowed"),
     ;
 
     companion object {
@@ -122,11 +131,52 @@ class RuleEngine(private val clock: BudgetClock) {
 
         val binding = constraints.minWithOrNull(
             compareBy({ it.remainingSeconds }, { it.reason.ordinal }),
-        ) ?: return Judgement(Decision(BudgetVerdict.WITHIN, windowId = window?.id))
+        ) ?: return alsoNotAllowed(
+            Judgement(Decision(BudgetVerdict.WITHIN, windowId = window?.id)),
+            rules,
+            appId,
+        )
 
+        return alsoNotAllowed(
+            Judgement(
+                decide(binding, rules, appId, window?.id),
+                remainingSeconds = binding.remainingSeconds,
+            ),
+            rules,
+            appId,
+        )
+    }
+
+    /**
+     * Sends an app nobody allowed home, when nothing more important is already happening.
+     *
+     * Applied over the answer rather than before it, which is the correction to how this was
+     * first written. Checked first, an app off the list came back "send it home" at nine in the
+     * evening with the hours long closed — so the screen was left uncovered and the child had
+     * the rest of the television. The hours and the day's allowance stop everything; this stops
+     * one app.
+     *
+     * It also loses to a decision that is already displacing this same app: out of its own time
+     * is the more specific answer, and both do the same thing.
+     *
+     * The screen is not covered, for the same reason a spent app budget does not cover it
+     * (D28): the rest of the television is fine, and covering everything would punish the
+     * choice of app rather than the watching.
+     */
+    private fun alsoNotAllowed(judgement: Judgement, rules: Rules, appId: String?): Judgement {
+        val settled = judgement.state == BudgetVerdict.SPENT ||
+            judgement.decision.displaceApp != null ||
+            appId == null ||
+            rules.allowedApps.isEmpty() ||
+            appId in rules.allowedApps
+        if (settled) return judgement
         return Judgement(
-            decide(binding, rules, appId, window?.id),
-            remainingSeconds = binding.remainingSeconds,
+            Decision(
+                BudgetVerdict.WITHIN,
+                LockReason.APP_NOT_ALLOWED,
+                windowId = judgement.decision.windowId,
+                displaceApp = appId,
+            ),
         )
     }
 

@@ -1258,3 +1258,30 @@ integration does not require it.
 Home Assistant App" only where the Supervisor's own noun is needed. Repository text keeps "add-on"
 for the Supervisor concept it names — `repository.yaml`, `config.yaml`, the build workflow — and
 the folder is `parent-panel/` rather than `addon/`.
+
+### D35 — an allow-list sits beside the per-app budgets rather than replacing them
+
+#75 asked which it should be, because two rules that can disagree about the same app is a bug
+waiting to be filed. They do not disagree, because they answer different questions.
+
+`app_limits_s` says **how long** an app may run, and zero says not at all. `apps_allowed` says
+**which apps exist** for this child. An app has to pass both, and both are ways of saying no, so
+there is no combination where one says yes over the other's no. Where both apply, the more
+specific reason wins the wording: out of its own time beats not being allowed, and both send the
+app home.
+
+Both are kept because a budget of zero is a block-list, and a block-list is wrong the moment
+something new is installed. An allow-list stays right, and a budget is still the only way to say
+"an hour of this one".
+
+An empty list allows everything, which reads backwards until you ask which way it should fail. A
+rule that fails towards nothing enforced is recoverable by a parent; one that fails towards a
+television nobody can use locks them out of the thing they would fix it with. Same reading as
+`windows` (D27), same reason.
+
+The one thing an allow-list needs that a block-list never did: **the launcher and this app are
+exempt.** Nobody sets a budget on the home screen, so it never came up; but an allow-list blocks
+by omission, and a parent ticking four apps leaves the launcher off it. The answer to "the
+launcher is not allowed" would be to send the television to the launcher, every ten seconds, for
+as long as the set was on. The exemption lives in `LockController`, which is where those packages
+are known — the engine stays pure and judges whatever it is handed.

@@ -146,4 +146,5 @@
     <string name="stats_week_note">Tydzień jest w Home Assistancie. Telewizor pamięta dziś i wczoraj.</string>
     <string name="stats_yesterday_apps">Wczoraj, wg aplikacji</string>
     <string name="pin_step_prove">Wpisz PIN rodzica, aby zmienić reguły</string>
+    <string name="app_not_allowed">%1$s nie jest jedną z twoich aplikacji</string>
 </resources>

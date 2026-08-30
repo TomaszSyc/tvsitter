@@ -134,4 +134,5 @@
     <string name="stats_week_note">The week is kept in Home Assistant. This television keeps today and yesterday.</string>
     <string name="stats_yesterday_apps">Yesterday, by app</string>
     <string name="pin_step_prove">Type the parent PIN to change the rules</string>
+    <string name="app_not_allowed">%1$s is not one of your apps</string>
 </resources>

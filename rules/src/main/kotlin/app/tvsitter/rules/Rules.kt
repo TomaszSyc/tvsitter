@@ -14,6 +14,7 @@ import kotlinx.serialization.json.add
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 import java.time.DayOfWeek
@@ -37,6 +38,23 @@ data class Rules(
     val windows: List<Window> = emptyList(),
     /** Per package. Zero is a blocked app, which is why it is not the same as being absent. */
     val appLimitSeconds: Map<String, Long> = emptyMap(),
+    /**
+     * The only apps allowed at all, or empty for no restriction.
+     *
+     * A different question from [appLimitSeconds] rather than a competing answer to the same
+     * one. The budget says how long an app may run and zero says not at all; this says which
+     * apps exist for this child. An app has to pass both, and both are ways of saying no, so
+     * there is no case where they disagree — which is what #75 asked to be settled.
+     *
+     * Why both: a budget of zero is a block-list, and a block-list is wrong the moment
+     * something new is installed. An allow-list stays right.
+     *
+     * Empty is no restriction, not a locked television — the same reading [windows] has
+     * (D27), and for the same reason: a rule that fails towards nothing enforced is
+     * recoverable, and one that fails towards everything blocked is a parent locked out by a
+     * typo.
+     */
+    val allowedApps: Set<String> = emptySet(),
     /**
      * How long before the end to say so, farthest first. Empty means say nothing.
      *
@@ -72,6 +90,12 @@ data class Rules(
         if (warnBeforeSeconds != DEFAULT_WARNINGS) {
             put(KEY_WARN_BEFORE, buildJsonArray { warnBeforeSeconds.forEach { add(it) } })
         }
+        if (allowedApps.isNotEmpty()) {
+            // Sorted, so that the same allow-list encodes to the same bytes however it was
+            // built. A published rules object nobody can diff is a published rules object
+            // nobody reads.
+            put(KEY_APPS_ALLOWED, buildJsonArray { allowedApps.sorted().forEach { add(it) } })
+        }
         if (settingsBlocked) put(KEY_BLOCK_SETTINGS, true)
     }
 
@@ -80,6 +104,7 @@ data class Rules(
         const val KEY_DAYS: String = "days"
         const val KEY_WINDOWS: String = "windows"
         const val KEY_APP_LIMITS: String = "app_limits_s"
+        const val KEY_APPS_ALLOWED: String = "apps_allowed"
         const val KEY_WARN_BEFORE: String = "warn_before_s"
         const val KEY_BLOCK_SETTINGS: String = "block_settings"
 
@@ -166,6 +191,7 @@ data class Rules(
                     dayLimitSeconds = readDayLimits(json[KEY_DAYS], ignored),
                     windows = readWindows(json[KEY_WINDOWS], ignored),
                     appLimitSeconds = readAppLimits(json[KEY_APP_LIMITS], ignored),
+                    allowedApps = readAllowedApps(json[KEY_APPS_ALLOWED], ignored),
                     warnBeforeSeconds = readWarnings(json[KEY_WARN_BEFORE], ignored),
                     settingsBlocked = readFlag(json[KEY_BLOCK_SETTINGS], KEY_BLOCK_SETTINGS, ignored),
                 ),
@@ -175,6 +201,26 @@ data class Rules(
 
         fun fromJson(json: JsonObject): Rules = read(json).rules
     }
+}
+
+/**
+ * Reads the allow-list, dropping anything in it that is not a package name.
+ *
+ * Not the whole list, unlike a malformed window: an allow-list is a list of independent
+ * names, and one that is a number says nothing about the rest. Dropping the entry rather
+ * than the rule keeps the failure in the direction everything else here fails in — towards
+ * an app being allowed rather than a television nobody can use.
+ */
+private fun readAllowedApps(element: JsonElement?, ignored: MutableList<String>): Set<String> {
+    val array = element as? JsonArray ?: return emptySet<String>().also {
+        if (element != null) ignored.add(Rules.KEY_APPS_ALLOWED)
+    }
+    val allowed = mutableSetOf<String>()
+    for (entry in array) {
+        val name = (entry as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
+        if (name == null) ignored.add(Rules.KEY_APPS_ALLOWED) else allowed.add(name)
+    }
+    return allowed
 }
 
 /** Rules as they were read, and every rule that could not be. */

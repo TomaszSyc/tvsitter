@@ -126,6 +126,7 @@
     "set_schedule": "mdi:calendar-week",
     "set_windows": "mdi:calendar-clock",
     "set_app_limit": "mdi:timer-lock-outline",
-    "use_schedule": "mdi:calendar-import"
+    "use_schedule": "mdi:calendar-import",
+    "set_allowed_apps": "mdi:playlist-check"
   }
 }
