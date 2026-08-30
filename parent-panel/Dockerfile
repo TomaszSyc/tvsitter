@@ -9,7 +9,8 @@ ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 
 # One dependency. The panel asks Home Assistant questions over HTTP and renders the answers;
 # a framework would be more to keep current than the thing it is serving.
-RUN pip install --no-cache-dir "aiohttp==3.13.2"
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt && rm /tmp/requirements.txt
 
 COPY panel /opt/panel
 COPY run.sh /run.sh

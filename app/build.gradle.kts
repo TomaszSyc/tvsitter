@@ -1,3 +1,8 @@
+/*
+ * TV Sitter — parental control for Android TV / Google TV.
+ * Copyright (C) 2026 Tomasz Syc
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
 // One version for the whole product (D6), read from version.txt rather than written here
 // twice. The two halves had already drifted — the app said 0.1.0-m0 while the integration
 // said 0.1.0 — and nothing noticed, which also meant the `fw` field in every state payload

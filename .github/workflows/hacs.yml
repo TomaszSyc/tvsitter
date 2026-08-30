@@ -1,11 +1,10 @@
 name: HACS
 
-# Manual and scheduled only, not on every push: while the repository is private and
-# has no release, HACS validation is bound to fail (it requires a public repository with
-# a description, topics and a release). Once the repository is public, add:
-#   push:
-#     branches: [main]
-#   pull_request:
+# Manual and scheduled only, not on every push. This project is installed through HACS as a
+# custom repository and is not submitted to the default store, so most of what this action
+# checks — a release, the store listing rules — is not a gate on anything here. It runs weekly
+# to catch the parts that do matter: that `hacs.json` parses and the integration is laid out
+# where HACS looks for it.
 on:
   schedule:
     - cron: "0 4 * * 1"

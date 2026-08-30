@@ -80,10 +80,13 @@ Fire TV (Fire OS), Samsung (Tizen), LG (webOS) and Roku are not supported.
 
 **On the TV:** [`docs/setup.md`](docs/setup.md).
 
-**In Home Assistant:** through HACS once the repository is public (`custom_components/tvsitter`
-already follows the HACS layout). Until then, copy `custom_components/tvsitter/` into your
-`config/custom_components/` and restart Home Assistant, then add "TV Sitter" from Devices &
-Services.
+**In Home Assistant:** add this repository to HACS as a **custom repository** (category:
+Integration), then install "TV Sitter" and restart. Or copy `custom_components/tvsitter/` into
+your `config/custom_components/` by hand — either way, finish by adding "TV Sitter" from Devices
+& Services.
+
+It is not in the HACS default store and is not submitted to it. A custom repository needs one
+paste of the URL and updates the same way afterwards.
 
 **The parent panel** is optional and Home Assistant OS or Supervised only, because Apps do not
 exist on Container or Core. It adds pages the integration cannot — see

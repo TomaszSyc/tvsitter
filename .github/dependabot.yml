@@ -18,6 +18,23 @@ updates:
       kotlin:
         patterns: ["org.jetbrains.kotlin*", "org.jetbrains.kotlinx*"]
 
+  # The parent panel's own dependency, and the Supervisor base image its Dockerfile builds
+  # from. Two ecosystems because they are two different things: `pip` reads
+  # requirements.txt, `docker` reads the FROM line and nothing else.
+  - package-ecosystem: pip
+    directory: "/parent-panel"
+    schedule:
+      interval: weekly
+      day: monday
+    labels: ["dependencies"]
+
+  - package-ecosystem: docker
+    directory: "/parent-panel"
+    schedule:
+      interval: weekly
+      day: monday
+    labels: ["dependencies"]
+
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
