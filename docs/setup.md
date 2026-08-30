@@ -318,7 +318,8 @@ The notification with buttons is a blueprint, in
 [`blueprints/automation/tvsitter/more_time_request.yaml`](../blueprints/automation/tvsitter/more_time_request.yaml).
 **The parent panel does both halves for you**: it writes the blueprint on every start, so an
 update carries the current one, and it creates the automation from a page where you pick the
-phone. It files that automation under an id of its own per television, so setting it up twice
+phone — **Now → Asking for more time**, one card under the parent PIN, with a second phone
+beside the first. It files that automation under an id of its own per television, so setting it up twice
 leaves one automation rather than two — and it adopts one you made by hand rather than adding a
 second beside it.
 
