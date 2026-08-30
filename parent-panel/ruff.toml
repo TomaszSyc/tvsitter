@@ -1,0 +1,10 @@
+# The panel runs in its own container, on the Python its base image carries — 3.13 today,
+# while everything else here is checked against the 3.14 Home Assistant runs on. Without
+# this the two drift apart silently in one direction only: 3.14 accepts syntax 3.13 does
+# not, so code that lints clean on a laptop is a container that will not start.
+#
+# Measured, once. `except TypeError, ValueError:` is legal in 3.14 (PEP 758) and a
+# SyntaxError in 3.13. It passed ruff, passed the tests, was committed, and the Supervisor's
+# log was the first thing to mention it.
+extend = "../ruff.toml"
+target-version = "py313"

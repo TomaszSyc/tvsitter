@@ -110,7 +110,7 @@ class Television:
         entity_id = self.apps.get(package, {}).get("sensor")
         try:
             return float(self.states.get(entity_id, {}).get("state", 0))
-        except ValueError, TypeError:
+        except (ValueError, TypeError):
             return 0.0
 
     def app_limit(self, package: str) -> float | None:
@@ -118,7 +118,7 @@ class Television:
         entity_id = self.apps.get(package, {}).get("limit")
         try:
             return float(self.states.get(entity_id, {}).get("state"))
-        except ValueError, TypeError:
+        except (ValueError, TypeError):
             return None
 
     @property

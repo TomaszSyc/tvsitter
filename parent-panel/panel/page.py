@@ -73,6 +73,7 @@ p { margin: 0; }
 @media (min-width: 40rem) {
   body { padding: 2rem; }
   .card { padding: 1.7rem; }
+  .figure { padding: 0.9rem 1rem; }
 }
 button {
   background: var(--raised);
@@ -120,7 +121,7 @@ input[type="checkbox"] {
 .figure {
   background: var(--backdrop);
   border-radius: 16px;
-  padding: 0.8rem 0.9rem;
+  padding: 0.75rem 0.7rem;
 }
 .figure b {
   display: block;
@@ -232,7 +233,9 @@ _SCRIPT = """
 
   let views = new Map();
   let chosen = null;
-  let known = "";
+  // Never a key any list can produce, so the first paint always builds, even the
+  // first paint of nothing at all.
+  let known = null;
   let seq = 0;
 
   function el(tag, cls, words) {
@@ -259,10 +262,15 @@ _SCRIPT = """
   function length(minutes) {
     if (unset(minutes)) return "\\u2014";
     const total = Math.round(minutes);
-    if (total < MINUTES_PER_HOUR) return total + " min";
+    // A hard space between a number and its unit: three figures share the width of a
+    // phone, and "2 h 48" over "min" is a number that has lost its unit at the one
+    // width where the page most needs to be read.
+    if (total < MINUTES_PER_HOUR) return total + "\\u00a0min";
     const rest = total % MINUTES_PER_HOUR;
     const hours = (total - rest) / MINUTES_PER_HOUR;
-    return rest ? hours + " h " + rest + " min" : hours + " h";
+    return rest
+      ? hours + "\\u00a0h " + rest + "\\u00a0min"
+      : hours + "\\u00a0h";
   }
 
   /** What a rule looks like in a box somebody types into. Empty means unset. */
@@ -315,7 +323,7 @@ _SCRIPT = """
     let state = null;
     try {
       const back = await fetch("api/state", {headers: {"Accept": "application/json"}});
-      state = await back.json();
+      state = (await back.json()) || {};
     } catch (failure) {
       // Keep what is on the screen. A phone that has just woken is offline for a second
       // and blanking the page for it would be the panel's own fault.
@@ -456,7 +464,8 @@ _SCRIPT = """
       spend(left, tv.remaining_today);
       lock.textContent = tv.locked ? "Lift the lock" : "Lock the television";
       lock.classList.toggle("up", Boolean(tv.locked));
-      foot.textContent = heard(tv.last_reported) + revision(tv.rules_revision);
+      foot.textContent =
+        (heard(tv.last_reported) + revision(tv.rules_revision)).trim();
     });
   }
 

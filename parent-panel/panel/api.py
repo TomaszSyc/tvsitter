@@ -271,7 +271,7 @@ def number(said: Any, name: str) -> float:
     """Read one number, or say which field was not one."""
     try:
         return float(said)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         raise ValueError(f"{name} is not a number.") from None
 
 
