@@ -89,3 +89,41 @@ def test_the_days_come_out_in_the_order_a_week_runs() -> None:
     }
 
     assert windows_from(grid)[0]["days"] == ["mon", "sun"]
+
+
+def test_a_whole_day_becomes_two_windows_rather_than_none() -> None:
+    """The worst failure this file could have, and it had it.
+
+    A block covering the whole of a day shortens to 00:00-00:00, and a window whose
+    `from` equals its `to` is refused by the contract and dropped by the set. Windows
+    are permissions, so the day was then left with none, which is closed. A parent who
+    drew the whole of Monday got Monday locked.
+    """
+    windows = windows_from({"monday": [{"from": "00:00:00", "to": "24:00:00"}]})
+
+    assert [(one["from"], one["to"]) for one in windows] == [
+        ("00:00", "12:00"),
+        ("12:00", "00:00"),
+    ]
+    assert all(one["days"] == ["mon"] for one in windows)
+
+
+def test_a_whole_week_drawn_in_full_is_still_two_windows_for_every_day() -> None:
+    """And with no `days`, since every day carries both halves."""
+    grid = {day: [{"from": "00:00:00", "to": "24:00:00"}] for day in WEEK}
+
+    assert windows_from(grid) == [
+        {"id": "0000-1200", "from": "00:00", "to": "12:00"},
+        {"id": "1200-0000", "from": "12:00", "to": "00:00"},
+    ]
+
+
+def test_no_window_ever_comes_out_with_from_equal_to_to() -> None:
+    """The television drops such a window, and a dropped permission closes a day."""
+    grid = {
+        "monday": [{"from": "00:00:00", "to": "24:00:00"}],
+        "tuesday": [{"from": "09:00:00", "to": "09:00:00"}],
+        "friday": [{"from": "16:00:00", "to": "19:30:00"}],
+    }
+
+    assert all(one["from"] != one["to"] for one in windows_from(grid))

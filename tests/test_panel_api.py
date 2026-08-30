@@ -13,8 +13,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from panel.api import snapshot
-from panel.home_assistant import Television
+from panel.api import apply, snapshot
+from panel.home_assistant import WEEK, Television
+import pytest
 
 DEVICE = "b0fc4e4987a5b78b71faf37e6a219e9b"
 
@@ -211,3 +212,255 @@ def test_an_allow_listed_app_stays_even_with_nothing_watched() -> None:
     }
 
     assert "com.android.systemui" in [app["package"] for app in only(one)["apps"]]
+
+
+def with_rules(**attributes: Any) -> Television:
+    """Build a television whose rules sensor says the given things."""
+    one = television()
+    one.entities["rules"] = "sensor.r"
+    one.states["sensor.r"] = {"state": "52", "attributes": attributes}
+    return one
+
+
+SCHOOL = {"id": "1600-1930", "from": "16:00", "to": "19:30", "days": ["mon"]}
+SCHOOL_SLOTS = [
+    "16:00",
+    "16:30",
+    "17:00",
+    "17:30",
+    "18:00",
+    "18:30",
+    "19:00",
+]
+
+
+def test_a_window_becomes_the_half_hours_it_covers() -> None:
+    """The grid is boxes to tick; the windows are intervals. Same rule, drawn."""
+    written = only(with_rules(windows=[SCHOOL]))
+
+    assert written["hours"]["mon"] == SCHOOL_SLOTS
+
+
+def test_a_window_is_only_on_the_days_it_names() -> None:
+    """A `days` list is the difference between a school night and every night."""
+    written = only(with_rules(windows=[SCHOOL]))
+
+    assert written["hours"]["tue"] == []
+    assert written["hours"]["sun"] == []
+
+
+def test_a_window_with_no_days_is_on_every_one_of_them() -> None:
+    """An absent `days` means the whole week, which is the ordinary case (D27)."""
+    every_day = {key: value for key, value in SCHOOL.items() if key != "days"}
+
+    written = only(with_rules(windows=[every_day]))
+
+    assert all(written["hours"][day] == SCHOOL_SLOTS for day in WEEK)
+
+
+def test_a_window_past_midnight_stays_on_the_day_it_belongs_to() -> None:
+    """The small hours after Saturday evening are Saturday's, not Sunday's."""
+    late = {"id": "2200-0100", "from": "22:00", "to": "01:00", "days": ["sat"]}
+
+    written = only(with_rules(windows=[late]))
+
+    assert written["hours"]["sat"] == [
+        "00:00",
+        "00:30",
+        "22:00",
+        "22:30",
+        "23:00",
+        "23:30",
+    ]
+    assert written["hours"]["sun"] == []
+
+
+def test_no_windows_is_a_week_of_empty_days() -> None:
+    """Which is no restriction rather than a closed week — the page says which."""
+    written = only(with_rules())
+
+    assert set(written["hours"]) == set(WEEK)
+    assert all(written["hours"][day] == [] for day in WEEK)
+
+
+def test_nothing_is_being_followed_until_the_integration_says_so() -> None:
+    """An older integration says nothing about it, which is not a helper."""
+    assert only(with_rules(windows=[SCHOOL]))["following_schedule"] is None
+
+
+def test_a_followed_schedule_is_named_so_the_grid_can_go_read_only() -> None:
+    """The page needs the entity id to say which helper the hours come from."""
+    written = only(with_rules(following_schedule="schedule.viewing_hours"))
+
+    assert written["following_schedule"] == "schedule.viewing_hours"
+
+
+class Recorder:
+    """A Home Assistant that writes down what it was asked to do.
+
+    The panel changes nothing by itself — every action is a service call (D34) — so
+    what an action does is exactly the call it makes, and that is what is checked.
+    """
+
+    def __init__(self) -> None:
+        """Start with nothing asked of it."""
+        self.calls: list[tuple[str, str, dict[str, Any]]] = []
+
+    async def call(self, domain: str, service: str, data: dict[str, Any]) -> None:
+        """Remember one service call instead of making it."""
+        self.calls.append((domain, service, data))
+
+
+async def saved(one: Television, days: dict[str, list[str]]) -> list[dict[str, Any]]:
+    """Save a grid, and hand back the windows that went out to the television."""
+    home = Recorder()
+    await apply(home, [one], {"id": DEVICE, "action": "hours", "days": days})
+
+    assert [(domain, service) for domain, service, _ in home.calls] == [
+        ("tvsitter", "set_windows")
+    ]
+    data = home.calls[0][2]
+    assert data["entity_id"] == "sensor.r"
+    return data["windows"]
+
+
+def grid_of(**days: list[str]) -> dict[str, list[str]]:
+    """Build a whole week of ticked half hours, empty where nothing is given."""
+    return {day: days.get(day, []) for day in WEEK}
+
+
+async def test_the_half_hours_go_back_as_the_windows_they_came_from() -> None:
+    """The grid is a drawing of the windows, so the drawing has to survive a save."""
+    week = [
+        {
+            "id": "1600-1930",
+            "from": "16:00",
+            "to": "19:30",
+            "days": ["mon", "tue", "wed", "thu", "fri"],
+        },
+        {"id": "0900-2100", "from": "09:00", "to": "21:00", "days": ["sat", "sun"]},
+    ]
+    one = with_rules(windows=week)
+
+    assert await saved(one, only(one)["hours"]) == [week[1], week[0]]
+
+
+async def test_a_window_past_midnight_survives_the_round_trip_whole() -> None:
+    """Two windows meeting at midnight would warn the child that time was up."""
+    late = [{"id": "2200-0100", "from": "22:00", "to": "01:00", "days": ["fri"]}]
+    one = with_rules(windows=late)
+
+    assert await saved(one, only(one)["hours"]) == late
+
+
+async def test_a_gap_in_a_day_is_two_windows() -> None:
+    """An hour before school and the evening are two permissions, not one long one."""
+    written = await saved(
+        with_rules(), grid_of(wed=["07:00", "07:30", "17:00", "17:30", "18:00"])
+    )
+
+    assert written == [
+        {"id": "0700-0800", "from": "07:00", "to": "08:00", "days": ["wed"]},
+        {"id": "1700-1830", "from": "17:00", "to": "18:30", "days": ["wed"]},
+    ]
+
+
+async def test_days_with_the_same_hours_share_one_window() -> None:
+    """Five identical windows is a rules object nobody can read when a lock lands."""
+    school = ["16:00", "16:30"]
+    written = await saved(
+        with_rules(), grid_of(mon=school, tue=school, wed=school, thu=school)
+    )
+
+    assert written == [
+        {
+            "id": "1600-1700",
+            "from": "16:00",
+            "to": "17:00",
+            "days": ["mon", "tue", "wed", "thu"],
+        }
+    ]
+
+
+async def test_a_window_on_the_whole_week_says_nothing_about_days() -> None:
+    """An absent `days` is what the rules mean by every day, so it is left out."""
+    written = await saved(with_rules(), {day: ["19:00"] for day in WEEK})
+
+    assert written == [{"id": "1900-1930", "from": "19:00", "to": "19:30"}]
+
+
+async def test_the_last_half_hour_of_the_day_closes_at_midnight() -> None:
+    """`23:30` runs to `00:00`; `24:00` is not a time the television can parse."""
+    written = await saved(with_rules(), grid_of(sat=["23:00", "23:30"]))
+
+    assert written == [
+        {"id": "2300-0000", "from": "23:00", "to": "00:00", "days": ["sat"]}
+    ]
+
+
+async def test_an_empty_grid_takes_the_hours_away() -> None:
+    """No windows is no restriction (D27), which is a thing a parent may want to say."""
+    assert await saved(with_rules(), grid_of()) == []
+
+
+async def test_a_whole_week_of_ticks_is_no_restriction_rather_than_windows() -> None:
+    """Every hour of every day is a permission the rules already have a word for."""
+    all_day = [
+        time for hour in range(24) for time in (f"{hour:02d}:00", f"{hour:02d}:30")
+    ]
+
+    assert await saved(with_rules(), {day: all_day for day in WEEK}) == []
+
+
+async def test_a_whole_day_of_ticks_is_never_one_window() -> None:
+    """A window that starts when it ends is dropped by the television.
+
+    Which would lock the day a parent had just opened entirely.
+    """
+    all_day = [
+        time for hour in range(24) for time in (f"{hour:02d}:00", f"{hour:02d}:30")
+    ]
+
+    written = await saved(with_rules(), grid_of(sun=all_day))
+
+    assert written == [
+        {"id": "0000-1200", "from": "00:00", "to": "12:00", "days": ["sun"]},
+        {"id": "1200-0000", "from": "12:00", "to": "00:00", "days": ["sun"]},
+    ]
+
+
+async def test_the_hours_are_refused_while_a_schedule_is_followed() -> None:
+    """The next import would undo them without a word, which is worse than a refusal."""
+    one = with_rules(following_schedule="schedule.viewing_hours")
+    home = Recorder()
+
+    with pytest.raises(ValueError) as refusal:
+        await apply(home, [one], {"id": DEVICE, "action": "hours", "days": grid_of()})
+
+    assert "schedule.viewing_hours" in str(refusal.value)
+    assert str(refusal.value).endswith(".")
+    assert home.calls == []
+
+
+async def test_a_day_that_is_not_a_day_is_refused_in_words() -> None:
+    """A misread key would take an evening away silently, so nothing is guessed."""
+    with pytest.raises(ValueError) as refusal:
+        await saved(with_rules(), {"funday": ["16:00"]})
+
+    assert "funday" in str(refusal.value)
+
+
+async def test_a_time_that_is_not_a_half_hour_is_refused_in_words() -> None:
+    """The grid has no box for 16:20, and inventing one writes hours nobody drew."""
+    with pytest.raises(ValueError) as refusal:
+        await saved(with_rules(), grid_of(mon=["16:20"]))
+
+    assert "16:20" in str(refusal.value)
+
+
+async def test_a_grid_that_is_not_a_grid_is_refused_in_words() -> None:
+    """It arrives over HTTP, so it is checked rather than trusted."""
+    with pytest.raises(ValueError) as refusal:
+        await saved(with_rules(), ["16:00"])
+
+    assert str(refusal.value).endswith(".")

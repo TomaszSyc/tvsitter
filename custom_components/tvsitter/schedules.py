@@ -42,8 +42,10 @@ def windows_from(schedule: dict[str, Any]) -> list[dict[str, Any]]:
     for helper_day, wire_day in HELPER_DAYS.items():
         for block in schedule.get(helper_day) or []:
             hours = span(block)
-            if hours is not None:
-                days_by_hours.setdefault(hours, []).append(wire_day)
+            if hours is None:
+                continue
+            for pair in unwrap(hours):
+                days_by_hours.setdefault(pair, []).append(wire_day)
 
     windows: list[dict[str, Any]] = []
     for (opens, closes), days in days_by_hours.items():
@@ -56,6 +58,25 @@ def windows_from(schedule: dict[str, Any]) -> list[dict[str, Any]]:
             window["days"] = sorted(days, key=WIRE_DAYS.index)
         windows.append(window)
     return sorted(windows, key=lambda w: (w["from"], w["to"]))
+
+
+def unwrap(hours: tuple[str, str]) -> list[tuple[str, str]]:
+    """Split a block that covers a whole day, because one window cannot say it.
+
+    A helper block from 00:00 to 24:00 shortens to 00:00-00:00, and a window whose
+    `from` equals its `to` is refused by the contract and dropped by the television.
+    Read as all day it hands over an evening; read as no time it takes one away; the
+    engine makes neither guess.
+
+    Dropped is the worse half. Windows are a list of permissions, so a day left with no
+    window at all is a *closed* day: a parent who drew the whole of Monday would have
+    got Monday locked, which is the opposite of what they drew.
+
+    Two windows meeting at noon say it instead. The seam costs a warning as it passes,
+    since the set counts down to the close of whichever window is in force, and nothing
+    ever locks. Worth it until a window has a way to mean "all day".
+    """
+    return [("00:00", "12:00"), ("12:00", "00:00")] if hours[0] == hours[1] else [hours]
 
 
 def span(block: Any) -> tuple[str, str] | None:

@@ -171,8 +171,8 @@ def hours(said: Any) -> dict[str, list[str]]:
     rule is how a panel comes to show hours the television is not enforcing.
 
     Every day is present, and a day with nothing in it is a day with no window. Seven
-    empty days is no restriction rather than a closed week (D27), which is the page's
-    to say in words — an empty grid on its own reads as the opposite.
+    empty days is no restriction rather than a closed week (D27), which the page has to
+    say in words — an empty grid on its own reads as the opposite.
     """
     ticked: dict[str, set[int]] = {day: set() for day in WEEK}
     for window in windows(said):
@@ -225,9 +225,11 @@ def minute_of(said: Any) -> int | None:
     if not isinstance(said, str):
         return None
     hour, _, minute = said.partition(":")
-    if not (hour.isdigit() and minute.isdigit()):
-        return None
     if not (len(hour) == 2 and len(minute) == 2):
+        return None
+    # Plain digits, not merely digit-like: a superscript two passes `isdigit` and then
+    # `int` refuses it, which would be a stack trace out of a rule somebody typed.
+    if not all(part.isascii() and part.isdigit() for part in (hour, minute)):
         return None
     return None if int(hour) > 23 or int(minute) > 59 else int(hour) * 60 + int(minute)
 
