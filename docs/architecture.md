@@ -1285,3 +1285,34 @@ by omission, and a parent ticking four apps leaves the launcher off it. The answ
 launcher is not allowed" would be to send the television to the launcher, every ten seconds, for
 as long as the set was on. The exemption lives in `LockController`, which is where those packages
 are known — the engine stays pure and judges whatever it is handed.
+
+### D36 — a profile is a named bundle of rules, and the budget belongs to the television
+
+#105 asked whether a profile is a bundle of rules applied to a set or a thing of its own. It is
+the first, and the difference is where the counter lives.
+
+A profile as a bundle is configuration and nothing else: the panel keeps named sets of rules and
+writes one to a television as an ordinary `set_rules`. Nothing about evaluation moves. A household
+without the panel loses the convenience of naming a bundle and loses no enforcement, which is what
+"an addition and never a replacement" has to mean (D34).
+
+A profile as a thing of its own — a child with a budget that spans televisions — moves the counter
+off the set. That is the exact temptation #49 names: anything evaluated in Python is a feature the
+second mode would not have, and a Home Assistant that is down would hand every television a full
+allowance each.
+
+**Applied, not synced.** Writing a profile changes the rules; after that the television's own
+rules are the truth, and the panel shows whether a set still matches the profile it was given.
+The alternative is a second source of truth for the same rules, and the two disagree the first
+time somebody moves a number in Home Assistant — the same reason the clock faces were thrown away
+in D33.
+
+**Several televisions already work.** Every topic carries a device id, the integration is one
+config entry per set, and the panel groups by device rather than by name. What is missing is the
+naming, not the plumbing.
+
+**If a budget ever does span televisions**, the shape that keeps the invariant is peer-to-peer:
+each set publishes what it has used, and each set subtracts its peers before deciding. Every
+television still decides for itself, and a broker that is down means each counts only its own —
+over-granting rather than over-blocking, which is the direction everything here fails in. Never a
+central evaluator. Not being built now; filed so the door stays open.

@@ -3,6 +3,10 @@
 The version is one SemVer for the whole product (D6): the panel, the integration and the
 Android app share `version.txt` and share a tag.
 
+## 0.6.19
+
+- No change to the panel; the version follows the product.
+
 ## 0.6.18
 
 - No change to the panel; the version follows the product.
