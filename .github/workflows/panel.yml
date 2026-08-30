@@ -55,7 +55,7 @@ jobs:
 
       # One image per architecture rather than one manifest holding both: that is the
       # shape the Supervisor asks for, with `{arch}` substituted into `image:`.
-      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-qemu-action@v4
         if: matrix.arch != 'amd64'
 
       - uses: docker/setup-buildx-action@v3
