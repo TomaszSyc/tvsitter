@@ -16,4 +16,9 @@ COPY panel /opt/panel
 COPY run.sh /run.sh
 RUN chmod a+x /run.sh
 
+# So that `python3 -m panel` finds it. Copying a package somewhere nothing points at is a
+# container that starts, logs one line and exits — which is exactly what the first install
+# did, and the only place it said so was the Supervisor's log.
+WORKDIR /opt
+
 CMD ["/run.sh"]
