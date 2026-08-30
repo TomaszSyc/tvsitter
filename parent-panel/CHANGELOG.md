@@ -3,6 +3,10 @@
 The version is one SemVer for the whole product (D6): the panel, the integration and the
 Android app share `version.txt` and share a tag.
 
+## 0.7.4
+
+- Four destinations with a rail, one at a time, instead of everything down one page.
+
 ## 0.7.3
 
 - The blueprints install themselves, and refresh on every update.

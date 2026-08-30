@@ -6,6 +6,12 @@ constant with nothing in it to escape — nothing from Home Assistant is ever wr
 it. The script sets what it reads with `textContent` instead: a television and an app
 are named by whoever installed them, and a name is not markup.
 
+Four destinations, one of them on the screen at a time, which is the shape the
+television's own setup screen was given after somebody called the single scrolling
+column chaos (#108, #109). The same complaint was true here and for the same reason:
+five sections stacked down one page is not a panel, it is a document. The rail names the
+destination, so a pane does not repeat the name back.
+
 No framework and no CDN. An App is reached through an Ingress URL nobody can predict, so
 every address here is relative to the page and not to the host; and it is opened from a
 phone on a network that may have no way out, so every byte of it is in it.
@@ -63,7 +69,48 @@ p { margin: 0; }
   margin-bottom: 0.8rem;
   padding: 0.85rem 1.1rem;
 }
-.tabs { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.2rem; }
+/* Which television, which is not one of the destinations and never looks like one. */
+.chooser {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 1.2rem;
+}
+.label {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.tabs { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+/*
+ * The rail. Across the top on a phone, down the side from 720px, and the same four
+ * destinations in the same order either way — the width changes where it is, never what
+ * is in it.
+ */
+.rail { display: flex; gap: 0.4rem; margin-bottom: 1.1rem; }
+.where {
+  align-items: center;
+  background: var(--surface);
+  border-radius: 999px;
+  color: var(--muted);
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  font-size: 0.8rem;
+  font-weight: 600;
+  gap: 0.15rem;
+  justify-content: center;
+  min-width: 0;
+  padding: 0.5rem 0.3rem;
+  text-decoration: none;
+}
+.where svg { fill: currentColor; flex: none; height: 1.3rem; width: 1.3rem; }
+.where:hover { background: var(--edge); color: var(--text); }
+/* Filled with the accent, the way the television marks the destination it is on. */
+.where[aria-current="page"] { background: var(--accent); color: var(--backdrop); }
 .card {
   background: var(--surface);
   border-radius: 22px;
@@ -74,6 +121,24 @@ p { margin: 0; }
   body { padding: 2rem; }
   .card { padding: 1.7rem; }
   .figure { padding: 0.9rem 1rem; }
+}
+@media (min-width: 720px) {
+  main { max-width: 66rem; }
+  .shell {
+    align-items: start;
+    display: grid;
+    gap: 1.6rem;
+    grid-template-columns: 12rem minmax(0, 1fr);
+  }
+  .rail { flex-direction: column; margin: 0; position: sticky; top: 2rem; }
+  .where {
+    flex: 0 0 auto;
+    flex-direction: row;
+    font-size: 0.95rem;
+    gap: 0.7rem;
+    justify-content: flex-start;
+    padding: 0.7rem 1.1rem;
+  }
 }
 button {
   background: var(--raised);
@@ -149,6 +214,8 @@ input[type="checkbox"] {
   gap: 0.5rem;
   padding: 0.75rem 0;
 }
+/* A card opening with a row opens with a rule across it, which reads as a mistake. */
+.row:first-child { border-top: 0; }
 .row .name { flex: 1 1 8rem; min-width: 0; }
 .row .name small {
   color: var(--muted);
@@ -189,15 +256,44 @@ input[type="checkbox"] {
 .foot { color: var(--muted); font-size: 0.8rem; margin-top: 1.1rem; }
 """
 
+# The rail is markup rather than script because the destinations are the one thing on
+# this page that does not come from Home Assistant: there are four of them, they are the
+# same four every time, and written here they are links a browser can follow on its own.
+#
+# The icons are the television's own drawables, path for path, so the two halves of the
+# product are still recognisably one thing: the dial from the app's mark, three bars,
+# two sliders. Apps is the odd one out — the television has no such destination — so it
+# gets the tile grid every launcher already uses for the same idea.
 _BODY = """
 <main>
 <h1>TV Sitter</h1>
 <p class="lead">Everything here comes from Home Assistant, which is the only thing that
 talks to the televisions.</p>
+<div class="chooser" id="chooser" hidden>
+<p class="label" id="which">Television</p>
+<div class="tabs" id="tabs" role="group" aria-labelledby="which"></div>
+</div>
 <p class="banner" id="banner" hidden></p>
 <p class="empty" id="nothing" hidden></p>
-<div class="tabs" id="tabs" hidden></div>
+<div class="shell">
+<nav class="rail" id="rail" aria-label="Sections">
+<a class="where" id="go-now" href="#now"><svg viewBox="0 0 24 24"
+aria-hidden="true"><path d="M12,2A10,10 0 1,0 22,12A10,10 0 0,0 12,2ZM12,4A8,8
+0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4Z"/><path
+d="M12,12L12,6A6,6 0 1,1 6,12Z"/></svg><span>Now</span></a>
+<a class="where" id="go-today" href="#today"><svg viewBox="0 0 24 24"
+aria-hidden="true"><path d="M4,14h4v6h-4z"/><path d="M10,8h4v12h-4z"/><path
+d="M16,11h4v9h-4z"/></svg><span>Today</span></a>
+<a class="where" id="go-rules" href="#rules"><svg viewBox="0 0 24 24"
+aria-hidden="true"><path d="M3,6h18v2h-18z"/><path d="M3,16h18v2h-18z"/><path
+d="M8,7m-3,0a3,3 0 1,0 6,0a3,3 0 1,0 -6,0"/><path d="M16,17m-3,0a3,3 0 1,0
+6,0a3,3 0 1,0 -6,0"/></svg><span>Rules</span></a>
+<a class="where" id="go-apps" href="#apps"><svg viewBox="0 0 24 24"
+aria-hidden="true"><path d="M4,4h7v7h-7z"/><path d="M13,4h7v7h-7z"/><path
+d="M4,13h7v7h-7z"/><path d="M13,13h7v7h-7z"/></svg><span>Apps</span></a>
+</nav>
 <div id="panels"></div>
+</div>
 </main>
 """
 
@@ -215,6 +311,10 @@ _SCRIPT = """
   /** So the shortest thing watched is still a bar rather than nothing at all. */
   const SHORTEST_BAR = 3;
 
+  // The destinations, in the rail's order, keyed the way the address bar spells them.
+  // The first is the start destination and the answer to anything unrecognised.
+  const WHERE = ["now", "today", "rules", "apps"];
+
   // The week in the order a week is read, keyed the way the state keys it.
   const WEEK = [
     ["mon", "Monday", "Mon"],
@@ -228,11 +328,17 @@ _SCRIPT = """
 
   const banner = document.getElementById("banner");
   const nothing = document.getElementById("nothing");
+  const chooser = document.getElementById("chooser");
   const tabs = document.getElementById("tabs");
+  const rail = document.getElementById("rail");
   const panels = document.getElementById("panels");
+  const links = new Map(
+    WHERE.map((name) => [name, document.getElementById("go-" + name)]),
+  );
 
   let views = new Map();
   let chosen = null;
+  let where = WHERE[0];
   // Never a key any list can produce, so the first paint always builds, even the
   // first paint of nothing at all.
   let known = null;
@@ -371,37 +477,88 @@ _SCRIPT = """
     views = fresh;
     tabs.replaceChildren(...list.map((tv) => views.get(tv.id).tab));
     panels.replaceChildren(...list.map((tv) => views.get(tv.id).node));
-    // One television needs no way to choose between televisions.
-    tabs.hidden = list.length < 2;
+    // One television needs no way to choose between televisions. The chooser is its own
+    // control rather than a fifth destination: which set is being looked at and which
+    // part of it is being looked at are two questions, and answering them in one row of
+    // buttons is how the page ended up unreadable in the first place.
+    chooser.hidden = list.length < 2;
+    // Nothing to look at is nothing to navigate.
+    rail.hidden = list.length === 0;
   }
 
+  /**
+   * Which destination the address bar is asking for.
+   *
+   * An unknown name is the start destination rather than an error: the hash is typed by
+   * hand, kept in bookmarks and carried between versions of this page, so it is a
+   * request and not an instruction.
+   */
+  function asked() {
+    const name = (window.location.hash || "").replace("#", "");
+    return links.has(name) ? name : WHERE[0];
+  }
+
+  /**
+   * The address bar is where the destination lives, and this is the only reader of it.
+   *
+   * Nothing here sets it: the rail is four ordinary links, so the browser writes the
+   * hash, the back button rewrites it, and a reload hands it back. Keeping the choice
+   * in a variable as well would give two answers to one question.
+   */
+  function route() {
+    where = asked();
+    show();
+  }
+
+  /** One television and one destination showing, wherever the two were last set. */
   function show() {
+    links.forEach((link, name) => {
+      link.setAttribute("aria-current", name === where ? "page" : "false");
+    });
     views.forEach((view) => {
       view.node.hidden = view.id !== chosen;
       view.tab.setAttribute("aria-pressed", String(view.id === chosen));
+      view.panes.forEach((pane, name) => { pane.hidden = name !== where; });
     });
   }
 
   function build(id) {
-    const view = {id: id, tv: null, node: el("div"), updates: [], apps: new Map()};
+    const view = {
+      id: id,
+      tv: null,
+      node: el("div"),
+      updates: [],
+      apps: new Map(),
+      panes: new Map(),
+    };
     view.tab = el("button");
     view.tab.type = "button";
     view.tab.addEventListener("click", () => {
       chosen = id;
+      // Only the television changes. Somebody comparing two sets is on one destination
+      // and wants the same one on the other set.
       show();
     });
-    nowCard(view);
-    todayCard(view);
-    rulesCard(view);
-    appsCard(view);
-    hoursCard(view);
+    WHERE.forEach((name) => {
+      const pane = el("div", "pane");
+      view.panes.set(name, pane);
+      view.node.appendChild(pane);
+    });
+    nowPane(view);
+    todayPane(view);
+    rulesPane(view);
+    appsPane(view);
     return view;
   }
 
-  function card(view, title) {
+  /**
+   * A card on one destination. The first card of each goes untitled: the rail already
+   * says where this is, and a heading repeating it is a word that carries nothing.
+   */
+  function card(view, name, title) {
     const box = el("section", "card");
-    box.appendChild(el("h2", null, title));
-    view.node.appendChild(box);
+    if (title) box.appendChild(el("h2", null, title));
+    view.panes.get(name).appendChild(box);
     return box;
   }
 
@@ -430,8 +587,9 @@ _SCRIPT = """
     return {box: box, value: value};
   }
 
-  function nowCard(view) {
-    const box = card(view, "Now");
+  /** The start destination: is it working, what is on, and is the lock up. */
+  function nowPane(view) {
+    const box = card(view, "now");
     const trouble = el("div");
     const pills = el("div", "pills");
     const screen = pill(pills);
@@ -491,15 +649,16 @@ _SCRIPT = """
     return unset(count) ? "" : "Rules revision " + count + ".";
   }
 
-  function todayCard(view) {
-    const box = card(view, "Today");
+  /** The day as it stands: three figures, then where the time actually went. */
+  function todayPane(view) {
+    const box = card(view, "today");
     const figures = el("div", "figures");
     const used = figure(figures, "Watched");
     const limit = figure(figures, "Limit today");
     const left = figure(figures, "Left");
     const aside = el("p", "foot");
     const split = el("div", "split");
-    box.append(figures, split, aside);
+    box.append(figures, aside, el("h3", null, "By app"), split);
 
     view.updates.push((tv) => {
       used.value.textContent = length(tv.used_today);
@@ -557,8 +716,13 @@ _SCRIPT = """
     return node;
   }
 
-  function rulesCard(view) {
-    const box = card(view, "Rules");
+  /**
+   * Everything that can be changed, in three cards: what holds every day, what a
+   * particular day overrides it with, and — read-only, at the bottom — the hours that
+   * are in force whatever the limits say.
+   */
+  function rulesPane(view) {
+    const box = card(view, "rules");
     const daily = number(view, box, "Daily limit", "daily_limit",
       (tv) => tv.daily_limit);
     wipe(view, daily);
@@ -570,11 +734,13 @@ _SCRIPT = """
       (tv) => tv.block_settings,
       "So the rules cannot be turned off from the television itself.");
 
-    box.appendChild(el("h3", null, "The week"));
-    box.appendChild(el("p", "hint",
+    const week = card(view, "rules", "The week");
+    week.appendChild(el("p", "hint",
       "A day with its own allowance overrides the daily limit on that day. Clear one " +
       "to hand the day back; set it to zero to mean no viewing at all."));
-    WEEK.forEach((day) => weekLine(view, box, day[0], day[1]));
+    WEEK.forEach((day) => weekLine(view, week, day[0], day[1]));
+
+    hoursCard(view);
   }
 
   /**
@@ -703,8 +869,8 @@ _SCRIPT = """
     return "Takes the daily limit, " + length(daily) + ".";
   }
 
-  function appsCard(view) {
-    const box = card(view, "Apps");
+  function appsPane(view) {
+    const box = card(view, "apps");
     const lead = el("p", "hint");
     const list = el("div");
     box.append(lead, list);
@@ -830,7 +996,7 @@ _SCRIPT = """
   }
 
   function hoursCard(view) {
-    const box = card(view, "Hours");
+    const box = card(view, "rules", "Hours in force");
     const list = el("div");
     box.append(list, el("p", "foot",
       "Shown, not edited. These hours come from a Home Assistant Schedule helper, " +
@@ -864,8 +1030,16 @@ _SCRIPT = """
     if (!document.hidden) poll();
   }
 
+  window.addEventListener("hashchange", () => {
+    route();
+    // A destination is a fresh page to whoever asked for it, and being dropped halfway
+    // down one is not that. Only on the way between two of them: on the first read the
+    // browser is still restoring where the page was left, and this would undo it.
+    if (window.scrollTo) window.scrollTo(0, 0);
+  });
   document.addEventListener("visibilitychange", beat);
   setInterval(beat, POLL_MS);
+  route();
   poll();
 })();
 """
