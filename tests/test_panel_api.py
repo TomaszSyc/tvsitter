@@ -793,3 +793,83 @@ async def test_a_week_that_was_drawn_comes_back_exactly_as_it_was_drawn(
     written = await saved(with_rules(), drawn)
 
     assert only(with_rules(windows=written))["hours"] == drawn
+
+
+def watched(package: str, minutes: str, name: str) -> Television:
+    """Build a television with one app it has actually run today."""
+    one = with_rules()
+    one.apps[package] = {"sensor": f"sensor.{package}"}
+    one.states[f"sensor.{package}"] = {
+        "state": minutes,
+        "attributes": {"friendly_name": f"TV Salon {name}"},
+    }
+    return one
+
+
+def test_an_app_nobody_has_opened_can_still_be_decided_about() -> None:
+    """#102. An allow-list built out of usage can only refuse what has run already.
+
+    Which is the wrong way round: the app that needs deciding about is the one installed
+    this afternoon, and that is exactly the one with no minutes, no entity and no place
+    in any of it.
+    """
+    one = watched("com.netflix.ninja", "42", "Netflix")
+    one.states["sensor.r"]["attributes"]["launchable_apps"] = {
+        "com.netflix.ninja": "Netflix",
+        "com.disney.disneyplus": "Disney+",
+    }
+
+    listed = {app["package"]: app for app in only(one)["apps"]}
+
+    assert set(listed) == {"com.netflix.ninja", "com.disney.disneyplus"}
+    assert listed["com.disney.disneyplus"]["minutes"] == 0
+    assert listed["com.disney.disneyplus"]["limit"] is None
+
+
+def test_an_app_nobody_has_opened_is_named_by_the_set_not_by_its_package() -> None:
+    """It has no entity, so the only name it has is the one the television published."""
+    one = with_rules(launchable_apps={"com.disney.disneyplus": "Disney+"})
+
+    listed = only(one)["apps"]
+
+    assert [app["name"] for app in listed] == ["Disney+"]
+
+
+def test_a_name_a_parent_gave_an_app_beats_the_one_the_set_published() -> None:
+    """Renaming an entity is how a house says what it calls a thing."""
+    one = watched("com.netflix.ninja", "10", "Netflix dzieci")
+    one.states["sensor.r"]["attributes"]["launchable_apps"] = {
+        "com.netflix.ninja": "Netflix"
+    }
+
+    assert only(one)["apps"][0]["name"] == "Netflix dzieci"
+
+
+def test_an_exempt_app_stays_off_the_list_even_when_the_set_says_it_is_installed() -> (
+    None
+):
+    """A tick beside the launcher is a tick that does nothing, however it got there."""
+    one = with_rules(
+        exempt_apps=["com.google.android.tvlauncher"],
+        launchable_apps={
+            "com.google.android.tvlauncher": "Google TV",
+            "com.netflix.ninja": "Netflix",
+        },
+    )
+
+    assert [app["package"] for app in only(one)["apps"]] == ["com.netflix.ninja"]
+
+
+def test_a_television_that_cannot_enumerate_still_lists_what_was_watched() -> None:
+    """An older build says nothing here, and that is no reason to show nothing."""
+    one = watched("com.netflix.ninja", "42", "Netflix")
+
+    assert [app["package"] for app in only(one)["apps"]] == ["com.netflix.ninja"]
+
+
+def test_rubbish_where_the_installed_apps_should_be_is_ignored() -> None:
+    """The rules are opaque and a set may put anything in them; the page still draws."""
+    one = watched("com.netflix.ninja", "42", "Netflix")
+    one.states["sensor.r"]["attributes"]["launchable_apps"] = "all of them"
+
+    assert [app["package"] for app in only(one)["apps"]] == ["com.netflix.ninja"]

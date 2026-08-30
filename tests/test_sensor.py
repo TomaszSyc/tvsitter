@@ -654,6 +654,50 @@ async def test_a_television_exempting_nothing_says_nothing(hass: HomeAssistant) 
     assert "exempt_apps" not in RulesSensor(client).extra_state_attributes
 
 
+async def test_what_is_installed_reaches_the_rules_sensor(hass: HomeAssistant) -> None:
+    """#102. Beside the rules, and apart from what has been watched.
+
+    An allow-list built out of usage can only refuse an app the child has already
+    opened. The one that needs deciding about is the one installed this afternoon, and
+    that is precisely the one with no usage, no entity and no way onto the page.
+    """
+    client = make_client(
+        hass,
+        launchable_apps={
+            "com.netflix.ninja": "Netflix",
+            "com.disney.disneyplus": "Disney+",
+        },
+    )
+    client.rules = {"daily_limit_s": 3600}
+
+    attributes = RulesSensor(client).extra_state_attributes
+
+    assert attributes["launchable_apps"]["com.disney.disneyplus"] == "Disney+"
+    assert attributes["daily_limit_s"] == 3600
+
+
+async def test_a_television_that_cannot_enumerate_says_nothing(
+    hass: HomeAssistant,
+) -> None:
+    """Empty is "no list to offer", and an empty list on a page is a claim it is not."""
+    client = make_client(hass)
+    client.rules = {"daily_limit_s": 3600}
+
+    assert "launchable_apps" not in RulesSensor(client).extra_state_attributes
+
+
+async def test_what_is_installed_is_reason_enough_to_have_attributes(
+    hass: HomeAssistant,
+) -> None:
+    """A set with no rules yet still has apps, and the page still has a list to draw."""
+    client = make_client(hass, launchable_apps={"com.netflix.ninja": "Netflix"})
+
+    attributes = RulesSensor(client).extra_state_attributes
+
+    assert attributes is not None
+    assert attributes["launchable_apps"] == {"com.netflix.ninja": "Netflix"}
+
+
 async def test_forgetting_tells_the_entities_it_happened(hass: HomeAssistant) -> None:
     """The option changing is not a payload arriving, so nothing else says it.
 

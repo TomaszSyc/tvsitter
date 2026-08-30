@@ -144,6 +144,11 @@ MAX_MERGE_DEPTH: Final = 4
 # opaque by design — so this name is spoken for, and a rule key must never claim it.
 ATTR_EXEMPT_APPS: Final = "exempt_apps"
 ATTR_FOLLOWING_SCHEDULE: Final = "following_schedule"
+# Every app a child could open, package to label, whether or not anybody has
+# opened it. An allow-list built out of what has been watched can only refuse
+# what the set has already run — never the app installed this afternoon, which
+# is the one an allow-list is for (#102).
+ATTR_LAUNCHABLE_APPS: Final = "launchable_apps"
 
 # And how a change still waiting for the set is published, on the same sensor. Spoken
 # for exactly like the helper above: only Home Assistant knows what it is holding, so a

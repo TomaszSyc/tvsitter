@@ -31,6 +31,7 @@ from .const import (
     ATTR_DAY,
     ATTR_EXEMPT_APPS,
     ATTR_FOLLOWING_SCHEDULE,
+    ATTR_LAUNCHABLE_APPS,
     ATTR_MINUTES,
     ATTR_PACKAGE,
     ATTR_PACKAGES,
@@ -357,7 +358,14 @@ class RulesSensor(TvSitterEntity, SensorEntity):
         pending = self._client.pending_rules
         snapshot = self._client.snapshot
         exempt = list(snapshot.exempt_apps) if snapshot else []
-        if rules is None and followed is None and pending is None and not exempt:
+        launchable = dict(snapshot.launchable_apps) if snapshot else {}
+        if (
+            rules is None
+            and followed is None
+            and pending is None
+            and not exempt
+            and not launchable
+        ):
             return None
         attributes = dict(rules or {})
         # This side owns the name outright, which is why the television's is dropped
@@ -384,6 +392,14 @@ class RulesSensor(TvSitterEntity, SensorEntity):
         attributes.pop(ATTR_PENDING_RULES, None)
         if pending is not None:
             attributes[ATTR_PENDING_RULES] = pending
+        # What is installed, which is a different question from what has been watched.
+        # Usage answers the second, and an allow-list built on it can only ever refuse
+        # an app the child has already opened — so the app installed this afternoon,
+        # the one the list exists for, cannot be put on it (#102). The television owns
+        # this name for the same reason it owns the exempt list: it is the only thing
+        # that can enumerate what is on it.
+        if launchable:
+            attributes[ATTR_LAUNCHABLE_APPS] = launchable
         return attributes
 
     async def async_set_schedule(self, day: str, minutes: float | None = None) -> None:

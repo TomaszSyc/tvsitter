@@ -34,6 +34,9 @@ OURS = "app.tvsitter.tv"
 # of that payload on; asking each in turn costs a dictionary lookup, and asking the
 # wrong one falls back to the constant above rather than to a wrong list.
 EXEMPT = "exempt_apps"
+# Every app a child could open, package to label, published by the set because it
+# is the only thing that can enumerate them (#102).
+INSTALLED = "launchable_apps"
 EXEMPT_FROM = ("rules", "active_app", "used_today")
 
 # The rules the television echoes back, under the names it sends them by. Only the two
@@ -117,7 +120,7 @@ def described(
         # the week allows — and `week_by_app` is what happened over the last seven days.
         "week": {day: television.number(f"limit_{day}") for day in WEEK},
         "week_by_app": weekly(by_app, exempt),
-        "apps": apps(television, allowed, exempt),
+        "apps": apps(television, allowed, exempt, installed(television)),
         "allowed_apps": allowed,
         "exempt_apps": exempt,
         "windows": windows(television.rules.get(RULE_WINDOWS)),
@@ -157,33 +160,74 @@ def exempt_apps(television: Television) -> list[str]:
     return [OURS]
 
 
+def installed(television: Television) -> dict[str, str]:
+    """Read what the set says is on it, package to label, or nothing where it cannot.
+
+    Empty means the television could not enumerate — an older build, or a launcher
+    that would not answer — and that is "no list to offer" rather than a promise that
+    nothing is installed.
+    """
+    said = television.attribute("rules", INSTALLED)
+    if not isinstance(said, dict):
+        return {}
+    return {
+        str(package): str(name)
+        for package, name in said.items()
+        if isinstance(package, str) and package
+    }
+
+
 def apps(
-    television: Television, allowed: list[str], exempt: list[str]
+    television: Television,
+    allowed: list[str],
+    exempt: list[str],
+    on_it: dict[str, str] | None = None,
 ) -> list[dict[str, Any]]:
-    """List what the child has watched today, the longest first.
+    """List what the child could open, what has been watched at the top.
+
+    Watched apps and installed ones together, because they answer different questions
+    and a page that only knows the first cannot be used to do the second. Usage is what
+    the entities carry, so an app nobody has opened has no entity and no minutes — and
+    an allow-list drawn from that can only ever refuse something the child has already
+    watched, never the app installed this afternoon (#102).
 
     An empty allow-list allows everything rather than nothing — the reading every
     list-shaped rule here has (D27), and the one that fails towards a television
     somebody can still use.
     """
+    on_it = on_it or {}
     listed = [
         {
             "package": package,
-            "name": television.app_name(package),
+            "name": named(television, package, on_it),
             "minutes": television.app_minutes(package),
             "limit": television.app_limit(package),
             "allowed": not allowed or package in allowed,
         }
-        for package in television.apps
-        if worth_showing(package, television, allowed, exempt)
+        for package in dict.fromkeys([*television.apps, *on_it])
+        if worth_showing(package, television, allowed, exempt, on_it)
     ]
     # Name as the tie-break: the registry hands these over in whatever order it holds
     # them, and two apps on nought minutes would otherwise swap places on a refresh.
     return sorted(listed, key=lambda app: (-app["minutes"], app["name"]))
 
 
+def named(television: Television, package: str, on_it: dict[str, str]) -> str:
+    """Name an app, preferring whatever names it at all over its package id.
+
+    The entity's friendly name first, because a parent may have renamed it; the label
+    the set published second, which is the only name an app nobody has opened has.
+    """
+    written = television.app_name(package)
+    return on_it.get(package, package) if written == package else written
+
+
 def worth_showing(
-    package: str, television: Television, allowed: list[str], exempt: list[str]
+    package: str,
+    television: Television,
+    allowed: list[str],
+    exempt: list[str],
+    on_it: dict[str, str] | None = None,
 ) -> bool:
     """Say whether an app belongs on a page a parent is deciding things on.
 
@@ -197,10 +241,11 @@ def worth_showing(
     packages those are comes from the set, which is the only thing that can resolve
     them (#130).
 
-    And a package with no time, no budget and no place on the allow-list is not
-    something anybody watched: `android` and `com.android.systemui` arrive because the
-    set charges them the odd second between apps. Anything a parent has decided about
-    stays, however little it has run.
+    And a package with no time, no budget, no place on the allow-list and no place
+    among what the set says is installed is not something anybody watched: `android`
+    and `com.android.systemui` arrive because the set charges them the odd second
+    between apps. Anything a parent has decided about stays, however little it has run,
+    and so does anything the child could actually open.
     """
     if package in exempt:
         return False
@@ -208,6 +253,9 @@ def worth_showing(
         television.app_minutes(package)
         or television.app_limit(package) is not None
         or package in allowed
+        # On the set and openable, which is the whole point of an allow-list: an app
+        # is decided about before it has been watched, not after.
+        or package in (on_it or {})
     )
 
 
