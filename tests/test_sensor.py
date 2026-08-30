@@ -652,3 +652,21 @@ async def test_a_television_exempting_nothing_says_nothing(hass: HomeAssistant) 
     client.rules = {"daily_limit_s": 3600}
 
     assert "exempt_apps" not in RulesSensor(client).extra_state_attributes
+
+
+async def test_forgetting_tells_the_entities_it_happened(hass: HomeAssistant) -> None:
+    """The option changing is not a payload arriving, so nothing else says it.
+
+    Found the hard way: the action returned success, the option really was cleared, and
+    the rules sensor went on publishing the helper it was no longer following. The panel
+    reads that attribute to decide whether its grid can be drawn on, so the button
+    worked and the grid stayed dead until some unrelated payload came along.
+    """
+    client, _ = forgettable(hass, "schedule.viewing_hours")
+    told: list[int] = []
+    client.async_add_listener(lambda: told.append(1))
+
+    client.forget_schedule()
+
+    assert told, "nothing was told the following had stopped"
+    assert client.followed_schedule is None

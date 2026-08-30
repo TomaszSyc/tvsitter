@@ -3,6 +3,10 @@
 The version is one SemVer for the whole product (D6): the panel, the integration and the
 Android app share `version.txt` and share a tag.
 
+## 0.8.3
+
+- Taking the hours over actually unlocks the grid.
+
 ## 0.8.2
 
 - The hours grid can be taken over from a schedule helper, without losing the hours.

@@ -261,6 +261,13 @@ class TvSitterClient:
             if key != CONF_SCHEDULE
         }
         self._hass.config_entries.async_update_entry(self.entry, options=options)
+        # And say so. Everything else that changes what an entity shows arrives as a
+        # payload and notifies on the way past; this one changes an option, and without
+        # this the rules sensor keeps publishing the helper it is no longer following
+        # until the next payload happens along. The panel reads that attribute to decide
+        # whether its grid is editable, so the button reported success and the grid
+        # stayed dead — which is exactly how it was found.
+        self._notify()
 
     @callback
     def watch_schedule(self, entity_id: str | None) -> None:
