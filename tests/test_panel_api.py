@@ -652,3 +652,26 @@ async def test_a_television_without_the_pin_controls_says_which_it_has_not() -> 
 
     assert "parent_pin" in str(refusal.value)
     assert "4213" not in str(refusal.value)
+
+
+def test_home_assistants_own_sentence_survives_a_refusal() -> None:
+    """A parent painting a week while the set is asleep needs to know that is why.
+
+    The refusal used to come back as "Home Assistant would not make that change",
+    which answers nothing. The integration's own sentence names the television and
+    says it is not listening, and that is the one worth showing.
+    """
+    from panel.home_assistant import said
+
+    body = '{"message": "TV Salon is not listening; the change would go nowhere"}'
+
+    assert said(body) == "TV Salon is not listening; the change would go nowhere"
+
+
+def test_a_refusal_that_says_nothing_useful_gives_nothing() -> None:
+    """Rather than a page carrying somebody else's stack trace."""
+    from panel.home_assistant import said
+
+    assert said("<html>500</html>") is None
+    assert said('{"message": "   "}') is None
+    assert said('{"code": 500}') is None

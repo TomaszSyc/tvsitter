@@ -19,6 +19,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import json
 import os
 from typing import Any
 
@@ -134,6 +135,29 @@ class Television:
         }
 
 
+class Refused(RuntimeError):
+    """A service Home Assistant would not run, and what it said about it."""
+
+    def __init__(self, what: str, why: str | None) -> None:
+        """Keep the reason apart from the call, so only the reason is shown."""
+        super().__init__(f"{what}: {why}" if why else what)
+        self.why = why
+
+
+def said(body: str) -> str | None:
+    """Pull Home Assistant's own sentence out of a refusal.
+
+    It answers with JSON carrying a `message`, and nothing else in it is worth reading.
+    A body that is not JSON, or carries no message, gives nothing rather than a page
+    full of somebody else's stack trace.
+    """
+    try:
+        message = json.loads(body).get("message")
+    except (ValueError, AttributeError):
+        return None
+    return message.strip() if isinstance(message, str) and message.strip() else None
+
+
 class HomeAssistant:
     """A client for the Core API, holding one session for the panel's lifetime."""
 
@@ -188,8 +212,13 @@ class HomeAssistant:
             timeout=aiohttp.ClientTimeout(total=30),
         ) as answer:
             if answer.status >= 400:
-                raise RuntimeError(
-                    f"{domain}.{service} was refused: {await answer.text()}"
+                # The sentence Home Assistant wrote, kept apart from the rest. It is the
+                # only part worth putting in front of a parent — "TV Salon is not
+                # listening" answers the question, and `tvsitter.set_windows was refused
+                # by 500` does not. Never a PIN: `set_pin` refuses before it reaches
+                # here, precisely because the sentence would carry the value.
+                raise Refused(
+                    f"{domain}.{service} was refused", said(await answer.text())
                 )
 
     async def _registry(self) -> dict[str, list[dict[str, Any]]]:

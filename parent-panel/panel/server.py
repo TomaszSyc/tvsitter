@@ -25,7 +25,7 @@ from aiohttp import ClientError, ClientSession, web
 from .api import apply, gathered
 from .automations import Automations, configure, offer
 from .blueprints import install
-from .home_assistant import HomeAssistant
+from .home_assistant import HomeAssistant, Refused
 from .page import render_shell
 
 _LOGGER = logging.getLogger("panel")
@@ -50,6 +50,7 @@ SILENT = "Home Assistant did not answer. It may still be starting."
 # change to a television is worth trying again, an automation Home Assistant will not
 # validate needs somebody to look at the log the reason went to.
 UNKEPT = "Home Assistant would not keep that automation."
+UNMADE = "Home Assistant would not make that change."
 
 
 async def index(request: web.Request) -> web.Response:
@@ -98,11 +99,16 @@ async def do(request: web.Request) -> web.Response:
     except PermissionError as refused:
         _LOGGER.error("%s", refused)
         return answer({"ok": False, "error": REFUSED})
+    except Refused as failure:
+        # Home Assistant's own sentence when it wrote one: it says which television is
+        # not listening, or which value it would not take, and the generic line said
+        # neither. A parent painting a week while the set is asleep got "Home Assistant
+        # would not make that change" and no idea what to do about it.
+        _LOGGER.warning("the change was refused: %s", failure)
+        return answer({"ok": False, "error": failure.why or UNMADE})
     except RuntimeError as failure:
         _LOGGER.warning("the change was refused: %s", failure)
-        return answer(
-            {"ok": False, "error": "Home Assistant would not make that change."}
-        )
+        return answer({"ok": False, "error": UNMADE})
     except (ClientError, TimeoutError) as failure:
         _LOGGER.warning("could not reach Home Assistant: %s", failure)
         return answer({"ok": False, "error": SILENT})

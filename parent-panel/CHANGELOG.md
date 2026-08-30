@@ -3,6 +3,10 @@
 The version is one SemVer for the whole product (D6): the panel, the integration and the
 Android app share `version.txt` and share a tag.
 
+## 0.8.4
+
+- A refusal says why: which television is not listening, rather than a shrug.
+
 ## 0.8.3
 
 - Taking the hours over actually unlocks the grid.
