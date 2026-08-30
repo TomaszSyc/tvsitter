@@ -18,16 +18,10 @@ updates:
       kotlin:
         patterns: ["org.jetbrains.kotlin*", "org.jetbrains.kotlinx*"]
 
-  # The parent panel's own dependency, and the Supervisor base image its Dockerfile builds
-  # from. Two ecosystems because they are two different things: `pip` reads
-  # requirements.txt, `docker` reads the FROM line and nothing else.
-  - package-ecosystem: pip
-    directory: "/parent-panel"
-    schedule:
-      interval: weekly
-      day: monday
-    labels: ["dependencies"]
-
+  # The Supervisor base image the panel's Dockerfile builds from. Only `docker` here: the
+  # `pip` entry below already finds `parent-panel/requirements.txt`, and declaring a second
+  # one for the same directory produced two pull requests for the same bump — #125 and #126,
+  # the first thing this repository did on the day it went public.
   - package-ecosystem: docker
     directory: "/parent-panel"
     schedule:
@@ -42,8 +36,8 @@ updates:
       day: monday
     labels: ["dependencies"]
 
-  # requirements-dev.txt only. The integration itself declares no requirements and gets
-  # its dependencies from Home Assistant.
+  # requirements-dev.txt and the panel's requirements.txt, which this finds on its own. The
+  # integration itself declares no requirements and gets its dependencies from Home Assistant.
   - package-ecosystem: pip
     directory: "/"
     schedule:

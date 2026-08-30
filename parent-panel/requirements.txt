@@ -1,4 +1,9 @@
 # The panel's one dependency. In a file rather than pinned inline in the Dockerfile so that
 # Dependabot watches it: the `docker` ecosystem tracks the base image and nothing installed
 # on top of it, and a pin nobody watches is a pin that quietly goes stale.
-aiohttp==3.13.2
+#
+# Which it already had. The first pin was 3.13.2, written from memory, and secret scanning was
+# not the only thing that ran the moment this repository went public — Dependabot opened thirty
+# advisories against it, two of them high. 3.14.3 is the first release patched for both, and it
+# is what the development environment here had been resolving to all along.
+aiohttp==3.14.3

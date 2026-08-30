@@ -3,6 +3,10 @@
 The version is one SemVer for the whole product (D6): the panel, the integration and the
 Android app share `version.txt` and share a tag.
 
+## 0.6.21
+
+- aiohttp 3.14.3, which is the first release clear of two advisories the 3.13.2 pin carried.
+
 ## 0.6.20
 
 - The one dependency moved into `requirements.txt`, so Dependabot watches it.
