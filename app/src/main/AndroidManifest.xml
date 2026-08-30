@@ -16,6 +16,22 @@
         <intent>
             <action android:name="android.service.dreams.DreamService" />
         </intent>
+        <!--
+            The apps a child could actually open, for the allow-list (#102). Declared here as
+            well as covered by QUERY_ALL_PACKAGES below, because that one is the restricted
+            permission Play can refuse — and a refusal must cost the allow-list nothing. Both
+            categories: LEANBACK_LAUNCHER is what a television app declares, LAUNCHER what a
+            sideloaded phone app declares, and the second kind is the kind a parent wants to
+            refuse. Refused visibility degrades to an empty list, never to a crash.
+        -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
     </queries>
 
     <uses-permission android:name="android.permission.INTERNET" />

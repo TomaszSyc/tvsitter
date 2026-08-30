@@ -5,10 +5,10 @@ container, and refusing everybody else because that is the whole of an Ingress a
 network security: the Supervisor is the only thing that should ever connect, and it
 always connects from one address.
 
-Four routes and no rendering. The page arrives once and asks for its own values
-afterwards, so nothing here builds markup out of a state — which is why neither of the
-two API routes ever answers with an error status. A 500 is a blank panel with nothing on
-it saying why; the sentence travels in the body instead, and the page shows it.
+Six routes and no rendering. The page arrives once and asks for its own values
+afterwards, so nothing here builds markup out of a state — which is why none of the API
+routes ever answers with an error status. A 500 is a blank panel with nothing on it
+saying why; the sentence travels in the body instead, and the page shows it.
 
 TV Sitter — parental control for Android TV / Google TV.
 Copyright (C) 2026 Tomasz Syc
@@ -22,7 +22,8 @@ from typing import Any
 
 from aiohttp import ClientError, ClientSession, web
 
-from .api import apply, snapshot
+from .api import apply, gathered
+from .automations import Automations, configure, offer
 from .blueprints import install
 from .home_assistant import HomeAssistant
 from .page import render_shell
@@ -45,6 +46,11 @@ NO_TOKEN = (
 REFUSED = "Home Assistant refused the token this App was given."
 SILENT = "Home Assistant did not answer. It may still be starting."
 
+# Said separately from the refusal above because it is a different thing to do next: a
+# change to a television is worth trying again, an automation Home Assistant will not
+# validate needs somebody to look at the log the reason went to.
+UNKEPT = "Home Assistant would not keep that automation."
+
 
 async def index(request: web.Request) -> web.Response:
     """Answer with the page, which fetches everything on it for itself."""
@@ -64,7 +70,9 @@ async def state(request: web.Request) -> web.Response:
     except (ClientError, TimeoutError) as failure:
         _LOGGER.warning("could not read Home Assistant: %s", failure)
         return nothing(SILENT)
-    return answer(snapshot(found))
+    # `gathered` rather than `snapshot`: the week per app needs a second round trip for
+    # the recorder's statistics, and it fails on its own rather than costing the page.
+    return answer(await gathered(home, found))
 
 
 async def do(request: web.Request) -> web.Response:
@@ -101,6 +109,56 @@ async def do(request: web.Request) -> web.Response:
     return answer({"ok": True})
 
 
+async def setup(request: web.Request) -> web.Response:
+    """Answer with the choice a parent has to make, and what is already chosen."""
+    home: HomeAssistant = request.app["home"]
+    if not home.authorised:
+        return unmade(NO_TOKEN)
+    try:
+        found = await home.televisions()
+        return answer(await offer(request.app["automations"], found))
+    except PermissionError as refused:
+        _LOGGER.error("%s", refused)
+        return unmade(REFUSED)
+    except RuntimeError as failure:
+        _LOGGER.warning("could not read the automations: %s", failure)
+        return unmade(UNKEPT)
+    except (ClientError, TimeoutError) as failure:
+        _LOGGER.warning("could not read Home Assistant: %s", failure)
+        return unmade(SILENT)
+
+
+async def make(request: web.Request) -> web.Response:
+    """Make one television's automation, and say plainly when it could not be made."""
+    home: HomeAssistant = request.app["home"]
+    if not home.authorised:
+        return answer({"ok": False, "error": NO_TOKEN})
+
+    try:
+        asked = await request.json()
+    except ValueError:
+        return answer({"ok": False, "error": "That was not a request."})
+    if not isinstance(asked, dict):
+        return answer({"ok": False, "error": "That was not a request."})
+
+    try:
+        # Read afresh, as `/api/do` does: which event entity belongs to which television
+        # is a registry answer, and the automation is written against that entity.
+        await configure(request.app["automations"], await home.televisions(), asked)
+    except ValueError as wrong:
+        return answer({"ok": False, "error": str(wrong)})
+    except PermissionError as refused:
+        _LOGGER.error("%s", refused)
+        return answer({"ok": False, "error": REFUSED})
+    except RuntimeError as failure:
+        _LOGGER.warning("the automation was refused: %s", failure)
+        return answer({"ok": False, "error": UNKEPT})
+    except (ClientError, TimeoutError) as failure:
+        _LOGGER.warning("could not reach Home Assistant: %s", failure)
+        return answer({"ok": False, "error": SILENT})
+    return answer({"ok": True})
+
+
 async def health(request: web.Request) -> web.Response:
     """Say the panel is up, for anything that wants to know without loading a page."""
     return web.json_response({"ok": True})
@@ -109,6 +167,11 @@ async def health(request: web.Request) -> web.Response:
 def nothing(said: str) -> web.Response:
     """Answer the page with no televisions and the reason there are none."""
     return answer({"televisions": [], "error": said})
+
+
+def unmade(said: str) -> web.Response:
+    """Answer the setup page with nothing to choose and the reason there is nothing."""
+    return answer({"notify": [], "televisions": [], "error": said})
 
 
 def answer(body: dict[str, Any]) -> web.Response:
@@ -141,11 +204,14 @@ def build() -> web.Application:
     app.router.add_get("/", index)
     app.router.add_get("/api/state", state)
     app.router.add_post("/api/do", do)
+    app.router.add_get("/api/setup", setup)
+    app.router.add_post("/api/setup", make)
     app.router.add_get("/health", health)
 
     async def open_session(app: web.Application) -> None:
         app["session"] = session = ClientSession()
         app["home"] = HomeAssistant(session)
+        app["automations"] = Automations(session)
 
     async def close_session(app: web.Application) -> None:
         await app["session"].close()

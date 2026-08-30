@@ -3,6 +3,13 @@
 The version is one SemVer for the whole product (D6): the panel, the integration and the
 Android app share `version.txt` and share a tag.
 
+## 0.8.0
+
+- A weekly grid for the viewing hours, painted with a finger or a mouse.
+- The week per app, from Home Assistant's own statistics.
+- The parent PIN can be set and cleared here.
+- The panel creates the notification automation, and adopts one made by hand.
+
 ## 0.7.7
 
 - The weekly hours reach the page, and a day drawn in full no longer comes out closed.

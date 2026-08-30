@@ -37,6 +37,12 @@ _STYLE = """
   --text: #F2F6F9;
   --muted: #8FA3B3;
   --warn: #FFC46B;
+  /* One half hour of the weekly grid, the row it sits in, the column the day is
+     named in, and the strip the hours are named across. */
+  --cell: 14px;
+  --tall: 26px;
+  --label: 2.9rem;
+  --head: 1.15rem;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -254,6 +260,90 @@ input[type="checkbox"] {
   height: 100%;
 }
 .foot { color: var(--muted); font-size: 0.8rem; margin-top: 1.1rem; }
+/*
+ * The week as a grid: seven rows of half hours, drawn on rather than listed.
+ *
+ * Three grids on rows and columns that line up, in two boxes. The days are named in a
+ * column that does not scroll at all, because which day a row is, is the one thing that
+ * has to stay on the screen while the week is dragged sideways under it. Sticky was
+ * tried first and does not hold: a grid item is pinned inside its own grid area, so the
+ * name slides off with the row it names.
+ *
+ * The hours and the week scroll together and are still two grids, because the week
+ * takes `touch-action: none` — a finger drawn across it is drawing hours, not scrolling
+ * — and a phone would otherwise have no way to reach the far end of the day. The strip
+ * of hours above it keeps `pan-x` and drags the pair.
+ *
+ * The half hours are `1fr` with a floor under them: they share out a wide screen and
+ * stop shrinking at a size a finger can still land on, which is where the card scrolls
+ * instead. Forty-eight boxes squeezed onto a phone is forty-eight boxes nobody can tell
+ * apart, which is the one thing this card exists to show.
+ */
+.hoursbox {
+  background: var(--backdrop);
+  border-radius: 16px;
+  display: flex;
+  margin: 0.6rem 0;
+  padding: 0.5rem;
+}
+.names {
+  display: grid;
+  flex: none;
+  gap: 1px;
+  /* The empty first row is the strip of hours, so the days line up beside them. */
+  grid-template-rows: var(--head) repeat(7, var(--tall));
+  margin-right: 0.4rem;
+  width: var(--label);
+}
+/* Without this the scroller takes the width of its widest row and nothing scrolls. */
+.hours { flex: 1 1 auto; min-width: 0; overflow-x: auto; }
+.ticks, .week {
+  display: grid;
+  gap: 1px;
+  grid-template-columns: repeat(48, minmax(var(--cell), 1fr));
+}
+.ticks {
+  grid-auto-rows: var(--head);
+  /* The gap the days keep between the strip and Monday, kept here as well. */
+  margin-bottom: 1px;
+  touch-action: pan-x;
+}
+.tick {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  grid-column: span 6;
+  line-height: var(--head);
+}
+.week {
+  grid-auto-rows: var(--tall);
+  touch-action: none;
+  user-select: none;
+}
+/* Nothing to draw while a schedule helper owns the hours, so the finger has it back. */
+.week.off { touch-action: pan-x; }
+.day {
+  background: var(--raised);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0 0.4rem;
+  text-align: left;
+}
+/* Written twice over the shared button rule, which would put a hover colour on both. */
+.cell, .cell:hover {
+  background: var(--surface);
+  border-radius: 3px;
+  padding: 0;
+}
+.cell.on, .cell.on:hover { background: var(--accent); }
+.cell:enabled:hover { box-shadow: inset 0 0 0 1px var(--muted); }
+/* A ring three pixels off a fourteen-pixel box swallows its neighbours. */
+.cell:focus-visible { outline-offset: 1px; }
+.cell:disabled, .day:disabled { cursor: default; }
+/* Read-only, so a day is a label rather than something that looks pressable. */
+.day:disabled { background: none; }
 """
 
 # The rail is markup rather than script because the destinations are the one thing on
@@ -310,6 +400,27 @@ _SCRIPT = """
 
   /** So the shortest thing watched is still a bar rather than nothing at all. */
   const SHORTEST_BAR = 3;
+
+  // The grid is half-hourly, the same half hours the rules are written in. Finer would
+  // be ninety-six boxes to hit on a phone; coarser could not say the half past four a
+  // school day actually starts at.
+  const SLOT_MINUTES = 30;
+  const SLOTS = (24 * MINUTES_PER_HOUR) / SLOT_MINUTES;
+
+  /** How often the hour is named above the grid. All forty-eight would be a smear. */
+  const TICK = 6;
+
+  /** How long a keyed change waits for the next, so a held key is still one write. */
+  const KEYED_MS = 400;
+
+  // The arrows, as a day and a half hour to move by. Clamped rather than wrapped: an
+  // arrow that runs off Monday morning into Sunday night is a box nobody aimed at.
+  const MOVES = {
+    ArrowLeft: [0, -1],
+    ArrowRight: [0, 1],
+    ArrowUp: [-1, 0],
+    ArrowDown: [1, 0],
+  };
 
   // The destinations, in the rail's order, keyed the way the address bar spells them.
   // The first is the start destination and the answer to anything unrecognised.
@@ -382,6 +493,27 @@ _SCRIPT = """
   /** What a rule looks like in a box somebody types into. Empty means unset. */
   function shown(minutes) {
     return unset(minutes) ? "" : String(Math.round(minutes));
+  }
+
+  /**
+   * The time one half hour of the grid starts, spelled the way the rules spell it.
+   *
+   * The box past the end of the day is midnight, so the last box of a day reads as
+   * 23:30 to 00:00 rather than to a twenty-fifth hour.
+   */
+  function clock(slot) {
+    const minutes = (slot % SLOTS) * SLOT_MINUTES;
+    return two(Math.floor(minutes / MINUTES_PER_HOUR)) +
+      ":" + two(minutes % MINUTES_PER_HOUR);
+  }
+
+  function two(count) {
+    return String(count).padStart(2, "0");
+  }
+
+  /** Keep a move inside the week, or inside the day, whichever is being moved along. */
+  function within(place, howMany) {
+    return Math.max(0, Math.min(howMany - 1, place));
   }
 
   function hold(note, words) {
@@ -718,8 +850,8 @@ _SCRIPT = """
 
   /**
    * Everything that can be changed, in three cards: what holds every day, what a
-   * particular day overrides it with, and — read-only, at the bottom — the hours that
-   * are in force whatever the limits say.
+   * particular day overrides it with, and — at the bottom, as the grid it is — the
+   * hours of the week viewing is allowed in whatever the limits say.
    */
   function rulesPane(view) {
     const box = card(view, "rules");
@@ -995,33 +1127,324 @@ _SCRIPT = """
     return packages;
   }
 
+  /**
+   * The hours, as the week they already are: seven rows of half hours to draw on.
+   *
+   * They were read-only here, on the reasoning that Home Assistant's Schedule helper is
+   * a weekly editor already (D33). Sending a parent out of the panel to a helper dialog
+   * is the same complaint that split this page into destinations in the first place, so
+   * the grid is here too; the helper is still there for whoever prefers it.
+   *
+   * Nothing leaves while a finger is down. A drag over ninety boxes is one decision,
+   * and ninety writes would be ninety revisions of the rules for the television to
+   * fetch — with the last of them landing well after the finger had lifted.
+   */
   function hoursCard(view) {
-    const box = card(view, "rules", "Hours in force");
-    const list = el("div");
-    box.append(list, el("p", "foot",
-      "Shown, not edited. These hours come from a Home Assistant Schedule helper, " +
-      "which is a weekly grid with a proper editor already \\u2014 draw the week " +
-      "there and the television follows."));
-    view.updates.push((tv) => {
-      const windows = tv.windows || [];
-      list.replaceChildren(...(windows.length
-        ? windows.map(slot)
-        : [el("p", "empty", "No hours set, so no hour of the day is refused.")]));
+    const box = card(view, "rules", "The hours");
+    const warning = el("p", "banner");
+    const lead = el("p", "hint",
+      "Drag across the boxes to allow viewing in them, and drag out of a marked box " +
+      "to clear instead. A day name takes the whole day. From the keyboard: the " +
+      "arrows move, space marks, and shift with an arrow paints.");
+    const frame = el("div", "hoursbox");
+    const names = el("div", "names");
+    const scroller = el("div", "hours");
+    const ticks = el("div", "ticks");
+    const week = el("div", "week");
+    const open = el("p", "empty",
+      "No half hour is marked, so the hours are not restricted at all: the " +
+      "television may be watched at any time of day, within whatever the limits " +
+      "above allow.");
+    const note = el("p", "note");
+    week.setAttribute("role", "group");
+    week.setAttribute("aria-label", "The half hours viewing is allowed in");
+    // The empty box above Monday, which is the strip of hours the days line up with.
+    names.appendChild(el("div", "corner"));
+    for (let slot = 0; slot < SLOTS; slot += TICK) {
+      ticks.appendChild(el("div", "tick", clock(slot)));
+    }
+    scroller.append(ticks, week);
+    frame.append(names, scroller);
+    box.append(warning, lead, frame, open, note);
+
+    // What is drawn, kept beside the boxes rather than read back off them: a gesture
+    // asks what the week looked like before it started, and a class name cannot say.
+    const ticked = WEEK.map(() => new Array(SLOTS).fill(false));
+    const labels = [];
+    const cells = [];
+    // The value the last change set, which is what shift with an arrow goes on
+    // painting. Marking is the guess before anything has been changed: an empty grid
+    // is the one somebody has come here to draw on.
+    let lately = true;
+    let painting = null;
+    let pending = null;
+
+    WEEK.forEach((day, row) => {
+      const label = el("button", "day", day[2]);
+      label.type = "button";
+      label.setAttribute("aria-label", "Every half hour of " + day[1]);
+      label.addEventListener("click", () => { whole(row); });
+      labels.push(label);
+      names.appendChild(label);
+      const line = [];
+      for (let slot = 0; slot < SLOTS; slot += 1) {
+        const cell = el("button", "cell");
+        cell.type = "button";
+        cell.tabIndex = -1;
+        // Where a box is, on the box, because a pointer arrives as a point on the
+        // screen and has to be turned back into a day and a half hour.
+        cell.atDay = row;
+        cell.atSlot = slot;
+        cell.setAttribute("aria-pressed", "false");
+        cell.setAttribute("aria-label",
+          day[1] + " " + clock(slot) + " to " + clock(slot + 1));
+        line.push(cell);
+        week.appendChild(cell);
+      }
+      cells.push(line);
     });
-  }
+    let keyed = cells[0][0];
+    keyed.tabIndex = 0;
 
-  function slot(one) {
-    const node = el("div", "row");
-    node.append(el("b", null, (one.from || "?") + " \\u2013 " + (one.to || "?")),
-      el("span", "unit", days(one.days)));
-    return node;
-  }
+    /** Whether the hours belong to a schedule helper, and so are not ours to write. */
+    function sealed() {
+      return Boolean(view.tv && view.tv.following_schedule);
+    }
 
-  function days(list) {
-    if (!list || !list.length) return "Every day";
-    const said = WEEK.filter((day) => list.indexOf(day[0]) >= 0)
-      .map((day) => day[2]);
-    return said.length ? said.join(", ") : list.join(", ");
+    /**
+     * Whether somebody is in the middle of something a poll would take off them.
+     *
+     * The rule the typed numbers keep, in the terms a grid has: what Home Assistant
+     * says is written back over the boxes unless a finger is on them, a keyed change
+     * has not gone yet, or the focus is somewhere inside the week.
+     */
+    function busy() {
+      return painting !== null || pending !== null ||
+        week.contains(document.activeElement);
+    }
+
+    /** One box, touched only when it is actually changing. */
+    function mark(row, slot, on) {
+      if (ticked[row][slot] === on) return;
+      ticked[row][slot] = on;
+      cells[row][slot].classList.toggle("on", on);
+      cells[row][slot].setAttribute("aria-pressed", String(on));
+    }
+
+    /**
+     * Say what an empty grid means, because it looks like the opposite of what it is.
+     *
+     * No half hour marked is no restriction (D27), not a week with no viewing in it,
+     * and a grid of empty boxes reads as the second one to anybody who has not been
+     * told otherwise.
+     */
+    function tell() {
+      open.hidden = !ticked.every((line) => line.every((on) => !on));
+    }
+
+    /** Put what the television is enforcing on the grid, box by box. */
+    function draw(tv) {
+      const given = (tv && tv.hours) || {};
+      WEEK.forEach((day, row) => {
+        const marked = new Set(given[day[0]] || []);
+        for (let slot = 0; slot < SLOTS; slot += 1) {
+          mark(row, slot, marked.has(clock(slot)));
+        }
+      });
+      tell();
+    }
+
+    /** A whole day, set or cleared from its name, which is the row a parent means. */
+    function whole(row) {
+      if (sealed()) return;
+      const full = ticked[row].every(Boolean);
+      for (let slot = 0; slot < SLOTS; slot += 1) mark(row, slot, !full);
+      lately = !full;
+      tell();
+      commit();
+    }
+
+    /**
+     * Draw the run between where the gesture started and where it has got to.
+     *
+     * A rectangle rather than a trail of everything the pointer has touched, because a
+     * finger overshoots and a trail cannot be taken back without lifting and starting
+     * the whole run again. Everything outside it goes back to how the week stood when
+     * the gesture began, so dragging back shrinks the run rather than adding to it —
+     * and a drag down the days sets the same evening on all of them at once.
+     */
+    function stretch(row, slot) {
+      const first = Math.min(painting.row, row);
+      const last = Math.max(painting.row, row);
+      const opens = Math.min(painting.slot, slot);
+      const shuts = Math.max(painting.slot, slot);
+      for (let one = 0; one < WEEK.length; one += 1) {
+        for (let each = 0; each < SLOTS; each += 1) {
+          const inside = one >= first && one <= last &&
+            each >= opens && each <= shuts;
+          mark(one, each, inside ? painting.on : painting.was[one][each]);
+        }
+      }
+      tell();
+    }
+
+    /** The box under a point, or nothing where the pointer has left the week. */
+    function under(node) {
+      const cell = node && node.closest ? node.closest(".cell") : null;
+      return cell && cell.atSlot !== undefined ? cell : null;
+    }
+
+    /**
+     * Which box the keyboard reaches, and the only one it reaches by tabbing.
+     *
+     * Three hundred and thirty-six tab stops is not access to a grid, it is a
+     * punishment for opening one: reaching Friday evening would be four hundred
+     * presses. One way in, and the arrows from there.
+     */
+    function rove(cell) {
+      keyed.tabIndex = -1;
+      keyed = cell;
+      cell.tabIndex = 0;
+    }
+
+    /** Move the keyboard onto one box, painting it on the way when shift is down. */
+    function land(row, slot, paint) {
+      if (paint && !sealed()) {
+        mark(row, slot, lately);
+        tell();
+        soon();
+      }
+      rove(cells[row][slot]);
+      cells[row][slot].focus();
+    }
+
+    /**
+     * Gather keyed changes into one write.
+     *
+     * A held arrow with shift down is a run being drawn a box at a time, and it is the
+     * same single decision a drag is. Waiting for the keys to stop is what stands in
+     * for a finger being lifted.
+     */
+    function soon() {
+      clearTimeout(pending);
+      pending = setTimeout(() => {
+        pending = null;
+        commit();
+      }, KEYED_MS);
+    }
+
+    /** Send the week, whole and once, and then show what came back for it. */
+    async function commit() {
+      if (pending !== null) {
+        clearTimeout(pending);
+        pending = null;
+      }
+      const days = {};
+      let full = true;
+      WEEK.forEach((day, row) => {
+        const marked = [];
+        for (let slot = 0; slot < SLOTS; slot += 1) {
+          if (ticked[row][slot]) marked.push(clock(slot));
+          else full = false;
+        }
+        days[day[0]] = marked;
+      });
+      // Every day every time, marked and unmarked alike: an unmarked half hour has no
+      // other way of being said, so a day left out would be a day with no viewing.
+      await act({id: view.id, action: "hours", days: days}, note, full
+        ? "Saved. A week with nothing refused is no restriction, so it clears."
+        : "Hours saved");
+      // `act` has read the state back, so this is what the television has rather than
+      // what was drawn at it. A refusal snaps the week back instead of leaving a grid
+      // nobody is enforcing on the screen.
+      if (!painting) draw(view.tv);
+    }
+
+    week.addEventListener("pointerdown", (event) => {
+      const cell = under(event.target);
+      if (sealed() || !cell) return;
+      // The gesture takes the pointer with it: on a touchscreen every event after this
+      // one is delivered here whatever the finger has moved over, which is why the box
+      // under it is looked up by where it is rather than by what it hit.
+      event.preventDefault();
+      if (week.setPointerCapture) week.setPointerCapture(event.pointerId);
+      painting = {
+        row: cell.atDay,
+        slot: cell.atSlot,
+        // Starting on a marked box clears, the way a spreadsheet does it: the box
+        // pressed says which of the two things the whole gesture is.
+        on: !ticked[cell.atDay][cell.atSlot],
+        was: ticked.map((line) => line.slice()),
+      };
+      lately = painting.on;
+      // Where the keyboard picks up next, without taking the focus off whatever has
+      // it: a press is a place to draw, not a request to be moved.
+      rove(cell);
+      stretch(cell.atDay, cell.atSlot);
+    });
+
+    week.addEventListener("pointermove", (event) => {
+      if (!painting) return;
+      const cell = under(document.elementFromPoint(event.clientX, event.clientY));
+      if (cell) stretch(cell.atDay, cell.atSlot);
+    });
+
+    week.addEventListener("pointerup", () => {
+      if (!painting) return;
+      painting = null;
+      commit();
+    });
+
+    week.addEventListener("pointercancel", () => {
+      if (!painting) return;
+      const was = painting.was;
+      painting = null;
+      // The browser took the gesture away rather than the parent finishing it, so
+      // nothing was decided here and nothing is written.
+      for (let row = 0; row < WEEK.length; row += 1) {
+        for (let slot = 0; slot < SLOTS; slot += 1) mark(row, slot, was[row][slot]);
+      }
+      tell();
+    });
+
+    week.addEventListener("keydown", (event) => {
+      const cell = under(event.target);
+      if (!cell) return;
+      const move = MOVES[event.key];
+      if (move) {
+        event.preventDefault();
+        land(within(cell.atDay + move[0], WEEK.length),
+          within(cell.atSlot + move[1], SLOTS), event.shiftKey);
+      } else if (event.key === "Home" || event.key === "End") {
+        event.preventDefault();
+        land(cell.atDay, event.key === "Home" ? 0 : SLOTS - 1, event.shiftKey);
+      } else if (event.key === " " || event.key === "Enter") {
+        // Answered here rather than through the button's own click, so that one box
+        // is never marked twice over by a press the pointer has already dealt with.
+        event.preventDefault();
+        if (sealed()) return;
+        lately = !ticked[cell.atDay][cell.atSlot];
+        mark(cell.atDay, cell.atSlot, lately);
+        tell();
+        soon();
+      }
+    });
+
+    view.updates.push((tv) => {
+      const followed = tv.following_schedule;
+      const off = Boolean(followed);
+      week.classList.toggle("off", off);
+      labels.forEach((label) => { label.disabled = off; });
+      cells.forEach((line) => line.forEach((cell) => { cell.disabled = off; }));
+      lead.hidden = off;
+      warning.hidden = !off;
+      if (off) {
+        warning.textContent = "These hours are taken from " + followed + ", which " +
+          "the integration re-reads whenever it is edited, so they have to be " +
+          "changed there. Anything drawn here would be undone by its next edit.";
+      }
+      if (!busy()) draw(tv);
+    });
   }
 
   function beat() {

@@ -53,11 +53,28 @@ class ContractCodecTest {
                 "used_today_s", "limit_today_s", "remaining_today_s", "bonus_today_s", "per_app",
                 "per_app_names",
                 "active_window", "lock_reason", "until_s", "rules_rev", "exempt_apps",
+                "launchable_apps",
                 "can_overlay", "can_usage", "pin_set",
                 "pin_changed_at", "pin_changed_by",
             ),
             keys,
         )
+    }
+
+    /**
+     * #102. An allow-list built out of [StateSnapshot.perApp] can only refuse apps the television
+     * has already run, and that is never the app somebody wants refused.
+     */
+    @Test
+    fun `what could be opened travels apart from what was watched`() {
+        val withCatalogue = snapshot.copy(
+            launchableApps = mapOf("com.disney.disneyplus" to "Disney+", "com.netflix.ninja" to "Netflix"),
+        )
+        val decoded = ContractCodec.decodeState(ContractCodec.encode(withCatalogue))
+
+        assertEquals("Disney+", decoded.launchableApps["com.disney.disneyplus"])
+        // Never opened, so no amount of reading per_app would have found it.
+        assertFalse("com.disney.disneyplus" in decoded.perApp)
     }
 
     @Test

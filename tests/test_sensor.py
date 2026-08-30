@@ -445,3 +445,33 @@ async def test_a_helper_is_worth_saying_before_the_rules_arrive(
     assert RulesSensor(client).extra_state_attributes == {
         "following_schedule": "schedule.hours"
     }
+
+
+async def test_the_exempt_packages_reach_the_rules_sensor(hass: HomeAssistant) -> None:
+    """#130. Beside the rules, because that is what they are about.
+
+    An app on this list is one no rule written here will ever apply to, so a panel
+    drawing a budget and a tick for it draws controls the engine ignores (D35). Only the
+    television can answer it — it resolves them from the platform — so its value is kept
+    rather than dropped the way `following_schedule` is.
+    """
+    client = make_client(
+        hass, exempt_apps=["app.tvsitter.tv", "com.google.android.tvlauncher"]
+    )
+    client.rules = {"daily_limit_s": 3600}
+
+    attributes = RulesSensor(client).extra_state_attributes
+
+    assert attributes["exempt_apps"] == [
+        "app.tvsitter.tv",
+        "com.google.android.tvlauncher",
+    ]
+    assert attributes["daily_limit_s"] == 3600
+
+
+async def test_a_television_exempting_nothing_says_nothing(hass: HomeAssistant) -> None:
+    """Empty means "none known", and an empty list on a page is a claim it is not."""
+    client = make_client(hass)
+    client.rules = {"daily_limit_s": 3600}
+
+    assert "exempt_apps" not in RulesSensor(client).extra_state_attributes

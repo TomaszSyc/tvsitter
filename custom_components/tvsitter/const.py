@@ -123,6 +123,7 @@ CONF_SCHEDULE: Final = "schedule_entity"
 # How the followed helper is published, on the rules sensor beside the rules themselves.
 # It shares those attributes with whatever the television sends, and the rules are
 # opaque by design — so this name is spoken for, and a rule key must never claim it.
+ATTR_EXEMPT_APPS: Final = "exempt_apps"
 ATTR_FOLLOWING_SCHEDULE: Final = "following_schedule"
 
 KIND_MORE_TIME: Final = "more_time"

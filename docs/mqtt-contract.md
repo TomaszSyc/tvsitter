@@ -47,6 +47,7 @@ Three rules the correctness of the whole thing rests on:
   "bonus_today_s": 900,
   "per_app": { "com.google.android.youtube.tv": 3600, "com.netflix.ninja": 610 },
   "per_app_names": { "com.google.android.youtube.tv": "YouTube", "com.netflix.ninja": "Netflix" },
+  "launchable_apps": { "com.google.android.youtube.tv": "YouTube", "com.netflix.ninja": "Netflix", "com.disney.disneyplus": "Disney+" },
   "active_window": "weekday_afternoon",
   "lock_reason": "daily_limit",
   "until_s": 1190,
@@ -68,8 +69,9 @@ Three rules the correctness of the whole thing rests on:
 - `remaining_today_s` — `null` means "no limit", not zero.
 - `per_app_names` — friendly names for the packages in `per_app`, and only those. The labels
   exist on the television and nowhere else, so a consumer without them can only graph
-  `com.google.android.youtube.tv`. Deliberately not a list of everything installed: that is a
-  different thing and one Play reviews harder (#14).
+  `com.google.android.youtube.tv`. Deliberately only the watched ones — what is *there* is a
+  different question, answered by `launchable_apps` below, and answering both in one map would
+  leave a consumer unable to tell an app with no time against it from an app with none today.
 - `active_window` — identifier of the rule window in force, so that "why did it block me
   right now" is answerable.
 - `exempt_apps` — packages no rule can reach: this app, the home screen and any screen saver.
@@ -78,6 +80,21 @@ Three rules the correctness of the whole thing rests on:
   allow-list on purpose (D35) — the answer to "the launcher is not allowed" would be to send the
   television to the launcher, every ten seconds, for as long as it was on. Absent or empty means
   none are known, which is not a promise that none exist.
+- `launchable_apps` — every app a child could open on this television, package to label, whether
+  or not anybody has opened it. `per_app` is usage, so an allow-list built out of it can only
+  refuse apps the set has already run — and the app that wants refusing is the one installed this
+  afternoon and not opened since (#102). Launchable rather than installed: a Google TV carries
+  several hundred packages and almost none of them can be started from a remote, so the set is the
+  one with a launcher entry point, which is the set the home screen shows. Both launcher
+  categories count, `LEANBACK_LAUNCHER` and plain `LAUNCHER`, because a sideloaded phone app
+  declares only the second and is exactly the kind a parent goes looking for. The labels are the
+  same ones `per_app_names` carries, so one package is never called two things by one payload. Not
+  capped: bounding it to launchable apps already makes it dozens rather than hundreds — a package
+  and a label are about 35 bytes, so sixty apps is around 2 kB — and a truncated list would be an
+  allow-list that silently cannot refuse whatever fell off the end. Absent or empty means the
+  television could not enumerate, which is an allow-list screen with nothing to offer rather than
+  a claim that nothing is installed. The exempt packages are still listed here; `exempt_apps` is
+  what says not to draw a control for them.
 - `lock_reason` — why the screen is covered, or `null` when it is not. One of `daily_limit`,
   `app_limit`, `app_not_allowed`, `outside_window`, or `manual` for a lock a parent asked for. A parent's own lock
   outranks whatever the rules were saying at the time: they asked for it, and "the day's

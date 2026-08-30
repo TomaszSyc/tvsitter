@@ -11,6 +11,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 from __future__ import annotations
 
+import traceback
 from typing import Any
 
 from panel.api import apply, snapshot
@@ -30,9 +31,9 @@ def television(**states: Any) -> Television:
     return one
 
 
-def only(one: Television) -> dict[str, Any]:
-    """Pull the one television out of a snapshot."""
-    answer = snapshot([one])
+def only(one: Television, by_app: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    """Pull the one television out of a snapshot, with the seven days it was handed."""
+    answer = snapshot([one], {DEVICE: by_app} if by_app else None)
     assert answer["error"] is None
     return answer["televisions"][0]
 
@@ -464,3 +465,143 @@ async def test_a_grid_that_is_not_a_grid_is_refused_in_words() -> None:
         await saved(with_rules(), ["16:00"])
 
     assert str(refusal.value).endswith(".")
+
+
+LAST_SEVEN_DAYS = [
+    {"package": "com.youtube", "name": "YouTube", "minutes": 312.5},
+    {"package": "com.netflix", "name": "Netflix", "minutes": 88.0},
+]
+
+
+def test_the_seven_days_arrive_beside_the_day_and_keep_their_order() -> None:
+    """Two weeks on one television: what each day allows, and what happened."""
+    written = only(with_apps(), by_app=LAST_SEVEN_DAYS)
+
+    assert [app["name"] for app in written["week_by_app"]] == ["YouTube", "Netflix"]
+    assert set(written["week"]) == set(WEEK)
+
+
+def test_a_television_the_recorder_has_nothing_on_has_seven_empty_days() -> None:
+    """Which reads as "nothing yet" — the ordinary case on a fresh install (#103)."""
+    assert only(with_apps())["week_by_app"] == []
+
+
+def test_the_seven_days_leave_out_what_no_rule_reaches() -> None:
+    """This app draws its own lock screen, and nobody sat down to watch that."""
+    ours = {"package": "app.tvsitter.tv", "name": "TV Sitter", "minutes": 900.0}
+
+    written = only(with_noise(), by_app=[ours, *LAST_SEVEN_DAYS])
+
+    assert [app["name"] for app in written["week_by_app"]] == ["YouTube", "Netflix"]
+
+
+def exempting(one: Television, *packages: str) -> Television:
+    """Have the television report which packages no rule of its own can reach."""
+    one.entities["active_app"] = "sensor.app"
+    one.states["sensor.app"] = {
+        "state": "Netflix",
+        "attributes": {"exempt_apps": list(packages)},
+    }
+    return one
+
+
+def test_the_apps_the_television_exempts_are_dropped_from_the_list() -> None:
+    """A budget beside one of them would be a control the engine ignores (D35)."""
+    one = exempting(with_noise(), "app.tvsitter.tv", "com.netflix")
+
+    written = only(one)
+
+    assert written["apps"] == []
+    assert written["exempt_apps"] == ["app.tvsitter.tv", "com.netflix"]
+
+
+def test_a_television_that_names_none_still_has_this_app_dropped() -> None:
+    """Empty means none are known, not that none exist — so the constant stands."""
+    written = only(with_noise())
+
+    assert [app["package"] for app in written["apps"]] == ["com.netflix"]
+    assert written["exempt_apps"] == ["app.tvsitter.tv"]
+
+
+def test_an_exempt_app_is_named_so_the_page_can_say_why_it_is_missing() -> None:
+    """An app that vanishes without a word reads as a panel that lost it."""
+    written = only(exempting(with_noise(), "com.android.systemui"))
+
+    assert written["exempt_apps"] == ["com.android.systemui"]
+    assert "com.android.systemui" not in [app["package"] for app in written["apps"]]
+
+
+def with_pin() -> Television:
+    """Build a television with the two controls a parent PIN is changed by."""
+    return television(parent_pin="unknown", clear_pin="unknown")
+
+
+async def test_a_new_pin_goes_to_the_television_as_a_value_to_hash() -> None:
+    """Home Assistant hashes it on the way through; the PIN reaches no broker."""
+    home = Recorder()
+
+    await apply(home, [with_pin()], {"id": DEVICE, "action": "set_pin", "pin": "4213"})
+
+    assert home.calls == [
+        ("text", "set_value", {"entity_id": "x.parent_pin", "value": "4213"})
+    ]
+
+
+async def test_clearing_the_pin_presses_the_button_that_clears_it() -> None:
+    """There is nothing to write: a null hash is what the button sends."""
+    home = Recorder()
+
+    await apply(home, [with_pin()], {"id": DEVICE, "action": "clear_pin"})
+
+    assert home.calls == [("button", "press", {"entity_id": "x.clear_pin"})]
+
+
+async def test_a_set_pin_with_no_pin_is_refused_in_words() -> None:
+    """And in words that could not carry one, because there is none to carry."""
+    home = Recorder()
+
+    with pytest.raises(ValueError) as refusal:
+        await apply(home, [with_pin()], {"id": DEVICE, "action": "set_pin"})
+
+    assert str(refusal.value).endswith(".")
+    assert home.calls == []
+
+
+async def test_a_refused_pin_is_never_written_down_anywhere() -> None:
+    """Home Assistant quotes the value it refused, and the panel logs its refusals."""
+
+    class Refusing(Recorder):
+        """A Home Assistant that refuses a PIN the way the text entity does."""
+
+        async def call(self, domain: str, service: str, data: dict[str, Any]) -> None:
+            """Refuse, quoting the value, as `TextEntity.async_set_value` does."""
+            raise RuntimeError(
+                f"text.set_value was refused: Value {data['value']} for "
+                "text.tv_salon_parent_pin doesn't match pattern [0-9]{4}$"
+            )
+
+    with pytest.raises(ValueError) as refusal:
+        await apply(
+            Refusing(), [with_pin()], {"id": DEVICE, "action": "set_pin", "pin": "4213"}
+        )
+
+    assert "4213" not in str(refusal.value)
+    # Dropped rather than chained: `from None` is what keeps Home Assistant's own
+    # refusal, and the PIN it quotes, out of a traceback and out of the log with it.
+    assert refusal.value.__cause__ is None
+    assert "doesn't match pattern" not in "".join(
+        traceback.format_exception(refusal.value)
+    )
+
+
+async def test_a_television_without_the_pin_controls_says_which_it_has_not() -> None:
+    """An older integration is missing one control rather than broken."""
+    with pytest.raises(ValueError) as refusal:
+        await apply(
+            Recorder(),
+            [television()],
+            {"id": DEVICE, "action": "set_pin", "pin": "4213"},
+        )
+
+    assert "parent_pin" in str(refusal.value)
+    assert "4213" not in str(refusal.value)

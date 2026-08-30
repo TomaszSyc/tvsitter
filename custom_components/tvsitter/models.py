@@ -56,6 +56,13 @@ class StateSnapshot:
     # is a control that is ignored (#130).
     exempt_apps: tuple[str, ...] = ()
 
+    # Every app a child could open, package to label, whether or not anybody has opened
+    # it. `per_app` is usage, so an allow-list built out of it can only refuse what the
+    # television has already run — never the app installed this afternoon, which is the
+    # one an allow-list is for (#102). Empty means the set could not enumerate: no
+    # allow-list screen, rather than a promise that nothing is installed.
+    launchable_apps: dict[str, str] = field(default_factory=dict)
+
     pin_set: bool = False
     pin_changed_at: int | None = None
     pin_changed_by: str | None = None
@@ -91,6 +98,7 @@ class StateSnapshot:
             rules_rev=int(data.get("rules_rev") or 0),
             # A tuple, because a frozen dataclass holding a list is frozen in name only.
             exempt_apps=tuple(data.get("exempt_apps") or ()),
+            launchable_apps=dict(data.get("launchable_apps") or {}),
             pin_set=bool(data.get("pin_set", False)),
             pin_changed_at=data.get("pin_changed_at"),
             pin_changed_by=data.get("pin_changed_by"),

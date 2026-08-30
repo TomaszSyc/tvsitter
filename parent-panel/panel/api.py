@@ -19,15 +19,26 @@ from __future__ import annotations
 
 from typing import Any
 
+from . import statistics
 from .home_assistant import DOMAIN, WEEK, HomeAssistant, Television
+
+# This app's own package, kept for a television that has not said which packages no
+# rule can reach. Not the answer while there is a better one: the set resolves the
+# exempt packages from the platform and is the only thing that knows the launcher and
+# the screen saver among them. This one is knowable here because the panel, the
+# integration and the television are one product with one name.
+OURS = "app.tvsitter.tv"
+
+# Where the television's own answer lands. It travels in the state payload rather than
+# in the rules, so it hangs off whichever of the entities the integration hung the rest
+# of that payload on; asking each in turn costs a dictionary lookup, and asking the
+# wrong one falls back to the constant above rather than to a wrong list.
+EXEMPT = "exempt_apps"
+EXEMPT_FROM = ("rules", "active_app", "used_today")
 
 # The rules the television echoes back, under the names it sends them by. Only the two
 # list-shaped ones are read here; the rest have entities of their own that say the same
 # thing, and reading a number twice is how the two come to disagree.
-# This app's own package. Written here rather than discovered: it is a constant of the
-# product — the panel, the integration and the television are one thing with one name.
-OURS = "app.tvsitter.tv"
-
 RULE_WINDOWS = "windows"
 RULE_APPS_ALLOWED = "apps_allowed"
 
@@ -41,18 +52,43 @@ SLOT_MINUTES = 30
 SLOTS_PER_DAY = 24 * 60 // SLOT_MINUTES
 
 
-def snapshot(televisions: list[Television]) -> dict[str, Any]:
+async def gathered(
+    home: HomeAssistant, televisions: list[Television]
+) -> dict[str, Any]:
+    """Build the page's whole answer, including the part only the recorder holds.
+
+    Apart from `snapshot` because this one is a round trip and that one is pure: the
+    seven days are long-term statistics, which no state carries and no REST route reads
+    (#103). A read that fails leaves them empty rather than the page blank.
+    """
+    return snapshot(televisions, await statistics.by_television(home, televisions))
+
+
+def snapshot(
+    televisions: list[Television],
+    by_app: dict[str, list[dict[str, Any]]] | None = None,
+) -> dict[str, Any]:
     """Build everything the page draws, out of what was read from Home Assistant.
 
     Pure, so what a parent would see can be checked against a handful of made-up states
-    rather than against a house.
+    rather than against a house. The seven days are handed in for the same reason: they
+    come from a socket, and a page that can be tested without one is worth the argument.
     """
-    return {"televisions": [described(one) for one in televisions], "error": None}
+    by_app = by_app or {}
+    return {
+        "televisions": [
+            described(one, by_app.get(one.device_id, [])) for one in televisions
+        ],
+        "error": None,
+    }
 
 
-def described(television: Television) -> dict[str, Any]:
+def described(
+    television: Television, by_app: list[dict[str, Any]] | None = None
+) -> dict[str, Any]:
     """Say everything about one television, in the words the contract uses."""
     allowed = strings(television.rules.get(RULE_APPS_ALLOWED))
+    exempt = exempt_apps(television)
     return {
         "id": television.device_id,
         "name": television.name,
@@ -72,9 +108,13 @@ def described(television: Television) -> dict[str, Any]:
         "sleep_timer": television.number("sleep_timer"),
         "warn_before": television.number("warn_before"),
         "block_settings": flag(television, "block_settings"),
+        # Two weeks, and the names keep them apart: `week` is a rule — what each day of
+        # the week allows — and `week_by_app` is what happened over the last seven days.
         "week": {day: television.number(f"limit_{day}") for day in WEEK},
-        "apps": apps(television, allowed),
+        "week_by_app": weekly(by_app, exempt),
+        "apps": apps(television, allowed, exempt),
         "allowed_apps": allowed,
+        "exempt_apps": exempt,
         "windows": windows(television.rules.get(RULE_WINDOWS)),
         "following_schedule": following(television),
         "hours": hours(television.rules.get(RULE_WINDOWS)),
@@ -82,7 +122,38 @@ def described(television: Television) -> dict[str, Any]:
     }
 
 
-def apps(television: Television, allowed: list[str]) -> list[dict[str, Any]]:
+def weekly(
+    by_app: list[dict[str, Any]] | None, exempt: list[str]
+) -> list[dict[str, Any]]:
+    """Hand on the seven days as they were read, without the apps no rule reaches.
+
+    The same packages the daily list drops, dropped from the same page: a parent
+    reading the two lists side by side would take an app missing from one and present
+    in the other for a fault. And they are the launcher and this app's own lock screen,
+    which is the set idling rather than anything anybody sat down to watch.
+    """
+    return [app for app in by_app or [] if app.get("package") not in exempt]
+
+
+def exempt_apps(television: Television) -> list[str]:
+    """List the packages no rule on this television can reach.
+
+    The television resolves them from the platform and is the only thing that knows
+    them: this app, the home screen, whatever screen saver the set has (D35, #130). Its
+    own answer beats the constant written here, which stays for a set that has not
+    given one yet — an empty list means none are known, not that none exist, and a
+    budget drawn for one in the meantime would be a control the engine ignores.
+    """
+    for key in EXEMPT_FROM:
+        said = strings(television.attribute(key, EXEMPT))
+        if said:
+            return said
+    return [OURS]
+
+
+def apps(
+    television: Television, allowed: list[str], exempt: list[str]
+) -> list[dict[str, Any]]:
     """List what the child has watched today, the longest first.
 
     An empty allow-list allows everything rather than nothing — the reading every
@@ -98,30 +169,34 @@ def apps(television: Television, allowed: list[str]) -> list[dict[str, Any]]:
             "allowed": not allowed or package in allowed,
         }
         for package in television.apps
-        if worth_showing(package, television, allowed)
+        if worth_showing(package, television, allowed, exempt)
     ]
     # Name as the tie-break: the registry hands these over in whatever order it holds
     # them, and two apps on nought minutes would otherwise swap places on a refresh.
     return sorted(listed, key=lambda app: (-app["minutes"], app["name"]))
 
 
-def worth_showing(package: str, television: Television, allowed: list[str]) -> bool:
+def worth_showing(
+    package: str, television: Television, allowed: list[str], exempt: list[str]
+) -> bool:
     """Say whether an app belongs on a page a parent is deciding things on.
 
     Two kinds are dropped, and both would otherwise be controls that lie.
 
-    This app is never listed. The engine exempts it and the launcher from an allow-list
-    on purpose (D35): a parent who ticked four apps would leave the launcher off it, and
-    the answer to "the launcher is not allowed" would be to send the television to the
-    launcher, forever. A tick beside TV Sitter would do nothing, and a control that does
-    nothing is worse than none. The launcher is not known here — its own issue.
+    An exempt app is never listed. The engine exempts this app, the launcher and the
+    screen saver from an allow-list on purpose (D35): a parent who ticked four apps
+    would leave the launcher off it, and the answer to "the launcher is not allowed"
+    would be to send the television to the launcher, forever. A tick beside TV Sitter
+    would do nothing, and a control that does nothing is worse than none. Which
+    packages those are comes from the set, which is the only thing that can resolve
+    them (#130).
 
     And a package with no time, no budget and no place on the allow-list is not
     something anybody watched: `android` and `com.android.systemui` arrive because the
     set charges them the odd second between apps. Anything a parent has decided about
     stays, however little it has run.
     """
-    if package == OURS:
+    if package in exempt:
         return False
     return bool(
         television.app_minutes(package)
@@ -333,6 +408,12 @@ async def apply(
                 {"day": text(request, "day")},
                 request,
             )
+        case "set_pin":
+            await set_pin(home, television, request)
+        case "clear_pin":
+            await home.call(
+                "button", "press", {"entity_id": entity(television, "clear_pin")}
+            )
         case "hours":
             refuse_while_following(television)
             await home.call(
@@ -345,6 +426,32 @@ async def apply(
             )
         case _:
             raise ValueError(f"There is nothing called {action!r} to do.")
+
+
+async def set_pin(
+    home: HomeAssistant, television: Television, request: dict[str, Any]
+) -> None:
+    """Send a new parent PIN to the television, and never repeat it anywhere.
+
+    Home Assistant hashes it on the way through, so what reaches the broker is a digest
+    and the PIN itself stops at the text entity. It must stop at this function too: the
+    refusal Home Assistant sends back for a PIN that is not four digits quotes the value
+    it refused, and every refusal here is logged. So the failure is said again in words
+    of our own, and the original is dropped rather than chained — a traceback carrying
+    it would put it in the log by the other door.
+    """
+    pin = text(request, "pin")
+    try:
+        await home.call(
+            "text",
+            "set_value",
+            {"entity_id": entity(television, "parent_pin"), "value": pin},
+        )
+    except RuntimeError:
+        raise ValueError(
+            f"{television.name} would not take that PIN. It is four digits, and the "
+            "television has to be reporting for one to arrive."
+        ) from None
 
 
 async def switched(

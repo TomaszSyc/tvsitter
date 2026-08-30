@@ -68,6 +68,31 @@ data class StateSnapshot(
      */
     @SerialName("exempt_apps") val exemptApps: List<String> = emptyList(),
     /**
+     * Every app a child could open, package to label, whether or not anybody has opened it yet.
+     *
+     * [perApp] is usage, so an allow-list built out of it can only refuse the apps this
+     * television has already run — and the one that needs refusing is the one installed this
+     * afternoon and not opened since (#102). This answers the other question: not what was
+     * watched, but what is there to watch.
+     *
+     * Launchable apps rather than installed packages. A Google TV carries several hundred
+     * packages and almost none of them are something a child can start; the ones with a launcher
+     * entry point are the ones on the home screen, which is what "could be opened here" means.
+     *
+     * The labels travel with the packages because only the television has them, and they are the
+     * same labels [perAppNames] carries — one package must not be called two things by one
+     * payload.
+     *
+     * Size is why it is bounded that way rather than truncated. A package and a label come to
+     * about 35 bytes of JSON, so sixty apps is around 2 kB in a payload the broker keeps and
+     * replays on every connect, where the several hundred packages a television carries would be
+     * ten times that for nothing. A cap would instead leave an allow-list that silently cannot
+     * refuse whatever fell off the end, which is the failure this field exists to remove. Empty
+     * means the television could not enumerate — an allow-list screen with nothing to offer, not
+     * a promise that nothing is installed.
+     */
+    @SerialName("launchable_apps") val launchableApps: Map<String, String> = emptyMap(),
+    /**
      * Whether the television can still draw over other apps, and still read usage.
      *
      * Either being false means the product is not working, and both are one Settings screen

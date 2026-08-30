@@ -30,6 +30,7 @@ from homeassistant.util import dt as dt_util
 from . import TvSitterConfigEntry
 from .const import (
     ATTR_DAY,
+    ATTR_EXEMPT_APPS,
     ATTR_FOLLOWING_SCHEDULE,
     ATTR_MINUTES,
     ATTR_PACKAGE,
@@ -329,7 +330,9 @@ class RulesSensor(TvSitterEntity, SensorEntity):
         """
         rules = self._client.rules
         followed = self._client.followed_schedule
-        if rules is None and followed is None:
+        snapshot = self._client.snapshot
+        exempt = list(snapshot.exempt_apps) if snapshot else []
+        if rules is None and followed is None and not exempt:
             return None
         attributes = dict(rules or {})
         # This side owns the name outright, which is why the television's is dropped
@@ -341,6 +344,13 @@ class RulesSensor(TvSitterEntity, SensorEntity):
         attributes.pop(ATTR_FOLLOWING_SCHEDULE, None)
         if followed is not None:
             attributes[ATTR_FOLLOWING_SCHEDULE] = followed
+        # The packages a rule cannot reach, from the set that resolved them. Beside the
+        # rules because that is what they are about: an app on this list is one no rule
+        # written here will ever apply to, so anything drawing a control for it is
+        # drawing one that is ignored (D35, #130). The television owns this name — it is
+        # the only thing that can answer it — so its value is kept rather than dropped.
+        if exempt:
+            attributes[ATTR_EXEMPT_APPS] = exempt
         return attributes
 
     async def async_set_schedule(self, day: str, minutes: float | None = None) -> None:

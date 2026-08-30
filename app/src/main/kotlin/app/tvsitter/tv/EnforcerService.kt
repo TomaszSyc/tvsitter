@@ -51,6 +51,7 @@ class EnforcerService : Service() {
     private var locks: LockController? = null
     private var screenState: ScreenState? = null
     private var appLabels: AppLabels? = null
+    private var launchable: LaunchableApps? = null
     private var foregroundApps: ForegroundAppMonitor? = null
     private var telemetry: Telemetry? = null
     private var screenTime: ScreenTimeTracker? = null
@@ -191,7 +192,10 @@ class EnforcerService : Service() {
             onLimitStandDown = { screenTime?.setLimitAside(true) },
             onChanged = { telemetry?.publishSoon() },
         )
-        appLabels = AppLabels(this)
+        val labels = AppLabels(this).also { appLabels = it }
+        // What is installed, which is a different question from what has been watched: an
+        // allow-list built out of usage can only refuse apps already run (#102).
+        launchable = LaunchableApps(this, labels)
         activeRules = ActiveRules(this)
         dayTally = DayTally(this, scope)
         permissions = PermissionWatch(this) { kind -> telemetry?.publish(alertOf(kind)) }
@@ -475,8 +479,8 @@ class EnforcerService : Service() {
             bonusTodaySeconds = screenTime?.bonusSeconds ?: 0,
             perApp = screenTime?.perAppSeconds ?: emptyMap(),
             // Named here because the labels exist here and nowhere else. Only the packages
-            // that have time against them: a list of everything installed is a different
-            // thing, and one Play would ask harder questions about (#14).
+            // that have time against them; what is merely installed is a different question,
+            // and it travels in launchableApps below rather than muddled into this map.
             perAppNames = screenTime?.perAppSeconds.orEmpty().keys
                 .associateWith { appLabels?.labelOf(it) ?: it },
             // Published rather than assumed: this TV keeps its own rules and enforces them
@@ -494,6 +498,10 @@ class EnforcerService : Service() {
             // What a rule cannot reach, so Home Assistant does not offer a control for it.
             // Sorted, so two payloads holding the same set are the same bytes.
             exemptApps = locks?.exemptPackages.orEmpty().sorted(),
+            // Everything a child could open, named here because the labels are here. Not the
+            // same set as per_app: an app nobody has started yet has no time against it, and
+            // that is exactly the app an allow-list is for (#102).
+            launchableApps = launchable?.all.orEmpty(),
             canOverlay = permissions?.canOverlay != false,
             canUsage = permissions?.canUsage != false,
             // Whether a PIN exists and when it last changed, never the PIN or its hash. A
@@ -523,6 +531,7 @@ class EnforcerService : Service() {
         locks = null
         parentPin = null
         appLabels = null
+        launchable = null
         foregroundApps = null
         instance = null
         scope.cancel()

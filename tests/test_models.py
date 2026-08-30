@@ -156,3 +156,31 @@ def test_a_television_that_says_nothing_exempts_nothing() -> None:
     snapshot = StateSnapshot.from_payload(json.dumps({"schema": 1, "ts": 1}))
 
     assert snapshot.exempt_apps == ()
+
+
+def test_what_is_installed_arrives_apart_from_what_was_watched() -> None:
+    """#102. An allow-list out of `per_app` can only refuse what has run already."""
+    snapshot = StateSnapshot.from_payload(
+        json.dumps(
+            {
+                "schema": 1,
+                "ts": 1,
+                "per_app": {"com.netflix.ninja": 610},
+                "launchable_apps": {
+                    "com.netflix.ninja": "Netflix",
+                    "com.disney.disneyplus": "Disney+",
+                },
+            }
+        )
+    )
+
+    assert snapshot.launchable_apps["com.disney.disneyplus"] == "Disney+"
+    # Nobody has opened it, so no reading of the usage map would have found it.
+    assert "com.disney.disneyplus" not in snapshot.per_app
+
+
+def test_a_television_that_cannot_enumerate_offers_nothing() -> None:
+    """Empty is "no allow-list screen", not "nothing is installed"."""
+    snapshot = StateSnapshot.from_payload(json.dumps({"schema": 1, "ts": 1}))
+
+    assert snapshot.launchable_apps == {}
