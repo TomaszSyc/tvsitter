@@ -121,7 +121,13 @@ def _joined(part: str) -> str:
             held = []
     # The escapes are what a browser has already turned back into characters by the time
     # a lookup happens, so the key is the sentence and not the way it is spelled.
-    return "".join(said).encode("utf-8").decode("unicode_escape")
+    #
+    # Through latin-1 rather than utf-8, because the source spells the same character
+    # both ways: `\u2026` in one line and a literal … in the next, depending on which
+    # hand wrote it. Encoding to utf-8 first would hand `unicode_escape` three bytes of
+    # a character it reads one byte at a time, and the sentence would come back as
+    # mojibake that matches nothing.
+    return "".join(said).encode("latin-1", "backslashreplace").decode("unicode_escape")
 
 
 def asked() -> list[str]:

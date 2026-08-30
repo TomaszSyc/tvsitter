@@ -197,6 +197,18 @@ input {
   padding: 0.45rem 0.6rem;
   width: 5rem;
 }
+/* Written with the boxes rather than left to the platform: a select in its default
+   dress is a light grey control on a dark page, and the one place a parent picks
+   something from a list should not look as though it came from somewhere else. */
+select {
+  background: var(--backdrop);
+  border: 1px solid var(--edge);
+  border-radius: 12px;
+  color: var(--text);
+  font: inherit;
+  max-width: 100%;
+  padding: 0.45rem 0.6rem;
+}
 input[type="checkbox"] {
   accent-color: var(--accent);
   height: 1.35rem;
@@ -688,6 +700,10 @@ _SCRIPT = """
   );
 
   let views = new Map();
+
+  // What to tell when the notification setup has been read. One list rather than one
+  // per television: the answer covers every set at once and is asked for once.
+  const wanting = [];
   let chosen = null;
   let where = WHERE[0];
   // Never a key any list can produce, so the first paint always builds, even the
@@ -1088,6 +1104,7 @@ _SCRIPT = """
     });
 
     pinCard(view);
+    askingCard(view);
   }
 
   /**
@@ -1100,6 +1117,109 @@ _SCRIPT = """
    * Assistant says about a PIN it would not take is a sentence quoting the PIN, which
    * is why the four digits are asked for here before anything goes.
    */
+  /**
+   * Which phone is asked when the child asks, which was YAML until now.
+   *
+   * The automation behind this is the one thing left in the product that a parent had
+   * to set up by hand: copy a blueprint into the configuration directory, reload,
+   * create an automation from it, choose the targets. The add-on has been able to do
+   * all of it since it could write blueprints — from everywhere except a page (#104).
+   *
+   * Two phones rather than one because a request nobody answers is a child sitting in
+   * front of a locked television, and one parent is out more often than both are.
+   */
+  function askingCard(view) {
+    const box = card(view, "now", phrase("Asking for more time"));
+    const lead = el("p", "hint",
+      phrase("When the child asks for more time, Home Assistant sends the question " +
+        "to a phone with buttons to answer it."));
+    const nothing = el("p", "empty");
+    const row = el("div", "row");
+    const first = picker(row, phrase("Ask"));
+    const second = picker(row, phrase("And also"));
+    const save = el("button", null, phrase("Save"));
+    save.type = "button";
+    const note = notice();
+    row.appendChild(save);
+    box.append(lead, nothing, row, note);
+
+    /** Fill one picker with the phones, leaving whatever is chosen chosen. */
+    function offer(into, phones, chosen, none) {
+      into.textContent = "";
+      const blank = el("option", null, none);
+      blank.value = "";
+      into.appendChild(blank);
+      phones.forEach((phone) => {
+        const one = el("option", null, called(phone));
+        one.value = phone;
+        into.appendChild(one);
+      });
+      into.value = chosen && phones.indexOf(chosen) >= 0 ? chosen : "";
+    }
+
+    /** A notify service, as the phone somebody would call it. */
+    function called(service) {
+      const bare = service.replace("notify.mobile_app_", "").split("_").join(" ");
+      return bare ? bare[0].toUpperCase() + bare.slice(1) : service;
+    }
+
+    save.addEventListener("click", async () => {
+      hold(note, phrase("Saving\u2026"));
+      let answer = null;
+      try {
+        const back = await fetch("api/setup", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({
+            id: view.id,
+            notify: first.value,
+            also_notify: second.value,
+          }),
+        });
+        answer = await back.json();
+      } catch (failure) {
+        answer = {ok: false, error: phrase("The panel could not reach the add-on.")};
+      }
+      // Read back before saying anything, the way every other change here does: what
+      // was made is Home Assistant's answer rather than this one's guess.
+      await askSetup();
+      if (answer && answer.ok) say(note, phrase("Saved"), false);
+      else {
+        say(note, (answer && answer.error) ||
+          phrase("Home Assistant refused it."), true);
+      }
+    });
+
+    wanting.push((said) => {
+      const mine = ((said && said.televisions) || [])
+        .filter((one) => one.id === view.id)[0];
+      const phones = (said && said.notify) || [];
+      const usable = Boolean(mine && mine.ready) && phones.length > 0;
+      row.hidden = !usable;
+      lead.hidden = !usable;
+      nothing.hidden = usable;
+      if (!usable) {
+        nothing.textContent = (said && said.error) || phrase(mine && !mine.ready
+          ? "This television has no time request to answer. It was set up by an " +
+            "older version of the integration, which had none."
+          : "No phone with the Home Assistant app on it was found, and only a phone " +
+            "can carry buttons to answer with.");
+        return;
+      }
+      offer(first, phones, mine.notify, phrase("Nobody"));
+      offer(second, phones, mine.also_notify, phrase("Nobody else"));
+    });
+  }
+
+  /** One labelled picker in a row, built the way the numbered boxes beside it are. */
+  function picker(row, label) {
+    const wrap = el("label", "name short");
+    const chosen = el("select");
+    wrap.append(el("span", null, label), chosen);
+    row.appendChild(wrap);
+    return chosen;
+  }
+
   function pinCard(view) {
     const box = card(view, "now", phrase("The parent PIN"));
     box.appendChild(el("p", "hint",
@@ -2184,6 +2304,25 @@ _SCRIPT = """
     });
   }
 
+  /**
+   * What the notification setup looks like, asked apart from the state.
+   *
+   * A different question with a different answer: which phones this house has, and
+   * which television already has an automation answering it. Asked once and again after
+   * a change rather than every five seconds — a phone is not a thing that appears while
+   * somebody is looking at a page, and this one costs a registry read.
+   */
+  async function askSetup() {
+    let said = null;
+    try {
+      const back = await fetch("api/setup", {headers: {"Accept": "application/json"}});
+      said = await back.json();
+    } catch (failure) {
+      said = {error: phrase("The panel could not reach the add-on.")};
+    }
+    wanting.forEach((one) => one(said));
+  }
+
   function beat() {
     // A panel in a pocket is a panel nobody is reading, and a phone's battery is worth
     // more than a figure that is five seconds fresher than the moment it is looked at.
@@ -2236,6 +2375,7 @@ _SCRIPT = """
   setInterval(beat, POLL_MS);
   route();
   poll();
+  askSetup();
 })();
 """
 

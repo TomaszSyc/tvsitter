@@ -255,6 +255,28 @@ POLISH: dict[str, str] = {
         "Odczytywane z {helper} przy każdej zmianie, więc siatka poniżej jest tylko do "
         "odczytu."
     ),
+    # Asking for more time.
+    "Asking for more time": "Prośba o więcej czasu",
+    "When the child asks for more time, Home Assistant sends the question to a phone "
+    "with buttons to answer it.": (
+        "Gdy dziecko poprosi o więcej czasu, Home Assistant wyśle pytanie na telefon, "
+        "z przyciskami do odpowiedzi."
+    ),
+    "Ask": "Zapytaj",
+    "And also": "A także",
+    "Save": "Zapisz",
+    "Nobody": "Nikogo",
+    "Nobody else": "Nikogo więcej",
+    "This television has no time request to answer. It was set up by an older version "
+    "of the integration, which had none.": (
+        "Ten telewizor nie ma prośby o czas, na którą można by odpowiedzieć. Został "
+        "dodany starszą wersją integracji, która jej nie miała."
+    ),
+    "No phone with the Home Assistant app on it was found, and only a phone can carry "
+    "buttons to answer with.": (
+        "Nie znaleziono telefonu z aplikacją Home Assistant, a tylko telefon uniesie "
+        "przyciski do odpowiedzi."
+    ),
     # The page itself.
     "Everything here comes from Home Assistant, which is the only thing that talks to "
     "the televisions.": (
