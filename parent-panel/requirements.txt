@@ -1,4 +1,4 @@
 # The panel's one dependency. In a file rather than pinned inline in the Dockerfile so that
 # Dependabot watches it: the `docker` ecosystem tracks the base image and nothing installed
 # on top of it, and a pin nobody watches is a pin that quietly goes stale.
-aiohttp==3.13.2
+aiohttp==3.14.3
