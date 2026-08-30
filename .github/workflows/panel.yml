@@ -75,7 +75,7 @@ jobs:
           owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           echo "image=ghcr.io/$owner/tvsitter-parent-panel-${{ matrix.arch }}" >> "$GITHUB_OUTPUT"
 
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         with:
           context: parent-panel
           platforms: ${{ matrix.platform }}
