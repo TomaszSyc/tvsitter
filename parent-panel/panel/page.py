@@ -157,6 +157,8 @@ button {
 }
 button:hover { background: var(--edge); }
 button[aria-pressed="true"] { background: var(--accent); color: var(--backdrop); }
+/* The colour the page warns in, on the one button that takes something away. */
+.danger, .danger:hover { background: var(--warn); color: var(--backdrop); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 input {
   background: var(--backdrop);
@@ -223,6 +225,9 @@ input[type="checkbox"] {
 /* A card opening with a row opens with a rule across it, which reads as a mistake. */
 .row:first-child { border-top: 0; }
 .row .name { flex: 1 1 8rem; min-width: 0; }
+/* A label that gives the rest of the row its width back, where what follows it is a
+   short box and a button rather than a number and a unit. */
+.row .name.short { flex: 0 1 auto; }
 .row .name small {
   color: var(--muted);
   display: block;
@@ -237,6 +242,49 @@ input[type="checkbox"] {
 .note { color: var(--accent); }
 .note:empty { display: none; }
 .note.bad { color: var(--warn); }
+/*
+ * The seven days as blocks rather than as seven rows.
+ *
+ * They hold one short number each and are identical in shape, so a full-width row
+ * apiece was a card taller than the screen — with the hours grid, which is the thing
+ * on this destination worth looking at, below the far end of it. Seven across
+ * wherever seven fit, and a week that wraps rather than one that scrolls.
+ */
+.days {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr));
+  margin-top: 0.9rem;
+}
+.dayline {
+  background: var(--backdrop);
+  border-radius: 14px;
+  min-width: 0;
+  padding: 0.5rem 0.6rem;
+}
+.dayline label {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.dayline .hint { font-size: 0.75rem; margin-top: 0.3rem; }
+/* Only a day that has an allowance of its own has anything to say about itself. */
+.dayline .hint:empty { display: none; }
+.pair { align-items: center; display: flex; gap: 0.3rem; margin-top: 0.3rem; }
+/* The box takes the block's width rather than the width every other box shares, and
+   gives up the spinner for it: three digits and a pair of arrows do not both fit in a
+   seventh of a phone, and the arrows are the half nobody came here to press. */
+.pair input {
+  appearance: textfield;
+  min-width: 0;
+  padding-left: 0.4rem;
+  padding-right: 0.4rem;
+  width: 100%;
+}
+.pair input::-webkit-inner-spin-button { appearance: none; margin: 0; }
+.pair .unit { font-size: 0.75rem; }
 .split { display: grid; gap: 0.9rem; margin-top: 1.3rem; }
 .app { display: grid; gap: 0.35rem 0.8rem; grid-template-columns: 1fr auto; }
 .app .who {
@@ -412,6 +460,12 @@ _SCRIPT = """
 
   /** How long a keyed change waits for the next, so a held key is still one write. */
   const KEYED_MS = 400;
+
+  // How long a parent PIN is, which is `ParentPin.LENGTH` on the television and
+  // `parent_pin.LENGTH` in the integration. Checked here as well so that four digits
+  // are asked for before anything is sent, rather than after Home Assistant has
+  // refused them — its refusal quotes what it refused, and that is a PIN in a log.
+  const PIN_LENGTH = 4;
 
   // The arrows, as a day and a half hour to move by. Clamped rather than wrapped: an
   // arrow that runs off Monday morning into Sunday night is a box nobody aimed at.
@@ -757,6 +811,100 @@ _SCRIPT = """
       foot.textContent =
         (heard(tv.last_reported) + revision(tv.rules_revision)).trim();
     });
+
+    pinCard(view);
+  }
+
+  /**
+   * The parent PIN, set and taken away under the pill that reports it (#133).
+   *
+   * Nothing is ever read back into the box. The entity holds no PIN to read — a hash
+   * is what is kept — so a box arriving with something in it would be this page
+   * inventing one. What was typed leaves the box the moment it is sent, and it is in
+   * no message, no refusal and nothing this page hands to anybody else: what Home
+   * Assistant says about a PIN it would not take is a sentence quoting the PIN, which
+   * is why the four digits are asked for here before anything goes.
+   */
+  function pinCard(view) {
+    const box = card(view, "now", "The parent PIN");
+    box.appendChild(el("p", "hint",
+      "Home Assistant hashes it and sends the hash, so the television is never told " +
+      "the digits typed here."));
+    const note = el("p", "note");
+    const row = line(box);
+    seq += 1;
+    const input = el("input");
+    input.id = "k" + seq;
+    input.type = "password";
+    input.inputMode = "numeric";
+    // Off rather than `new-password`, which is an invitation to a password manager to
+    // keep it. The card promises the digits are not written down; offering them to
+    // whatever is listening for a new password would be the page breaking that itself.
+    input.autocomplete = "off";
+    input.maxLength = PIN_LENGTH;
+    input.placeholder = "\\u2022\\u2022\\u2022\\u2022";
+    const tag = el("label", "name short", "New PIN");
+    tag.htmlFor = input.id;
+    const set = el("button", null, "Set the PIN");
+    set.type = "button";
+    row.append(tag, input, set);
+
+    // Removing one is two taps rather than one, because it is the tap that cannot be
+    // undone: the PIN itself is not kept anywhere, so a stray one is not a setting to
+    // put back but a PIN to think of again and type into every television.
+    const drop = line(box);
+    const ask = el("button", null, "Remove the PIN");
+    const yes = el("button", "danger", "Yes, remove it");
+    const no = el("button", null, "Keep it");
+    const why = el("p", "hint",
+      "Without a PIN a lock cannot be lifted at the television at all, only from " +
+      "Home Assistant.");
+    [ask, yes, no].forEach((one) => { one.type = "button"; });
+    // No label on this row: the buttons say what they do, and a word in front of them
+    // would only repeat the heading of the card they are in.
+    drop.append(ask, yes, no, why);
+    box.appendChild(note);
+
+    /** Whether the second tap is the one being waited for. */
+    function arm(on) {
+      ask.hidden = on;
+      yes.hidden = !on;
+      no.hidden = !on;
+      why.hidden = !on;
+    }
+    arm(false);
+
+    set.addEventListener("click", () => {
+      const typed = input.value.trim();
+      // Out of the box before anything is sent with it. A PIN left sitting in a field
+      // is a PIN whoever picks the phone up next can read out of it, and a refusal
+      // below is a refusal the parent reads rather than one that hands it back.
+      input.value = "";
+      if (typed.length !== PIN_LENGTH || !digits(typed)) {
+        say(note, "A PIN is four digits.", true);
+        return;
+      }
+      act({id: view.id, action: "set_pin", pin: typed}, note, "PIN set");
+    });
+
+    ask.addEventListener("click", () => { arm(true); });
+    no.addEventListener("click", () => { arm(false); });
+    yes.addEventListener("click", () => {
+      arm(false);
+      act({id: view.id, action: "clear_pin"}, note, "PIN removed");
+    });
+
+    view.updates.push((tv) => {
+      // Nothing to take away while there is none: the pill above has already said so,
+      // and a button that removes nothing is a button that answers nothing.
+      drop.hidden = !tv.pin_set;
+      if (!tv.pin_set) arm(false);
+    });
+  }
+
+  /** ASCII digits and nothing else, which is what a television remote can enter. */
+  function digits(said) {
+    return /^[0-9]+$/.test(said);
   }
 
   /** What is left, which stops at nothing left rather than going negative. */
@@ -790,15 +938,39 @@ _SCRIPT = """
     const left = figure(figures, "Left");
     const aside = el("p", "foot");
     const split = el("div", "split");
-    box.append(figures, aside, el("h3", null, "By app"), split);
+    // Two lists of the same shape, so each says which stretch of time it is: "By app"
+    // over one of them and nothing over the other is a week a parent reads as a day.
+    const seven = el("div", "split");
+    const naming = el("p", "hint");
+    box.append(figures, aside, el("h3", null, "Today, by app"), split,
+      el("h3", null, "The last seven days, by app"), naming, seven);
 
     view.updates.push((tv) => {
       used.value.textContent = length(tv.used_today);
       limit.value.textContent = length(tv.limit_today);
       spend(left, tv.remaining_today);
       aside.textContent = besides(tv);
-      bars(split, tv);
+      bars(split, tv.apps, "Nothing watched yet today.");
+      bars(seven, tv.week_by_app, "Nothing recorded yet. These seven days come " +
+        "from Home Assistant's own history rather than from the television, and it " +
+        "has nothing for this set so far \\u2014 which is not the same as a week " +
+        "with nothing watched in it.");
+      naming.hidden = !unnamed(tv.week_by_app);
+      naming.textContent = "Where Home Assistant has no name for an app any more, " +
+        "its package id stands in.";
     });
+  }
+
+  /**
+   * Whether any of the seven days is named by its package id rather than by a name.
+   *
+   * The recorder keeps a figure per app for longer than the television keeps the app,
+   * so a week can carry a row the daily list has no label for. It is said once, above
+   * the list, rather than guessed at per row — and never made up, because a package
+   * id is what the set actually called it.
+   */
+  function unnamed(listed) {
+    return (listed || []).some((app) => !app.name || app.name === app.package);
   }
 
   function besides(tv) {
@@ -814,19 +986,23 @@ _SCRIPT = """
   }
 
   /**
-   * The day split by app, longest first, the way the television draws it.
+   * A stretch of time split by app, longest first, the way the television draws it.
    *
    * Redrawn whole on every poll because there is nothing here to type into. The bar is
    * proportional to the longest thing watched rather than to the limit: the question
    * this answers is what he is watching, and against a limit every interesting row is
    * short.
+   *
+   * What an empty list means is handed in, because it is not the same thing on the two
+   * lists drawn this way: a day with nothing on it is a day nobody watched, and seven
+   * days with nothing on them is a recorder that has not been running that long.
    */
-  function bars(into, tv) {
-    const watched = (tv.apps || [])
+  function bars(into, listed, empty) {
+    const watched = (listed || [])
       .filter((app) => app.minutes > 0)
       .sort((one, other) => other.minutes - one.minutes);
     if (!watched.length) {
-      into.replaceChildren(el("p", "empty", "Nothing watched yet today."));
+      into.replaceChildren(el("p", "empty", empty));
       return;
     }
     const longest = watched[0].minutes;
@@ -867,10 +1043,14 @@ _SCRIPT = """
       "So the rules cannot be turned off from the television itself.");
 
     const week = card(view, "rules", "The week");
-    week.appendChild(el("p", "hint",
-      "A day with its own allowance overrides the daily limit on that day. Clear one " +
-      "to hand the day back; set it to zero to mean no viewing at all."));
-    WEEK.forEach((day) => weekLine(view, week, day[0], day[1]));
+    const lead = el("p", "hint");
+    const days = el("div", "days");
+    // One note for the card. Seven of them were seven places a refusal could turn up
+    // and seven blank lines holding the room open for it while none had.
+    const note = el("p", "note");
+    week.append(lead, days, note);
+    WEEK.forEach((day) => weekLine(view, days, day[0], day[1], day[2], note));
+    view.updates.push((tv) => { lead.textContent = shared(tv.daily_limit); });
 
     hoursCard(view);
   }
@@ -952,10 +1132,16 @@ _SCRIPT = """
     view.updates.push((tv) => { input.checked = Boolean(read(tv)); });
   }
 
-  function weekLine(view, box, key, name) {
-    const row = line(box);
+  /**
+   * One day of the week, as small as a day can be and still be typed into.
+   *
+   * A block rather than a row of its own. Seven of these are a week; seven full-width
+   * rows are seven settings that happen to be dated, and they buried the grid below
+   * them — the one thing on this destination worth scrolling to.
+   */
+  function weekLine(view, into, key, name, short, note) {
+    const cell = el("div", "dayline");
     seq += 1;
-    const tag = el("label", "name", name);
     const input = el("input");
     input.id = "w" + seq;
     input.type = "number";
@@ -963,17 +1149,23 @@ _SCRIPT = """
     input.step = "1";
     input.inputMode = "numeric";
     input.placeholder = "\\u2014";
+    // Three letters across the block, because seven Wednesdays do not fit across a
+    // phone — and the whole day to anything reading it out, because "Wed" is not one.
+    input.setAttribute("aria-label", name);
+    const tag = el("label", null, short);
     tag.htmlFor = input.id;
     const hint = el("p", "hint");
-    const note = el("p", "note");
-    row.append(tag, input, el("span", "unit", "min"), hint, note);
+    const pair = el("div", "pair");
+    pair.append(input, el("span", "unit", "min"));
+    cell.append(tag, pair, hint);
+    into.appendChild(cell);
 
     input.addEventListener("change", () => {
       const raw = input.value.trim();
       const value = Number(raw);
       if (raw !== "" && (!isFinite(value) || value < 0)) {
         input.value = shown((view.tv.week || {})[key]);
-        say(note, "That wants a number of minutes, or nothing.", true);
+        say(note, name + " wants a number of minutes, or nothing.", true);
         return;
       }
       // Empty is not zero. Empty hands the day back to the daily limit; zero is a day
@@ -983,22 +1175,41 @@ _SCRIPT = """
         action: "schedule",
         day: key,
         minutes: raw === "" ? null : value,
-      }, note);
+      }, note, name + " saved");
     });
 
     view.updates.push((tv) => {
       const own = (tv.week || {})[key];
       if (document.activeElement !== input) input.value = shown(own);
-      hint.textContent = falls(own, tv.daily_limit);
+      hint.textContent = falls(own);
     });
   }
 
-  /** What an empty day means, said out loud, because a blank box says nothing. */
-  function falls(own, daily) {
-    if (own === 0) return "No viewing on this day.";
-    if (!unset(own)) return "";
-    if (unset(daily)) return "Takes the daily limit, which is not set either.";
-    return "Takes the daily limit, " + length(daily) + ".";
+  /**
+   * What the seven boxes mean, said once above them rather than under each of them.
+   *
+   * The daily limit is named here because a day left empty is a day that takes it,
+   * which is the whole of what an empty box on this card means — and was the whole of
+   * the sentence that used to sit under every day that had nothing set.
+   */
+  function shared(daily) {
+    const takes = unset(daily) ? "which is not set either." : length(daily) + ".";
+    return "A day with its own allowance overrides the daily limit on that day; a " +
+      "day left empty takes the daily limit, " + takes + " Set a day to zero for no " +
+      "viewing at all.";
+  }
+
+  /**
+   * What one day has to say about itself, which is nothing unless it has an allowance.
+   *
+   * Zero is the day worth a sentence: a nought in a box is the one number here that
+   * does not read as what it means. Anything else set is a number already on the
+   * screen beside its unit, and a day with nothing set is what the line above the
+   * seven of them is for.
+   */
+  function falls(own) {
+    if (own === 0) return "No viewing at all.";
+    return unset(own) ? "" : "Instead of the daily limit.";
   }
 
   function appsPane(view) {

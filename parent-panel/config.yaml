@@ -2,7 +2,7 @@
 # the Core API and nothing else — no `services: mqtt:need`, no broker credentials, and no
 # second writer on topics whose safety rests on there being one.
 name: TV Sitter parent panel
-version: "0.8.0"
+version: "0.8.1"
 slug: tvsitter_panel
 description: The parent's pages for TV Sitter — what is on, what was watched, and the rules
 url: https://github.com/TomaszSyc/tvsitter/tree/main/parent-panel

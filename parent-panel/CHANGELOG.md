@@ -3,6 +3,12 @@
 The version is one SemVer for the whole product (D6): the panel, the integration and the
 Android app share `version.txt` and share a tag.
 
+## 0.8.1
+
+- The parent PIN can be set and removed on the page, not only through the API.
+- The last seven days by app are drawn, not only counted.
+- The week is seven boxes across rather than seven rows, so the hours grid is on screen.
+
 ## 0.8.0
 
 - A weekly grid for the viewing hours, painted with a finger or a mouse.
