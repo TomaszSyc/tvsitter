@@ -414,6 +414,8 @@ async def apply(
             await home.call(
                 "button", "press", {"entity_id": entity(television, "clear_pin")}
             )
+        case "stop_following":
+            await stop_following(home, television)
         case "hours":
             refuse_while_following(television)
             await home.call(
@@ -480,6 +482,24 @@ async def rule(
         data["minutes"] = number(minutes, "minutes")
     data["entity_id"] = entity(television, "rules")
     await home.call(DOMAIN, service, data)
+
+
+async def stop_following(home: HomeAssistant, television: Television) -> None:
+    """Take the hours back off a schedule helper, without changing a single one.
+
+    The windows the helper last wrote stay exactly as they are; what stops is the
+    re-importing, and `following_schedule` goes to null on the next read, which is what
+    unlocks the grid. Said plainly on the page too, because a parent asked to give up a
+    helper will read it as being asked to give up their evenings.
+
+    Sent whichever way the rules stand, and not guarded by `following()` here: a set
+    that is following nothing has nothing to forget, so the service is a no-op rather
+    than a mistake — and the page can offer this against a state one poll out of date
+    without the offer turning into a refusal.
+    """
+    await home.call(
+        DOMAIN, "forget_schedule", {"entity_id": entity(television, "rules")}
+    )
 
 
 def refuse_while_following(television: Television) -> None:

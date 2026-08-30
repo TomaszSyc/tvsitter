@@ -75,6 +75,27 @@ p { margin: 0; }
   margin-bottom: 0.8rem;
   padding: 0.85rem 1.1rem;
 }
+/* A banner that hands back the thing it took away: the sentence, the button out, and
+   underneath both the promise that nothing is being given up by pressing it. */
+.banner.offer {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem 1rem;
+}
+.banner.offer .said { flex: 1 1 15rem; }
+.banner.offer button, .banner.offer button:hover {
+  background: var(--accent);
+  color: var(--backdrop);
+  flex: none;
+}
+/* In the page's own quiet voice rather than the warning's. The reassurance is the half
+   a parent has to believe, and one in the colour of an alarm is not believed. */
+.banner .aside {
+  color: var(--muted);
+  flex-basis: 100%;
+  font-size: 0.85rem;
+}
 /* Which television, which is not one of the destinations and never looks like one. */
 .chooser {
   align-items: center;
@@ -222,8 +243,9 @@ input[type="checkbox"] {
   gap: 0.5rem;
   padding: 0.75rem 0;
 }
-/* A card opening with a row opens with a rule across it, which reads as a mistake. */
-.row:first-child { border-top: 0; }
+/* A card opening with a row opens with a rule across it, which reads as a mistake —
+   and one directly under a heading reads as the heading being underlined. */
+.row:first-child, .card h2 + .row { border-top: 0; }
 .row .name { flex: 1 1 8rem; min-width: 0; }
 /* A label that gives the rest of the row its width back, where what follows it is a
    short box and a button rather than a number and a unit. */
@@ -243,48 +265,60 @@ input[type="checkbox"] {
 .note:empty { display: none; }
 .note.bad { color: var(--warn); }
 /*
- * The seven days as blocks rather than as seven rows.
+ * The week as one strip, not as seven forms.
  *
- * They hold one short number each and are identical in shape, so a full-width row
- * apiece was a card taller than the screen — with the hours grid, which is the thing
- * on this destination worth looking at, below the far end of it. Seven across
- * wherever seven fit, and a week that wraps rather than one that scrolls.
+ * Seven rounded blocks, each holding a small box and the word "min", was mostly empty
+ * space: the card said its unit seven times and its answer once, and the one day
+ * anybody had actually set looked exactly like the six they had not. It is one rule
+ * shown seven times, so it is drawn the way the hours below it are — a single inset
+ * panel, one column per day, the day named in the same muted three letters. The unit
+ * is said once above the seven of them, and what a day is worth is the colour of its
+ * number: its own allowance, or nought, or nothing.
  */
-.days {
-  display: grid;
-  gap: 0.5rem;
-  grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr));
-  margin-top: 0.9rem;
-}
-.dayline {
+.allowances {
   background: var(--backdrop);
-  border-radius: 14px;
-  min-width: 0;
-  padding: 0.5rem 0.6rem;
+  border-radius: 16px;
+  display: grid;
+  gap: 1px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  margin-top: 0.7rem;
+  padding: 0.5rem;
 }
-.dayline label {
+.allowance { min-width: 0; text-align: center; }
+.allowance label {
   color: var(--muted);
+  display: block;
   font-size: 0.75rem;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  margin-bottom: 0.25rem;
 }
-.dayline .hint { font-size: 0.75rem; margin-top: 0.3rem; }
-/* Only a day that has an allowance of its own has anything to say about itself. */
-.dayline .hint:empty { display: none; }
-.pair { align-items: center; display: flex; gap: 0.3rem; margin-top: 0.3rem; }
-/* The box takes the block's width rather than the width every other box shares, and
-   gives up the spinner for it: three digits and a pair of arrows do not both fit in a
-   seventh of a phone, and the arrows are the half nobody came here to press. */
-.pair input {
+/* The box takes its column's width and gives up the spinner for it: three digits and
+   a pair of arrows do not both fit in a seventh of a phone, and the arrows are the
+   half nobody came here to press. Lighter than the strip it sits in, the way a half
+   hour of the grid is lighter than the grid. */
+.allowance input {
   appearance: textfield;
+  background: var(--surface);
+  border: 0;
+  border-radius: 10px;
+  display: block;
+  font-variant-numeric: tabular-nums;
+  margin: 0 auto;
+  /* Three digits wide and no wider. A box that took a seventh of a desktop would put
+     one number in the middle of a slab, which is the emptiness this card had. */
+  max-width: 4.2rem;
   min-width: 0;
-  padding-left: 0.4rem;
-  padding-right: 0.4rem;
+  padding: 0.35rem 0.15rem;
+  text-align: center;
   width: 100%;
 }
-.pair input::-webkit-inner-spin-button { appearance: none; margin: 0; }
-.pair .unit { font-size: 0.75rem; }
+.allowance input::-webkit-inner-spin-button { appearance: none; margin: 0; }
+.allowance input::placeholder { color: var(--muted); opacity: 1; }
+/* A day somebody set is the thing on this card worth seeing, so it is the only thing
+   on it with a colour. Nought takes viewing away, and this page takes things away in
+   the warning colour. */
+.allowance input.set { color: var(--accent); font-weight: 600; }
+.allowance input.none { color: var(--warn); font-weight: 600; }
 .split { display: grid; gap: 0.9rem; margin-top: 1.3rem; }
 .app { display: grid; gap: 0.35rem 0.8rem; grid-template-columns: 1fr auto; }
 .app .who {
@@ -368,8 +402,9 @@ input[type="checkbox"] {
   touch-action: none;
   user-select: none;
 }
-/* Nothing to draw while a schedule helper owns the hours, so the finger has it back. */
-.week.off { touch-action: pan-x; }
+/* Nothing to draw while a schedule helper owns the hours, so the finger has it back —
+   and the week reads as a picture of the hours rather than as boxes that ignored it. */
+.week.off { opacity: 0.75; touch-action: pan-x; }
 .day {
   background: var(--raised);
   border-radius: 8px;
@@ -445,6 +480,9 @@ _SCRIPT = """
   const MINUTES_PER_HOUR = 60;
   const POLL_MS = 5000;
   const NOTE_MS = 3000;
+
+  /** How long a change the integration answers for itself is given to land. */
+  const SETTLE_MS = 700;
 
   /** So the shortest thing watched is still a bar rather than nothing at all. */
   const SHORTEST_BAR = 3;
@@ -738,8 +776,12 @@ _SCRIPT = """
   }
 
   /**
-   * A card on one destination. The first card of each goes untitled: the rail already
-   * says where this is, and a heading repeating it is a word that carries nothing.
+   * A card on one destination.
+   *
+   * A heading that only says the rail's word back is left off, because it carries
+   * nothing. A heading that names which of a destination's parts this one is stays:
+   * where a destination is made of several, naming all of them is what makes them read
+   * as parts rather than as things that happen to be stacked.
    */
   function card(view, name, title) {
     const box = el("section", "card");
@@ -1025,12 +1067,17 @@ _SCRIPT = """
   }
 
   /**
-   * Everything that can be changed, in three cards: what holds every day, what a
-   * particular day overrides it with, and — at the bottom, as the grid it is — the
+   * Everything that can be changed, in three cards that read in an order: what holds
+   * every day, what a particular day overrides it with, and — as the grid it is — the
    * hours of the week viewing is allowed in whatever the limits say.
+   *
+   * All three are named, this one included. Two named cards under a third with no name
+   * are not three parts of one screen, they are a screen and two things stacked under
+   * it; and "Every day" is not the rail's word repeated back but the answer to which of
+   * the three a rule belongs in.
    */
   function rulesPane(view) {
-    const box = card(view, "rules");
+    const box = card(view, "rules", "Every day");
     const daily = number(view, box, "Daily limit", "daily_limit",
       (tv) => tv.daily_limit);
     wipe(view, daily);
@@ -1044,7 +1091,7 @@ _SCRIPT = """
 
     const week = card(view, "rules", "The week");
     const lead = el("p", "hint");
-    const days = el("div", "days");
+    const days = el("div", "allowances");
     // One note for the card. Seven of them were seven places a refusal could turn up
     // and seven blank lines holding the room open for it while none had.
     const note = el("p", "note");
@@ -1133,14 +1180,14 @@ _SCRIPT = """
   }
 
   /**
-   * One day of the week, as small as a day can be and still be typed into.
+   * One day of the week, as one column of the strip the seven of them make.
    *
-   * A block rather than a row of its own. Seven of these are a week; seven full-width
-   * rows are seven settings that happen to be dated, and they buried the grid below
-   * them — the one thing on this destination worth scrolling to.
+   * A column rather than a block of its own. Seven of these are a week; seven blocks
+   * were seven forms, six of them empty, and the unit repeated over every one of them
+   * was the loudest thing on a card whose answer is which day differs.
    */
   function weekLine(view, into, key, name, short, note) {
-    const cell = el("div", "dayline");
+    const cell = el("div", "allowance");
     seq += 1;
     const input = el("input");
     input.id = "w" + seq;
@@ -1149,15 +1196,13 @@ _SCRIPT = """
     input.step = "1";
     input.inputMode = "numeric";
     input.placeholder = "\\u2014";
-    // Three letters across the block, because seven Wednesdays do not fit across a
-    // phone — and the whole day to anything reading it out, because "Wed" is not one.
-    input.setAttribute("aria-label", name);
+    // Three letters over the column, because seven Wednesdays do not fit across a
+    // phone. Anything reading it out gets the whole day and the unit the seven boxes
+    // no longer repeat, because "Wed" is not a day and a number is not minutes.
+    input.setAttribute("aria-label", "Minutes a day for " + name);
     const tag = el("label", null, short);
     tag.htmlFor = input.id;
-    const hint = el("p", "hint");
-    const pair = el("div", "pair");
-    pair.append(input, el("span", "unit", "min"));
-    cell.append(tag, pair, hint);
+    cell.append(tag, input);
     into.appendChild(cell);
 
     input.addEventListener("change", () => {
@@ -1181,35 +1226,26 @@ _SCRIPT = """
     view.updates.push((tv) => {
       const own = (tv.week || {})[key];
       if (document.activeElement !== input) input.value = shown(own);
-      hint.textContent = falls(own);
+      // Colour rather than a sentence apiece. Seven lines saying which day overrode
+      // what were most of the card's height, six of them held the room open while
+      // saying nothing, and none of them was as quick to read as one coloured number.
+      input.classList.toggle("set", !unset(own) && own > 0);
+      input.classList.toggle("none", own === 0);
     });
   }
 
   /**
-   * What the seven boxes mean, said once above them rather than under each of them.
+   * What the seven boxes are, said once above them rather than seven times inside.
    *
-   * The daily limit is named here because a day left empty is a day that takes it,
-   * which is the whole of what an empty box on this card means — and was the whole of
-   * the sentence that used to sit under every day that had nothing set.
+   * The unit opens it, because that is the word the boxes no longer each carry. The
+   * daily limit is named because a day left empty is a day that takes it, and nought
+   * is spelled out because a nought in a box is the one number on this card that does
+   * not read as what it means.
    */
   function shared(daily) {
-    const takes = unset(daily) ? "which is not set either." : length(daily) + ".";
-    return "A day with its own allowance overrides the daily limit on that day; a " +
-      "day left empty takes the daily limit, " + takes + " Set a day to zero for no " +
-      "viewing at all.";
-  }
-
-  /**
-   * What one day has to say about itself, which is nothing unless it has an allowance.
-   *
-   * Zero is the day worth a sentence: a nought in a box is the one number here that
-   * does not read as what it means. Anything else set is a number already on the
-   * screen beside its unit, and a day with nothing set is what the line above the
-   * seven of them is for.
-   */
-  function falls(own) {
-    if (own === 0) return "No viewing at all.";
-    return unset(own) ? "" : "Instead of the daily limit.";
+    const takes = unset(daily) ? "which is not set either" : length(daily);
+    return "Minutes a day. A day left empty takes the daily limit, " + takes +
+      "; a day set to zero is no viewing at all.";
   }
 
   function appsPane(view) {
@@ -1346,17 +1382,32 @@ _SCRIPT = """
    * is the same complaint that split this page into destinations in the first place, so
    * the grid is here too; the helper is still there for whoever prefers it.
    *
+   * A house that started following one months ago got the dialog anyway: a grid it
+   * could not touch under a warning naming somewhere else, which is worse than no grid
+   * at all. So the warning carries the way out with it, and pressing it changes no
+   * hour of the week — only where they are read from.
+   *
    * Nothing leaves while a finger is down. A drag over ninety boxes is one decision,
    * and ninety writes would be ninety revisions of the rules for the television to
    * fetch — with the last of them landing well after the finger had lifted.
    */
   function hoursCard(view) {
     const box = card(view, "rules", "The hours");
-    const warning = el("p", "banner");
+    // Three things and no more: which helper has them, what that means, and the way
+    // out. It used to be the first two in three lines of warning colour above a grid
+    // nobody could touch, which is the complaint the grid was built to answer.
+    const warning = el("div", "banner offer");
+    const sealedBy = el("p", "said");
+    const take = el("button", null, "Keep these hours and edit here");
+    take.type = "button";
+    const kept = el("p", "aside",
+      "The hours stay exactly as they are; only the following stops, and the helper " +
+      "is left alone.");
+    warning.append(sealedBy, take, kept);
     const lead = el("p", "hint",
-      "Drag across the boxes to allow viewing in them, and drag out of a marked box " +
-      "to clear instead. A day name takes the whole day. From the keyboard: the " +
-      "arrows move, space marks, and shift with an arrow paints.");
+      "Drag across the boxes to allow viewing in them, or out of a marked box to " +
+      "clear. A day name takes the whole day. From the keyboard: arrows move, space " +
+      "marks, shift and an arrow paints.");
     const frame = el("div", "hoursbox");
     const names = el("div", "names");
     const scroller = el("div", "hours");
@@ -1376,7 +1427,10 @@ _SCRIPT = """
     }
     scroller.append(ticks, week);
     frame.append(names, scroller);
-    box.append(warning, lead, frame, open, note);
+    // The note sits where the banner was rather than below the grid: what it has to
+    // say about the take-over is said after the banner carrying that button has gone,
+    // and a confirmation under a grid this tall is a confirmation off the screen.
+    box.append(warning, note, lead, frame, open);
 
     // What is drawn, kept beside the boxes rather than read back off them: a gesture
     // asks what the week looked like before it started, and a class name cannot say.
@@ -1641,6 +1695,25 @@ _SCRIPT = """
       }
     });
 
+    /**
+     * Take the hours back off the helper, which changes not one of them.
+     *
+     * Said in those words because that is the fear: a parent asked to give up a
+     * schedule reads it as being asked to give up their evenings, and the evenings are
+     * exactly what stays. `act` has read the state back by the time it returns, so the
+     * banner is normally gone and the grid live already — and the keyboard is put into
+     * the week, because the button that had it is no longer on the page. Where the
+     * integration has not caught up, one more read shortly beats sitting in front of a
+     * grid that still will not take a finger, wondering whether the button did
+     * anything.
+     */
+    take.addEventListener("click", async () => {
+      await act({id: view.id, action: "stop_following"}, note,
+        "The hours are yours to draw on, and not one of them has changed.");
+      if (sealed()) setTimeout(poll, SETTLE_MS);
+      else keyed.focus();
+    });
+
     view.updates.push((tv) => {
       const followed = tv.following_schedule;
       const off = Boolean(followed);
@@ -1650,9 +1723,8 @@ _SCRIPT = """
       lead.hidden = off;
       warning.hidden = !off;
       if (off) {
-        warning.textContent = "These hours are taken from " + followed + ", which " +
-          "the integration re-reads whenever it is edited, so they have to be " +
-          "changed there. Anything drawn here would be undone by its next edit.";
+        sealedBy.textContent = "Read from " + followed +
+          " whenever it changes, so the grid below is read-only.";
       }
       if (!busy()) draw(tv);
     });

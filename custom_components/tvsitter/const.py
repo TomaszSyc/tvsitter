@@ -114,6 +114,10 @@ RULE_WINDOWS: Final = "windows"
 RULE_APPS_ALLOWED: Final = "apps_allowed"
 
 SERVICE_USE_SCHEDULE: Final = "use_schedule"
+# The way back out. Without it a house that has ever followed a helper can never edit
+# the hours anywhere else again: the panel's own grid is read-only while one is being
+# followed, because the next import would undo whatever was painted (D33, amended).
+SERVICE_FORGET_SCHEDULE: Final = "forget_schedule"
 ATTR_SCHEDULE: Final = "schedule"
 
 # Where the chosen schedule helper is remembered, so an edit to it still reaches the

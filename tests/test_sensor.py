@@ -17,6 +17,7 @@ import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.tvsitter.const import (
+    ATTR_FOLLOWING_SCHEDULE,
     CONF_SCHEDULE,
     DOMAIN,
     QUIET_AFTER_SECONDS,
@@ -445,6 +446,182 @@ async def test_a_helper_is_worth_saying_before_the_rules_arrive(
     assert RulesSensor(client).extra_state_attributes == {
         "following_schedule": "schedule.hours"
     }
+
+
+def forgettable(
+    hass: HomeAssistant, schedule: str | None
+) -> tuple[TvSitterClient, RulesSensor]:
+    """Build a rules sensor whose entry Home Assistant knows about.
+
+    `following` above only reads the options. Forgetting writes them, and Home Assistant
+    refuses to update an entry it has never been told about — so this one is added.
+    """
+    options = {} if schedule is None else {CONF_SCHEDULE: schedule}
+    entry = MockConfigEntry(domain=DOMAIN, options=options)
+    entry.add_to_hass(hass)
+    client = TvSitterClient(hass, name="TV Salon", topic_prefix=PREFIX, entry=entry)
+    client.rules = dict(RULES)
+    return client, RulesSensor(client)
+
+
+async def test_following_a_helper_and_then_forgetting_it_follows_nothing(
+    hass: HomeAssistant,
+) -> None:
+    """#132. `use_schedule` had no way back, and a house that ran it was stuck.
+
+    The panel's weekly grid is read-only while a helper is followed, because the next
+    import would paint over whatever was drawn — so with no way to stop the following,
+    the hours could never be edited anywhere again.
+    """
+    client, sensor = forgettable(hass, None)
+
+    with patch.object(client, "async_import_schedule"):
+        await sensor.async_use_schedule("schedule.viewing_hours")
+        assert client.followed_schedule == "schedule.viewing_hours"
+
+        await sensor.async_forget_schedule()
+
+    assert client.followed_schedule is None
+    assert CONF_SCHEDULE not in client.entry.options
+
+
+async def test_nothing_re_imports_once_the_following_has_stopped(
+    hass: HomeAssistant,
+) -> None:
+    """Clearing the option is half of it; the state watch is the half that reimports.
+
+    A watch left running would take the hours again at the helper's next block
+    boundary, which is the same failure a few hours later and with nothing said.
+    """
+    client, sensor = forgettable(hass, None)
+
+    with patch.object(client, "async_import_schedule") as imported:
+        await sensor.async_use_schedule("schedule.viewing_hours")
+        hass.states.async_set("schedule.viewing_hours", "on")
+        await hass.async_block_till_done()
+        assert imported.called, "the watch was not running to begin with"
+
+        await sensor.async_forget_schedule()
+        imported.reset_mock()
+        hass.states.async_set("schedule.viewing_hours", "off")
+        await hass.async_block_till_done()
+
+    imported.assert_not_called()
+
+
+async def test_a_television_waking_up_does_not_take_the_hours_again(
+    hass: HomeAssistant,
+) -> None:
+    """The state watch is one way back in, and the reconnect is the other.
+
+    A grid edited while the set was asleep is sent when it wakes, and that path reads
+    the config entry rather than the watch — so cancelling only the watch would leave
+    the hours coming back the next time the television said hello.
+    """
+    client, sensor = forgettable(hass, "schedule.viewing_hours")
+    hello = SimpleNamespace(topic=f"{PREFIX}/availability", payload="online")
+
+    with patch.object(client, "async_import_schedule") as imported:
+        client._handle_availability(hello)
+        await hass.async_block_till_done()
+        assert imported.called, "a waking set takes the hours; that is the other way in"
+
+        await sensor.async_forget_schedule()
+        imported.reset_mock()
+        client.available = False
+        client._handle_availability(hello)
+        await hass.async_block_till_done()
+
+    imported.assert_not_called()
+
+
+async def test_forgetting_when_nothing_is_followed_is_not_an_error(
+    hass: HomeAssistant,
+) -> None:
+    """A panel offering the button cannot know what the entry holds.
+
+    An action that fails for having already happened is one nobody dares press, so this
+    is a no-op — including for a client that has no config entry at all.
+    """
+    client, sensor = forgettable(hass, None)
+
+    await sensor.async_forget_schedule()
+
+    assert client.followed_schedule is None
+    assert dict(client.entry.options) == {}
+
+    bare = TvSitterClient(hass, name="TV Salon", topic_prefix=PREFIX)
+    await RulesSensor(bare).async_forget_schedule()
+
+    assert bare.followed_schedule is None
+
+
+async def test_forgetting_leaves_the_hours_exactly_as_they_were(
+    hass: HomeAssistant,
+) -> None:
+    """It stops the following. It does not undo the evening.
+
+    Clearing the windows as a side effect of pressing "stop" would be the surprise the
+    action exists to avoid, so nothing is written to the television at all.
+    """
+    client, sensor = forgettable(hass, "schedule.viewing_hours")
+
+    with patch("homeassistant.components.mqtt.async_publish") as publish:
+        await sensor.async_forget_schedule()
+
+    publish.assert_not_called()
+    assert client.rules == RULES
+    assert sensor.extra_state_attributes == RULES
+
+
+async def test_the_rules_sensor_stops_reporting_a_followed_helper(
+    hass: HomeAssistant,
+) -> None:
+    """That attribute is what makes the panel's grid read-only, so it has to go."""
+    client, sensor = forgettable(hass, "schedule.viewing_hours")
+    assert sensor.extra_state_attributes[ATTR_FOLLOWING_SCHEDULE] == (
+        "schedule.viewing_hours"
+    )
+
+    await sensor.async_forget_schedule()
+
+    assert ATTR_FOLLOWING_SCHEDULE not in sensor.extra_state_attributes
+    assert client.followed_schedule is None
+
+
+async def test_forgetting_keeps_the_rest_of_the_entry(hass: HomeAssistant) -> None:
+    """Options are written whole, so one key is removed by rebuilding the rest.
+
+    The helper is the only option there is today, which is exactly why this is worth a
+    test: the second one to be added would otherwise be dropped by this action, and
+    nothing else would notice.
+    """
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        options={CONF_SCHEDULE: "schedule.viewing_hours", "some_later_option": 7},
+    )
+    entry.add_to_hass(hass)
+    client = TvSitterClient(hass, name="TV Salon", topic_prefix=PREFIX, entry=entry)
+
+    await RulesSensor(client).async_forget_schedule()
+
+    assert dict(entry.options) == {"some_later_option": 7}
+
+
+async def test_forgetting_does_not_need_a_listening_television(
+    hass: HomeAssistant,
+) -> None:
+    """Like following one and unlike the rule writes: nothing goes to the set at all.
+
+    A set asleep is exactly when somebody sits down with the panel and finds the grid
+    locked, so refusing here would refuse at the moment it is asked for.
+    """
+    client, sensor = forgettable(hass, "schedule.viewing_hours")
+    client.available = False
+
+    await sensor.async_forget_schedule()
+
+    assert client.followed_schedule is None
 
 
 async def test_the_exempt_packages_reach_the_rules_sensor(hass: HomeAssistant) -> None:

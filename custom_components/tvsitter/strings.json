@@ -239,6 +239,10 @@
         }
       }
     },
+    "forget_schedule": {
+      "name": "Stop taking the hours from a schedule",
+      "description": "Stops following the schedule helper, so the hours can be edited by hand again. The hours the helper wrote are left exactly as they are — this stops the following, it does not undo them — and nothing happens if no helper is being followed."
+    },
     "set_allowed_apps": {
       "name": "Set the apps this child may open",
       "description": "Says which apps exist for this child at all. Send the whole list every time; an empty list allows every app rather than none.",

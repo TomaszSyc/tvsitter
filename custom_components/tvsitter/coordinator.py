@@ -237,6 +237,32 @@ class TvSitterClient:
         self.watch_schedule(entity_id)
 
     @callback
+    def forget_schedule(self) -> None:
+        """Stop taking the hours from a helper, and leave the hours themselves alone.
+
+        The windows the helper last wrote stay in force. Undoing them would be a second
+        decision nobody asked for, and the reason somebody stops the following is
+        usually that they want to keep this evening's hours and edit them by hand — the
+        panel's grid is read-only while a helper is followed, because the next import
+        would silently paint over it (D33, amended).
+
+        Doing nothing when nothing is followed is the point rather than an oversight: a
+        button offered in a panel cannot know what the entry holds, and an action that
+        can fail for having already happened is one nobody dares press.
+        """
+        # The watch first, then the entry. Both are callbacks with no await between
+        # them, so no state change can slip in and re-import against a stale option.
+        self.watch_schedule(None)
+        if self.entry is None or CONF_SCHEDULE not in self.entry.options:
+            return
+        options = {
+            key: value
+            for key, value in self.entry.options.items()
+            if key != CONF_SCHEDULE
+        }
+        self._hass.config_entries.async_update_entry(self.entry, options=options)
+
+    @callback
     def watch_schedule(self, entity_id: str | None) -> None:
         """Follow one schedule helper, replacing whatever was being followed before."""
         if self._schedule_watch is not None:

@@ -443,6 +443,53 @@ async def test_the_hours_are_refused_while_a_schedule_is_followed() -> None:
     assert home.calls == []
 
 
+async def test_the_following_can_be_stopped_from_the_panel() -> None:
+    """The way out of a read-only grid, taken here rather than in a helper dialog."""
+    home = Recorder()
+    one = with_rules(following_schedule="schedule.viewing_hours")
+
+    await apply(home, [one], {"id": DEVICE, "action": "stop_following"})
+
+    assert home.calls == [("tvsitter", "forget_schedule", {"entity_id": "sensor.r"})]
+
+
+async def test_stopping_the_following_writes_no_hours_at_all() -> None:
+    """The hours in force are kept: one call goes out, and it is not a rule write."""
+    home = Recorder()
+    one = with_rules(following_schedule="schedule.viewing_hours", windows=[SCHOOL])
+
+    await apply(home, [one], {"id": DEVICE, "action": "stop_following"})
+
+    assert [service for _, service, _ in home.calls] == ["forget_schedule"]
+    assert only(one)["hours"]["mon"] == SCHOOL_SLOTS
+
+
+async def test_stopping_the_following_is_safe_with_nothing_followed() -> None:
+    """The page offers it against a state one poll old, so it cannot be a refusal."""
+    home = Recorder()
+
+    await apply(home, [with_rules()], {"id": DEVICE, "action": "stop_following"})
+
+    assert home.calls == [("tvsitter", "forget_schedule", {"entity_id": "sensor.r"})]
+
+
+async def test_stopping_the_following_needs_a_rules_sensor_to_stop_it_on() -> None:
+    """An older integration is missing one control rather than broken."""
+    with pytest.raises(ValueError) as refusal:
+        await apply(
+            Recorder(), [television()], {"id": DEVICE, "action": "stop_following"}
+        )
+
+    assert "rules" in str(refusal.value)
+
+
+async def test_the_hours_go_through_once_nothing_is_followed_any_more() -> None:
+    """Which is the whole point of stopping: the grid becomes ours to write."""
+    assert await saved(with_rules(), grid_of(mon=["16:00"])) == [
+        {"id": "1600-1630", "from": "16:00", "to": "16:30", "days": ["mon"]}
+    ]
+
+
 async def test_a_day_that_is_not_a_day_is_refused_in_words() -> None:
     """A misread key would take an evening away silently, so nothing is guessed."""
     with pytest.raises(ValueError) as refusal:

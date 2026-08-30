@@ -221,6 +221,13 @@ asleep goes out when it wakes.
 The grid itself lives one tap further in than it looks: tapping the schedule tile opens more-info,
 which shows state and history, and the editor is behind the gear in that dialog.
 
+`tvsitter.forget_schedule`, against the same rules sensor, stops the following again. It takes no
+fields and it changes no rules: the hours the helper last wrote stay exactly as they are, and only
+the following stops, so the week can be edited by hand — or in the parent panel, whose own grid is
+read-only for as long as a helper is being followed. Calling it when nothing is being followed does
+nothing rather than failing. The helper itself is untouched, so `tvsitter.use_schedule` can point
+at it again whenever you want it back.
+
 Blocks that share their hours become one window rather than seven, a block drawn on every day
 loses its `days` key altogether, and a block running to the end of the day closes at midnight —
 so the rules stay something you can read when a lock surprises you.

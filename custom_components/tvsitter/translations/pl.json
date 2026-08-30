@@ -239,6 +239,10 @@
         }
       }
     },
+    "forget_schedule": {
+      "name": "Przestań brać godziny z harmonogramu",
+      "description": "Przestaje podążać za pomocnikiem Harmonogram, więc godziny znów można edytować ręcznie. Godziny zapisane przez pomocnika zostają dokładnie takie, jakie są — to przerywa podążanie, a nie cofa godzin — a jeśli nie ma za czym podążać, nic się nie dzieje."
+    },
     "set_allowed_apps": {
       "name": "Ustaw aplikacje dozwolone dla dziecka",
       "description": "Określa, które aplikacje w ogóle istnieją dla tego dziecka. Wysyłaj całą listę za każdym razem; pusta lista pozwala na wszystkie, a nie na żadną.",

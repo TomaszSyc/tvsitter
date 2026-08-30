@@ -41,6 +41,7 @@ from .const import (
     RULE_APPS_ALLOWED,
     RULE_DAYS,
     RULE_WINDOWS,
+    SERVICE_FORGET_SCHEDULE,
     SERVICE_SET_ALLOWED_APPS,
     SERVICE_SET_APP_LIMIT,
     SERVICE_SET_SCHEDULE,
@@ -184,6 +185,14 @@ async def async_setup_entry(
         SERVICE_USE_SCHEDULE,
         {vol.Required(ATTR_SCHEDULE): cv.entity_domain(SCHEDULE_DOMAIN)},
         "async_use_schedule",
+    )
+    # The way back out of the one above. No fields: which helper is being followed is
+    # something the entry already knows, and asking for it again would let somebody
+    # name the wrong one and be told nothing happened.
+    platform.async_register_entity_service(
+        SERVICE_FORGET_SCHEDULE,
+        None,
+        "async_forget_schedule",
     )
 
 
@@ -391,6 +400,23 @@ class RulesSensor(TvSitterEntity, SensorEntity):
         done, and the hours go out on the next reconnect rather than being lost.
         """
         await self._client.async_follow_schedule(schedule)
+
+    async def async_forget_schedule(self) -> None:
+        """Stop following the schedule helper, and keep the hours it wrote.
+
+        The way back out of `use_schedule`, which had none. While a helper is followed
+        the integration re-imports it whenever it changes, so the panel's own weekly
+        grid is read-only then — which left a house that had ever run `use_schedule`
+        unable to edit its hours anywhere ever again (D33, amended).
+
+        The rules are not touched. Whatever the last import wrote is what the
+        television goes on enforcing, and the only thing that stops is the following:
+        clearing an evening's hours as a side effect of pressing "stop" would be the
+        second-worst surprise this project can hand a parent.
+
+        The helper is left alone too, so `use_schedule` can point at it again.
+        """
+        self._client.forget_schedule()
 
     async def async_set_app_limit(
         self, package: str, minutes: float | None = None

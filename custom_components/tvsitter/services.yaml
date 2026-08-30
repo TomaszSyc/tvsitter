@@ -117,6 +117,15 @@ use_schedule:
         entity:
           domain: schedule
 
+# The way back out. No fields: the entry already knows which helper it is following, and
+# this deliberately leaves the hours that helper wrote exactly as they are — it stops the
+# following, it does not undo the evening.
+forget_schedule:
+  target:
+    entity:
+      integration: tvsitter
+      domain: sensor
+
 # Which apps exist for this child at all. Sent whole every time — an allow-list has no key to
 # merge onto — and an empty list allows everything rather than nothing.
 set_allowed_apps:
