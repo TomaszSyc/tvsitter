@@ -2,7 +2,7 @@
 # the Core API and nothing else — no `services: mqtt:need`, no broker credentials, and no
 # second writer on topics whose safety rests on there being one.
 name: TV Sitter parent panel
-version: "0.6.21"
+version: "0.6.22"
 slug: tvsitter_panel
 description: The parent's pages for TV Sitter — what is on, what was watched, and the rules
 url: https://github.com/TomaszSyc/tvsitter/tree/main/parent-panel
@@ -11,7 +11,16 @@ url: https://github.com/TomaszSyc/tvsitter/tree/main/parent-panel
 arch:
   - aarch64
   - amd64
-image: ghcr.io/tomaszsyc/tvsitter-parent-panel-{arch}
+# No `image:`, so the Supervisor builds the Dockerfile on the machine. The workflow still
+# builds both architectures on every change — that is what catches a broken Dockerfile, and
+# it catches it where somebody is looking rather than on a television box.
+#
+# What it does not do is publish something installable: a package inherits the visibility of
+# the repository it was pushed from, and these were pushed while this one was private, so the
+# Supervisor's anonymous pull gets a 401. Changing that is a setting on each package rather
+# than anything in this repository. Until it is changed, a local build is the difference
+# between an add-on anybody can install and one nobody can. Putting the line back is one line:
+#   image: ghcr.io/tomaszsyc/tvsitter-parent-panel-{arch}
 init: false
 # After Home Assistant, because every page here is a question for its API.
 startup: application
