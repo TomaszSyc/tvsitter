@@ -188,6 +188,28 @@ class HomeAssistant:
             television.states = states
         return found
 
+    async def language(self) -> str:
+        """Ask which language Home Assistant is set to, English where it will not.
+
+        The instance's own setting rather than the browser's `Accept-Language`: a parent
+        who put Home Assistant into Polish has said which language they read this house
+        in, and the panel is a page of that house rather than a website they wandered
+        onto. Asked on each page load, which is not often and is one small request.
+        """
+        try:
+            async with self._session.get(
+                f"{CORE_API}/config",
+                headers=self._headers,
+                timeout=aiohttp.ClientTimeout(total=10),
+            ) as answer:
+                answer.raise_for_status()
+                said = await answer.json()
+        except (aiohttp.ClientError, TimeoutError, ValueError):
+            # A page in English beats no page at all, and this is the one request whose
+            # failure must not cost the parent the panel.
+            return "en"
+        return str(said.get("language") or "en")
+
     async def states(self) -> list[dict[str, Any]]:
         """Fetch every entity state Home Assistant currently holds."""
         async with self._session.get(

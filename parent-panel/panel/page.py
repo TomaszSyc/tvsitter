@@ -23,6 +23,9 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 from __future__ import annotations
 
+import html
+import json
+
 # The television's own palette, from TvStyle.kt, which is the original. It lives twice
 # because two languages read it, and the two halves of the product have to look like one
 # thing to the person who owns both of them.
@@ -513,8 +516,8 @@ input[type="checkbox"] {
 _BODY = """
 <main>
 <h1>TV Sitter</h1>
-<p class="lead">Everything here comes from Home Assistant, which is the only thing that
-talks to the televisions.</p>
+<p class="lead" id="lead">Everything here comes from Home Assistant, which is the
+only thing that talks to the televisions.</p>
 <div class="chooser" id="chooser" hidden>
 <p class="label" id="which">Television</p>
 <div class="tabs" id="tabs" role="group" aria-labelledby="which"></div>
@@ -549,6 +552,27 @@ d="M4,13h7v7h-7z"/><path d="M13,13h7v7h-7z"/></svg><span>Apps</span></a>
 _SCRIPT = """
 (() => {
   "use strict";
+
+  /**
+   * What to say, in whatever language Home Assistant is set to.
+   *
+   * The English is the key as well as the fallback, so the page below still reads as
+   * the sentences it puts on the screen, and a language that has no word for one of
+   * them says it in English rather than saying nothing at all.
+   *
+   * Values go in afterwards, never by adding strings end to end: the order the pieces
+   * of a sentence go in is not the same in every language, and "Read from " + name is
+   * two fragments that can only be put back together in English.
+   */
+  function phrase(words, values) {
+    let said = (typeof SAID === "object" && SAID && SAID[words]) || words;
+    if (values) {
+      Object.keys(values).forEach((name) => {
+        said = said.split("{" + name + "}").join(String(values[name]));
+      });
+    }
+    return said;
+  }
 
   const MINUTES_PER_HOUR = 60;
   const POLL_MS = 5000;
@@ -633,24 +657,24 @@ _SCRIPT = """
   // has never heard of is said exactly as it arrived: an ugly name for a change that
   // is waiting beats a wrong one, and only the set knows what it sends.
   const RULES = {
-    daily_limit_s: "the daily limit",
-    warn_before_s: "the warning before the end",
-    block_settings: "the Settings block",
-    app_limits_s: "the app budgets",
-    days: "the week's allowances",
-    windows: "the hours",
-    apps_allowed: "the allowed apps",
+    daily_limit_s: phrase("the daily limit"),
+    warn_before_s: phrase("the warning before the end"),
+    block_settings: phrase("the Settings block"),
+    app_limits_s: phrase("the app budgets"),
+    days: phrase("the week's allowances"),
+    windows: phrase("the hours"),
+    apps_allowed: phrase("the allowed apps"),
   };
 
   // The week in the order a week is read, keyed the way the state keys it.
   const WEEK = [
-    ["mon", "Monday", "Mon"],
-    ["tue", "Tuesday", "Tue"],
-    ["wed", "Wednesday", "Wed"],
-    ["thu", "Thursday", "Thu"],
-    ["fri", "Friday", "Fri"],
-    ["sat", "Saturday", "Sat"],
-    ["sun", "Sunday", "Sun"],
+    ["mon", phrase("Monday"), phrase("Mon")],
+    ["tue", phrase("Tuesday"), phrase("Tue")],
+    ["wed", phrase("Wednesday"), phrase("Wed")],
+    ["thu", phrase("Thursday"), phrase("Thu")],
+    ["fri", phrase("Friday"), phrase("Fri")],
+    ["sat", phrase("Saturday"), phrase("Sat")],
+    ["sun", phrase("Sunday"), phrase("Sun")],
   ];
 
   const banner = document.getElementById("banner");
@@ -747,7 +771,7 @@ _SCRIPT = """
     // region that appears and speaks in the same breath is one nothing reads out.
     node.setAttribute("role", "status");
     node.words = el("p", "words");
-    node.drop = el("button", null, "Dismiss");
+    node.drop = el("button", null, phrase("Dismiss"));
     node.drop.type = "button";
     node.drop.addEventListener("click", () => { clear(node); });
     node.appendChild(node.words);
@@ -804,7 +828,7 @@ _SCRIPT = """
    * only honest confirmation is the next answer from the server, not this one.
    */
   async function act(body, note, done) {
-    hold(note, "Saving\\u2026");
+    hold(note, phrase("Saving\\u2026"));
     let answer = null;
     try {
       const back = await fetch("api/do", {
@@ -814,14 +838,15 @@ _SCRIPT = """
       });
       answer = await back.json();
     } catch (failure) {
-      answer = {ok: false, error: "The panel could not reach the add-on."};
+      answer = {ok: false, error: phrase("The panel could not reach the add-on.")};
     }
     // Read the state back before saying anything about it. Whether a change is in
     // force or waiting for a sleeping television is the state's answer and not this
     // one's, and a confirmation written before the read would be a guess.
     await poll();
     if (answer && answer.ok) say(note, landed(body, done), false);
-    else say(note, (answer && answer.error) || "Home Assistant refused it.", true);
+    else say(note, (answer && answer.error) ||
+      phrase("Home Assistant refused it."), true);
     // Handed back as well as said, because one caller has to tell the two apart: a
     // week drawn on the grid stays there when it was taken and snaps back when it was
     // not, and "was it taken" is not a question a sentence can be asked.
@@ -838,11 +863,11 @@ _SCRIPT = """
    */
   function landed(body, done) {
     const view = views.get(body.id);
-    const took = done || "Saved";
+    const took = done || phrase("Saved");
     if (UNSENT.indexOf(body.action) >= 0) return took;
     if (!view || !view.tv || !view.tv.pending_rules) return took;
-    return ended(took) + " The television is asleep, so it is waiting rather than " +
-      "in force, and goes the moment the set is back.";
+    return phrase("{took} The television is asleep, so it is waiting rather than " +
+      "in force, and goes the moment the set is back.", {took: ended(took)});
   }
 
   /** End a sentence that may have ended already, so two can be joined. */
@@ -863,7 +888,7 @@ _SCRIPT = """
     } catch (failure) {
       // Keep what is on the screen. A phone that has just woken is offline for a second
       // and blanking the page for it would be the panel's own fault.
-      warn("Home Assistant did not answer. This is what was last read.");
+      warn(phrase("Home Assistant did not answer. This is what was last read."));
       return;
     }
     warn(state.error);
@@ -873,9 +898,9 @@ _SCRIPT = """
   function paint(list, error) {
     nothing.hidden = list.length > 0 || Boolean(error);
     if (!list.length) {
-      nothing.textContent = "No televisions yet. The panel reads them from the TV " +
-        "Sitter integration, so add that first \\u2014 this page is a second way to " +
-        "see what it already knows, not a way round it.";
+      nothing.textContent = phrase("No televisions yet. The panel reads them from " +
+        "the TV Sitter integration, so add that first \\u2014 this page is a " +
+        "second way to see what it already knows, not a way round it.");
     }
     shelve(list);
     if (chosen === null || !views.has(chosen)) {
@@ -1030,8 +1055,8 @@ _SCRIPT = """
     const reporting = pill(pills);
     const pin = pill(pills);
     const figures = el("div", "figures two");
-    const playing = figure(figures, "Playing");
-    const left = figure(figures, "Left today");
+    const playing = figure(figures, phrase("Playing"));
+    const left = figure(figures, phrase("Left today"));
     const lock = el("button", "lock");
     lock.type = "button";
     const note = notice();
@@ -1048,13 +1073,15 @@ _SCRIPT = """
       // figure that is missing.
       const said = tv.trouble || [];
       trouble.replaceChildren(...said.map((one) => el("p", "banner", one)));
-      tell(screen, tv.screen ? "Screen on" : "Screen off", tv.screen ? "yes" : "");
-      tell(reporting, tv.reporting ? "Reporting" : "Not reporting",
+      tell(screen, phrase(tv.screen ? "Screen on" : "Screen off"),
+        tv.screen ? "yes" : "");
+      tell(reporting, phrase(tv.reporting ? "Reporting" : "Not reporting"),
         tv.reporting ? "yes" : "bad");
-      tell(pin, tv.pin_set ? "PIN set" : "No PIN", tv.pin_set ? "yes" : "bad");
-      playing.value.textContent = tv.playing || "Nothing";
+      tell(pin, phrase(tv.pin_set ? "PIN set" : "No PIN"),
+        tv.pin_set ? "yes" : "bad");
+      playing.value.textContent = tv.playing || phrase("Nothing");
       spend(left, tv.remaining_today);
-      lock.textContent = tv.locked ? "Lift the lock" : "Lock the television";
+      lock.textContent = phrase(tv.locked ? "Lift the lock" : "Lock the television");
       lock.classList.toggle("up", Boolean(tv.locked));
       foot.textContent =
         (heard(tv.last_reported) + revision(tv.rules_revision)).trim();
@@ -1074,10 +1101,10 @@ _SCRIPT = """
    * is why the four digits are asked for here before anything goes.
    */
   function pinCard(view) {
-    const box = card(view, "now", "The parent PIN");
+    const box = card(view, "now", phrase("The parent PIN"));
     box.appendChild(el("p", "hint",
-      "Home Assistant hashes it and sends the hash, so the television is never told " +
-      "the digits typed here."));
+      phrase("Home Assistant hashes it and sends the hash, so the television is " +
+        "never told the digits typed here.")));
     const note = notice();
     const row = line(box);
     seq += 1;
@@ -1091,9 +1118,9 @@ _SCRIPT = """
     input.autocomplete = "off";
     input.maxLength = PIN_LENGTH;
     input.placeholder = "\\u2022\\u2022\\u2022\\u2022";
-    const tag = el("label", "name short", "New PIN");
+    const tag = el("label", "name short", phrase("New PIN"));
     tag.htmlFor = input.id;
-    const set = el("button", null, "Set the PIN");
+    const set = el("button", null, phrase("Set the PIN"));
     set.type = "button";
     row.append(tag, input, set);
 
@@ -1101,12 +1128,12 @@ _SCRIPT = """
     // undone: the PIN itself is not kept anywhere, so a stray one is not a setting to
     // put back but a PIN to think of again and type into every television.
     const drop = line(box);
-    const ask = el("button", null, "Remove the PIN");
-    const yes = el("button", "danger", "Yes, remove it");
-    const no = el("button", null, "Keep it");
+    const ask = el("button", null, phrase("Remove the PIN"));
+    const yes = el("button", "danger", phrase("Yes, remove it"));
+    const no = el("button", null, phrase("Keep it"));
     const why = el("p", "hint",
-      "Without a PIN a lock cannot be lifted at the television at all, only from " +
-      "Home Assistant.");
+      phrase("Without a PIN a lock cannot be lifted at the television at all, only " +
+        "from Home Assistant."));
     [ask, yes, no].forEach((one) => { one.type = "button"; });
     // No label on this row: the buttons say what they do, and a word in front of them
     // would only repeat the heading of the card they are in.
@@ -1129,17 +1156,17 @@ _SCRIPT = """
       // below is a refusal the parent reads rather than one that hands it back.
       input.value = "";
       if (typed.length !== PIN_LENGTH || !digits(typed)) {
-        say(note, "A PIN is four digits.", true);
+        say(note, phrase("A PIN is four digits."), true);
         return;
       }
-      act({id: view.id, action: "set_pin", pin: typed}, note, "PIN set");
+      act({id: view.id, action: "set_pin", pin: typed}, note, phrase("PIN set"));
     });
 
     ask.addEventListener("click", () => { arm(true); });
     no.addEventListener("click", () => { arm(false); });
     yes.addEventListener("click", () => {
       arm(false);
-      act({id: view.id, action: "clear_pin"}, note, "PIN removed");
+      act({id: view.id, action: "clear_pin"}, note, phrase("PIN removed"));
     });
 
     view.updates.push((tv) => {
@@ -1165,47 +1192,47 @@ _SCRIPT = """
   }
 
   function heard(when) {
-    if (!when) return "Never reported. ";
+    if (!when) return phrase("Never reported.") + " ";
     const at = new Date(when);
-    if (isNaN(at.getTime())) return "Last reported " + when + ". ";
+    if (isNaN(at.getTime())) return phrase("Last reported {when}.", {when: when}) + " ";
     const clock = at.toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"});
-    return "Last reported at " + clock + ". ";
+    return phrase("Last reported at {clock}.", {clock: clock}) + " ";
   }
 
   /** The one number that answers "has my change actually arrived". */
   function revision(count) {
-    return unset(count) ? "" : "Rules revision " + count + ".";
+    return unset(count) ? "" : phrase("Rules revision {count}.", {count: count});
   }
 
   /** The day as it stands: three figures, then where the time actually went. */
   function todayPane(view) {
     const box = card(view, "today");
     const figures = el("div", "figures");
-    const used = figure(figures, "Watched");
-    const limit = figure(figures, "Limit today");
-    const left = figure(figures, "Left");
+    const used = figure(figures, phrase("Watched"));
+    const limit = figure(figures, phrase("Limit today"));
+    const left = figure(figures, phrase("Left"));
     const aside = el("p", "foot");
     const split = el("div", "split");
     // Two lists of the same shape, so each says which stretch of time it is: "By app"
     // over one of them and nothing over the other is a week a parent reads as a day.
     const seven = el("div", "split");
     const naming = el("p", "hint");
-    box.append(figures, aside, el("h3", null, "Today, by app"), split,
-      el("h3", null, "The last seven days, by app"), naming, seven);
+    box.append(figures, aside, el("h3", null, phrase("Today, by app")), split,
+      el("h3", null, phrase("The last seven days, by app")), naming, seven);
 
     view.updates.push((tv) => {
       used.value.textContent = length(tv.used_today);
       limit.value.textContent = length(tv.limit_today);
       spend(left, tv.remaining_today);
       aside.textContent = besides(tv);
-      bars(split, tv.apps, "Nothing watched yet today.");
-      bars(seven, tv.week_by_app, "Nothing recorded yet. These seven days come " +
-        "from Home Assistant's own history rather than from the television, and it " +
-        "has nothing for this set so far \\u2014 which is not the same as a week " +
-        "with nothing watched in it.");
+      bars(split, tv.apps, phrase("Nothing watched yet today."));
+      bars(seven, tv.week_by_app, phrase("Nothing recorded yet. These seven days " +
+        "come from Home Assistant's own history rather than from the television, and " +
+        "it has nothing for this set so far \\u2014 which is not the same as a week " +
+        "with nothing watched in it."));
       naming.hidden = !unnamed(tv.week_by_app);
-      naming.textContent = "Where Home Assistant has no name for an app any more, " +
-        "its package id stands in.";
+      naming.textContent = phrase("Where Home Assistant has no name for an app any " +
+        "more, its package id stands in.");
     });
   }
 
@@ -1225,10 +1252,10 @@ _SCRIPT = """
     const said = [];
     // A bonus of nothing is the ordinary day, and saying so every day is noise.
     if (!unset(tv.bonus_today) && tv.bonus_today > 0) {
-      said.push("Bonus today " + length(tv.bonus_today) + ".");
+      said.push(phrase("Bonus today {much}.", {much: length(tv.bonus_today)}));
     }
     if (!unset(tv.used_yesterday)) {
-      said.push("Yesterday " + length(tv.used_yesterday) + ".");
+      said.push(phrase("Yesterday {much}.", {much: length(tv.used_yesterday)}));
     }
     return said.join(" ");
   }
@@ -1261,7 +1288,8 @@ _SCRIPT = """
     const node = el("div", "app");
     const much = el("p", "much", length(app.minutes));
     if (!unset(app.limit)) {
-      much.appendChild(el("em", null, " of " + length(app.limit)));
+      much.appendChild(el("em", null,
+        " " + phrase("of {much}", {much: length(app.limit)})));
     }
     const track = el("div", "track");
     const fill = el("span");
@@ -1284,19 +1312,20 @@ _SCRIPT = """
    */
   function rulesPane(view) {
     heldBack(view);
-    const box = card(view, "rules", "Every day");
-    const daily = number(view, box, "Daily limit", "daily_limit",
+    const box = card(view, "rules", phrase("Every day"));
+    const daily = number(view, box, phrase("Daily limit"), "daily_limit",
       (tv) => tv.daily_limit);
     wipe(view, daily);
-    number(view, box, "Sleep timer", "sleep_timer", (tv) => tv.sleep_timer,
-      "How long from now until the television puts itself to bed.");
-    number(view, box, "Warn before the end", "warn_before", (tv) => tv.warn_before,
-      "One warning, this long before the allowance runs out.");
-    switched(view, box, "Block the Settings app", "block_settings",
+    number(view, box, phrase("Sleep timer"), "sleep_timer", (tv) => tv.sleep_timer,
+      phrase("How long from now until the television puts itself to bed."));
+    number(view, box, phrase("Warn before the end"), "warn_before",
+      (tv) => tv.warn_before,
+      phrase("One warning, this long before the allowance runs out."));
+    switched(view, box, phrase("Block the Settings app"), "block_settings",
       (tv) => tv.block_settings,
-      "So the rules cannot be turned off from the television itself.");
+      phrase("So the rules cannot be turned off from the television itself."));
 
-    const week = card(view, "rules", "The week");
+    const week = card(view, "rules", phrase("The week"));
     const lead = el("p", "hint");
     const days = el("div", "allowances");
     // One note for the card. Seven of them were seven places a refusal could turn up
@@ -1330,11 +1359,11 @@ _SCRIPT = """
     const holder = el("div");
     const box = el("div", "banner waiting");
     const said = el("p", "said");
-    const forget = el("button", "danger", "Throw the change away");
+    const forget = el("button", "danger", phrase("Throw the change away"));
     forget.type = "button";
     const aside = el("p", "aside",
-      "For a television that is not coming back. What goes is only what has not " +
-      "reached it: the set keeps enforcing exactly what it is enforcing now.");
+      phrase("For a television that is not coming back. What goes is only what has " +
+        "not reached it: the set keeps enforcing exactly what it is enforcing now."));
     const note = notice();
     box.append(said, forget, aside);
     holder.append(box, note);
@@ -1342,24 +1371,25 @@ _SCRIPT = """
 
     forget.addEventListener("click", () => {
       act({id: view.id, action: "forget_pending"}, note,
-        "Thrown away. The television keeps the rules it already had.");
+        phrase("Thrown away. The television keeps the rules it already had."));
     });
 
     view.updates.push((tv) => {
       const held = tv.pending_rules;
       box.hidden = !held;
       if (!held) return;
-      said.textContent = "Waiting for " + tv.name + " rather than in force: " +
-        listed(held) + ". The set was asleep when it was changed, so everything " +
-        "below is what it is still enforcing until it is back.";
+      said.textContent = phrase("Waiting for {name} rather than in force: {what}. " +
+        "The set was asleep when it was changed, so everything below is what it is " +
+        "still enforcing until it is back.", {name: tv.name, what: listed(held)});
     });
   }
 
   /** Which rules are waiting, listed the way somebody would say them aloud. */
   function listed(held) {
     const said = Object.keys(held || {}).map((key) => RULES[key] || key);
-    if (said.length < 2) return said[0] || "a change";
-    return said.slice(0, -1).join(", ") + " and " + said[said.length - 1];
+    if (said.length < 2) return said[0] || phrase("a change");
+    return phrase("{most} and {last}",
+      {most: said.slice(0, -1).join(", "), last: said[said.length - 1]});
   }
 
   /**
@@ -1392,7 +1422,7 @@ _SCRIPT = """
         // There is no way to say "unset" to a number entity — it always holds a
         // number — and the one rule that can be taken away has its own button.
         input.value = shown(read(view.tv));
-        say(note, "That wants a number of minutes.", true);
+        say(note, phrase("That wants a number of minutes."), true);
         return;
       }
       act({id: view.id, action: "number", key: key, value: value}, note);
@@ -1406,14 +1436,15 @@ _SCRIPT = """
 
   /** Removing the daily limit outright, which zero cannot stand in for. */
   function wipe(view, field) {
-    const button = el("button", null, "Remove");
+    const button = el("button", null, phrase("Remove"));
     button.type = "button";
     field.row.insertBefore(button, field.note);
     field.row.insertBefore(el("p", "hint",
-      "Removing it leaves the day uncapped. Zero is not the same thing: zero minutes " +
-      "means no viewing today, which is a real thing a parent may mean."), field.note);
+      phrase("Removing it leaves the day uncapped. Zero is not the same thing: zero " +
+        "minutes means no viewing today, which is a real thing a parent may mean.")),
+        field.note);
     button.addEventListener("click", () => {
-      act({id: view.id, action: "clear_limit"}, field.note, "Limit removed");
+      act({id: view.id, action: "clear_limit"}, field.note, phrase("Limit removed"));
     });
   }
 
@@ -1459,7 +1490,8 @@ _SCRIPT = """
     // Three letters over the column, because seven Wednesdays do not fit across a
     // phone. Anything reading it out gets the whole day and the unit the seven boxes
     // no longer repeat, because "Wed" is not a day and a number is not minutes.
-    input.setAttribute("aria-label", "Minutes a day for " + name);
+    input.setAttribute("aria-label",
+      phrase("Minutes a day for {day}", {day: name}));
     const tag = el("label", null, short);
     tag.htmlFor = input.id;
     cell.append(tag, input);
@@ -1470,7 +1502,8 @@ _SCRIPT = """
       const value = Number(raw);
       if (raw !== "" && (!isFinite(value) || value < 0)) {
         input.value = shown((view.tv.week || {})[key]);
-        say(note, name + " wants a number of minutes, or nothing.", true);
+        say(note, phrase("{day} wants a number of minutes, or nothing.",
+          {day: name}), true);
         return;
       }
       // Empty is not zero. Empty hands the day back to the daily limit; zero is a day
@@ -1480,7 +1513,7 @@ _SCRIPT = """
         action: "schedule",
         day: key,
         minutes: raw === "" ? null : value,
-      }, note, name + " saved");
+      }, note, phrase("{day} saved", {day: name}));
     });
 
     view.updates.push((tv) => {
@@ -1503,9 +1536,11 @@ _SCRIPT = """
    * not read as what it means.
    */
   function shared(daily) {
-    const takes = unset(daily) ? "which is not set either" : length(daily);
-    return "Minutes a day. A day left empty takes the daily limit, " + takes +
-      "; a day set to zero is no viewing at all.";
+    const takes = unset(daily)
+      ? phrase("which is not set either")
+      : length(daily);
+    return phrase("Minutes a day. A day left empty takes the daily limit, {takes}; " +
+      "a day set to zero is no viewing at all.", {takes: takes});
   }
 
   function appsPane(view) {
@@ -1521,15 +1556,15 @@ _SCRIPT = """
 
   function restriction(allowed) {
     if (allowed.length) {
-      return "Only the ticked apps may be opened; every other one is refused. A " +
-        "budget of zero blocks an app whether or not it is ticked.";
+      return phrase("Only the ticked apps may be opened; every other one is refused. " +
+        "A budget of zero blocks an app whether or not it is ticked.");
     }
     // The way it fails matters more than the way it reads. Nothing enforced is
     // something a parent can undo; a television nobody can open is one that has locked
     // them out of the thing they would fix it with.
-    return "The allow-list is empty, so every app is allowed. Untick one to start a " +
-      "list: everything left ticked stays allowed and the rest are refused. A budget " +
-      "of zero blocks an app on its own.";
+    return phrase("The allow-list is empty, so every app is allowed. Untick one to " +
+      "start a list: everything left ticked stays allowed and the rest are refused. " +
+      "A budget of zero blocks an app on its own.");
   }
 
   /**
@@ -1580,7 +1615,7 @@ _SCRIPT = """
     box.id = "p" + seq;
     const tag = el("label", "tick");
     tag.htmlFor = box.id;
-    tag.append(box, el("span", null, "Allowed"));
+    tag.append(box, el("span", null, phrase("Allowed")));
     const note = notice();
     node.append(who, budget, el("span", "unit", "min"), tag, note);
 
@@ -1588,7 +1623,7 @@ _SCRIPT = """
       const raw = budget.value.trim();
       const value = Number(raw);
       if (raw !== "" && (!isFinite(value) || value < 0)) {
-        say(note, "That wants a number of minutes, or nothing.", true);
+        say(note, phrase("That wants a number of minutes, or nothing."), true);
         return;
       }
       // Empty takes the budget away; zero is a block. They are not the same thing and
@@ -1605,14 +1640,16 @@ _SCRIPT = """
       const packages = rebuild(view);
       act({id: view.id, action: "allowed_apps", packages: packages}, note,
         packages.length
-          ? "Saved"
-          : "Saved. An empty list is no restriction: every app is allowed again.");
+          ? phrase("Saved")
+          : phrase("Saved. An empty list is no restriction: every app is allowed " +
+            "again."));
     });
 
     function fill(app) {
       const called = app.name || app.package;
       name.textContent = called;
-      budget.setAttribute("aria-label", "Minutes a day for " + called);
+      budget.setAttribute("aria-label",
+        phrase("Minutes a day for {app}", {app: called}));
       if (document.activeElement !== budget) budget.value = shown(app.limit);
       box.checked = Boolean(app.allowed);
     }
@@ -1652,33 +1689,33 @@ _SCRIPT = """
    * fetch — with the last of them landing well after the finger had lifted.
    */
   function hoursCard(view) {
-    const box = card(view, "rules", "The hours");
+    const box = card(view, "rules", phrase("The hours"));
     // Three things and no more: which helper has them, what that means, and the way
     // out. It used to be the first two in three lines of warning colour above a grid
     // nobody could touch, which is the complaint the grid was built to answer.
     const warning = el("div", "banner offer");
     const sealedBy = el("p", "said");
-    const take = el("button", null, "Keep these hours and edit here");
+    const take = el("button", null, phrase("Keep these hours and edit here"));
     take.type = "button";
     const kept = el("p", "aside",
-      "The hours stay exactly as they are; only the following stops, and the helper " +
-      "is left alone.");
+      phrase("The hours stay exactly as they are; only the following stops, and the " +
+        "helper is left alone."));
     warning.append(sealedBy, take, kept);
     const lead = el("p", "hint",
-      "A green box is half an hour the television may be watched in. Drag across the " +
-      "boxes to allow viewing in them, or out of a marked box to clear; the hours " +
-      "you are drawing are named above the pointer as you go. A day name takes the " +
-      "whole " +
-      "day. From the keyboard: arrows move, space marks, shift and an arrow paints.");
+      phrase("A green box is half an hour the television may be watched in. Drag " +
+        "across the boxes to allow viewing in them, or out of a marked box to clear; " +
+        "the hours you are drawing are named above the pointer as you go. A day name " +
+        "takes the whole day. From the keyboard: arrows move, space marks, shift and " +
+        "an arrow paints."));
     const frame = el("div", "hoursbox");
     const names = el("div", "names");
     const scroller = el("div", "hours");
     const ticks = el("div", "ticks");
     const week = el("div", "week");
     const open = el("p", "empty",
-      "No half hour is marked, so the hours are not restricted at all: the " +
-      "television may be watched at any time of day, within whatever the limits " +
-      "above allow.");
+      phrase("No half hour is marked, so the hours are not restricted at all: the " +
+        "television may be watched at any time of day, within whatever the limits " +
+        "above allow."));
     // What the gesture means, over the boxes it means it on. Out of the reading order:
     // every box already says its own day and half hour, and a screen reader following
     // a drag across ninety of them does not need a ninety-first voice.
@@ -1697,7 +1734,7 @@ _SCRIPT = """
     const took = notice();
     const note = notice();
     week.setAttribute("role", "group");
-    week.setAttribute("aria-label", "The half hours viewing is allowed in");
+    week.setAttribute("aria-label", phrase("The half hours viewing is allowed in"));
     // The empty box above Monday, which is the strip of hours the days line up with.
     names.appendChild(el("div", "corner"));
     for (let slot = 0; slot < SLOTS; slot += TICK) {
@@ -1735,7 +1772,8 @@ _SCRIPT = """
     WEEK.forEach((day, row) => {
       const label = el("button", "day", day[2]);
       label.type = "button";
-      label.setAttribute("aria-label", "Every half hour of " + day[1]);
+      label.setAttribute("aria-label",
+        phrase("Every half hour of {day}", {day: day[1]}));
       label.addEventListener("click", () => { whole(row); });
       labels.push(label);
       names.appendChild(label);
@@ -1750,7 +1788,8 @@ _SCRIPT = """
         cell.atSlot = slot;
         cell.setAttribute("aria-pressed", "false");
         cell.setAttribute("aria-label",
-          day[1] + " " + clock(slot) + " to " + clock(slot + 1));
+          phrase("{day} {from} to {to}",
+              {day: day[1], from: clock(slot), to: clock(slot + 1)}));
         line.push(cell);
         week.appendChild(cell);
       }
@@ -1821,8 +1860,8 @@ _SCRIPT = """
       if (!wanted) return true;
       if (agrees(tv)) wanted = null;
       else if (tv && tv.pending_rules) {
-        held.textContent = "These hours are drawn here and waiting: the television " +
-          "is asleep, and they go to it the moment it is back.";
+        held.textContent = phrase("These hours are drawn here and waiting: the " +
+          "television is asleep, and they go to it the moment it is back.");
         held.hidden = false;
         return false;
       } else if (Date.now() - wantedAt < AGREE_MS) return false;
@@ -1832,8 +1871,8 @@ _SCRIPT = """
         // being enforced — said out loud, because hours quietly changing back under a
         // parent who drew them is the complaint this whole hold exists to answer.
         wanted = null;
-        say(note, "The television is enforcing hours other than the ones drawn here, " +
-          "so the grid has gone back to showing its own.", true);
+        say(note, phrase("The television is enforcing hours other than the ones " +
+          "drawn here, so the grid has gone back to showing its own."), true);
       }
       held.hidden = true;
       return true;
@@ -1880,7 +1919,8 @@ _SCRIPT = """
         range.said = days + span + on;
         range.textContent = "";
         range.append(
-          el("span", null, (on ? "Allow " : "Clear ") + days + "\u00a0\u00b7\u00a0"),
+          el("span", null, phrase(on ? "Allow" : "Clear") +
+          " " + days + "\u00a0\u00b7\u00a0"),
           el("b", null, span),
         );
         range.classList.toggle("clearing", !on);
@@ -2011,8 +2051,8 @@ _SCRIPT = """
       // Every day every time, marked and unmarked alike: an unmarked half hour has no
       // other way of being said, so a day left out would be a day with no viewing.
       const answer = await act({id: view.id, action: "hours", days: days}, note, full
-        ? "Saved. A week with nothing refused is no restriction, so it clears."
-        : "Hours saved");
+        ? phrase("Saved. A week with nothing refused is no restriction, so it clears.")
+        : phrase("Hours saved"));
       // Refused, so what is on the grid is a rule nowhere at all. Letting go of it is
       // what snaps the week back to the television below.
       if (!answer || !answer.ok) {
@@ -2114,7 +2154,7 @@ _SCRIPT = """
      */
     take.addEventListener("click", async () => {
       await act({id: view.id, action: "stop_following"}, took,
-        "The hours are yours to draw on, and not one of them has changed.");
+        phrase("The hours are yours to draw on, and not one of them has changed."));
       if (sealed()) setTimeout(poll, SETTLE_MS);
       else keyed.focus();
     });
@@ -2135,8 +2175,8 @@ _SCRIPT = """
         quiet();
       }
       if (off) {
-        sealedBy.textContent = "Read from " + followed +
-          " whenever it changes, so the grid below is read-only.";
+        sealedBy.textContent = phrase("Read from {helper} whenever it changes, so " +
+          "the grid below is read-only.", {helper: followed});
       }
       // Nothing under a finger is written over, and neither is a week that has been
       // decided here and not yet reached the television.
@@ -2150,6 +2190,40 @@ _SCRIPT = """
     if (!document.hidden) poll();
   }
 
+  /**
+   * The parts of the page that are markup rather than script, said in the language.
+   *
+   * They are written in the document because they are the same four destinations every
+   * time and a browser can follow them on its own before any of this has run — which
+   * is exactly why they are English until this puts them right. Done before the first
+   * paint, so nothing is read in one language and then swapped in another.
+   */
+  function translate() {
+    const lead = document.getElementById("lead");
+    if (lead) {
+      lead.textContent = phrase("Everything here comes from Home Assistant, which " +
+        "is the only thing that talks to the televisions.");
+    }
+    const which = document.getElementById("which");
+    if (which) which.textContent = phrase("Television");
+    const rail = document.getElementById("rail");
+    if (rail) rail.setAttribute("aria-label", phrase("Sections"));
+    // Named one by one rather than built from the destination's own key: a sentence
+    // spelled out is a sentence a catalogue can be checked against, and one assembled
+    // from a variable is four words nothing can find.
+    const NAMED = {
+      now: phrase("Now"),
+      today: phrase("Today"),
+      rules: phrase("Rules"),
+      apps: phrase("Apps"),
+    };
+    WHERE.forEach((one) => {
+      const link = document.getElementById("go-" + one);
+      const named = link && link.children ? link.children[1] : null;
+      if (named) named.textContent = NAMED[one];
+    });
+  }
+
   window.addEventListener("hashchange", () => {
     route();
     // A destination is a fresh page to whoever asked for it, and being dropped halfway
@@ -2157,6 +2231,7 @@ _SCRIPT = """
     // browser is still restoring where the page was left, and this would undo it.
     if (window.scrollTo) window.scrollTo(0, 0);
   });
+  translate();
   document.addEventListener("visibilitychange", beat);
   setInterval(beat, POLL_MS);
   route();
@@ -2165,24 +2240,35 @@ _SCRIPT = """
 """
 
 
-def render_shell() -> str:
-    """Return the whole document, which is the same every time.
+def render_shell(said: dict[str, str] | None = None, language: str = "en") -> str:
+    """Return the whole document, which is the same every time in one language.
 
-    There is nothing to interpolate: the page is a shell and the state arrives from
+    Nothing else is interpolated: the page is a shell and the state arrives from
     `api/state` after it has loaded. Both addresses are relative, because an Ingress App
     is served under a path the Supervisor invents per session and an absolute one would
     leave the App altogether.
+
+    The words go in ahead of the script rather than being fetched with the state,
+    because the page says things before it has any state — the destinations in the rail
+    and the sentence under the title are on the screen while Home Assistant is still
+    being asked, and a rail that is briefly English is a rail that flickers.
     """
+    # ASCII, so nothing in a translation can be a character this document has a meaning
+    # for; and the one sequence that would still end the script early is escaped, which
+    # in JSON is the same string written another way.
+    catalogue = json.dumps(said or {}).replace("</", "<\\/")
+    tongue = html.escape((language or "en").split("-")[0][:8], quote=True)
     return (
         "<!doctype html>\n"
-        '<html lang="en">\n'
+        f'<html lang="{tongue}">\n'
         "<head>\n"
         '<meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
         "<title>TV Sitter</title>\n"
         "<style>" + _STYLE + "</style>\n"
         "</head>\n"
-        "<body>" + _BODY + "<script>" + _SCRIPT + "</script>\n"
+        "<body>" + _BODY + "<script>const SAID = " + catalogue + ";</script>\n"
+        "<script>" + _SCRIPT + "</script>\n"
         "</body>\n"
         "</html>\n"
     )

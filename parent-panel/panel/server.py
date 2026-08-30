@@ -27,6 +27,7 @@ from .automations import Automations, configure, offer
 from .blueprints import install
 from .home_assistant import HomeAssistant, Refused
 from .page import render_shell
+from .words import phrase, words
 
 _LOGGER = logging.getLogger("panel")
 
@@ -49,13 +50,28 @@ SILENT = "Home Assistant did not answer. It may still be starting."
 # Said separately from the refusal above because it is a different thing to do next: a
 # change to a television is worth trying again, an automation Home Assistant will not
 # validate needs somebody to look at the log the reason went to.
+NOT_A_REQUEST = "That was not a request."
 UNKEPT = "Home Assistant would not keep that automation."
 UNMADE = "Home Assistant would not make that change."
 
 
 async def index(request: web.Request) -> web.Response:
-    """Answer with the page, which fetches everything on it for itself."""
-    return no_store(web.Response(text=render_shell(), content_type="text/html"))
+    """Answer with the page, which fetches everything on it for itself.
+
+    The words come with it rather than after it, because the page says things before it
+    has asked Home Assistant anything — the destinations in the rail and the sentence
+    under the title are on the screen while the first request is still in flight, and a
+    rail that is briefly English is a rail that flickers. Asking which language costs
+    one small request per page load, and a page load is not a thing that happens often.
+    """
+    home: HomeAssistant = request.app["home"]
+    tongue = await home.language() if home.authorised else "en"
+    # Kept for the actions that follow this page, which are answered in the same
+    # language it was read in and have no page load of their own to ask on.
+    request.app["tongue"] = tongue
+    return no_store(
+        web.Response(text=render_shell(words(tongue), tongue), content_type="text/html")
+    )
 
 
 async def state(request: web.Request) -> web.Response:
@@ -77,17 +93,18 @@ async def state(request: web.Request) -> web.Response:
 
 
 async def do(request: web.Request) -> web.Response:
-    """Make one change, and say plainly when it could not be made."""
+    """Make one change, and say why it could not, in the language it was asked in."""
     home: HomeAssistant = request.app["home"]
+    tongue = request.app.get("tongue", "en")
     if not home.authorised:
-        return answer({"ok": False, "error": NO_TOKEN})
+        return answer({"ok": False, "error": phrase(NO_TOKEN, tongue)})
 
     try:
         asked = await request.json()
     except ValueError:
-        return answer({"ok": False, "error": "That was not a request."})
+        return answer({"ok": False, "error": phrase(NOT_A_REQUEST, tongue)})
     if not isinstance(asked, dict):
-        return answer({"ok": False, "error": "That was not a request."})
+        return answer({"ok": False, "error": phrase(NOT_A_REQUEST, tongue)})
 
     try:
         # Read afresh rather than from anything held: the page names a television by its
@@ -95,23 +112,26 @@ async def do(request: web.Request) -> web.Response:
         # changes when somebody renames a set or the integration gains a control.
         await apply(home, await home.televisions(), asked)
     except ValueError as wrong:
-        return answer({"ok": False, "error": str(wrong)})
+        # Translated where there are words for it. Most of these name a television or a
+        # field, so they are built where that is known and stay in English — which is
+        # what this leaves behind rather than what it fixes.
+        return answer({"ok": False, "error": phrase(str(wrong), tongue)})
     except PermissionError as refused:
         _LOGGER.error("%s", refused)
-        return answer({"ok": False, "error": REFUSED})
+        return answer({"ok": False, "error": phrase(REFUSED, tongue)})
     except Refused as failure:
         # Home Assistant's own sentence when it wrote one: it says which television is
         # not listening, or which value it would not take, and the generic line said
         # neither. A parent painting a week while the set is asleep got "Home Assistant
         # would not make that change" and no idea what to do about it.
         _LOGGER.warning("the change was refused: %s", failure)
-        return answer({"ok": False, "error": failure.why or UNMADE})
+        return answer({"ok": False, "error": failure.why or phrase(UNMADE, tongue)})
     except RuntimeError as failure:
         _LOGGER.warning("the change was refused: %s", failure)
-        return answer({"ok": False, "error": UNMADE})
+        return answer({"ok": False, "error": phrase(UNMADE, tongue)})
     except (ClientError, TimeoutError) as failure:
         _LOGGER.warning("could not reach Home Assistant: %s", failure)
-        return answer({"ok": False, "error": SILENT})
+        return answer({"ok": False, "error": phrase(SILENT, tongue)})
     return answer({"ok": True})
 
 

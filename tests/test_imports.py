@@ -55,6 +55,7 @@ PANEL_MODULES = [
     "panel.page",
     "panel.server",
     "panel.statistics",
+    "panel.words",
 ]
 
 

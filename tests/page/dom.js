@@ -140,10 +140,17 @@ document.activeElement = null;
 document.hidden = false;
 document.createElement = (tag) => new El(tag);
 const known = new Map();
-["banner", "nothing", "chooser", "tabs", "rail", "panels",
+["banner", "nothing", "chooser", "tabs", "rail", "panels", "lead", "which",
   "go-now", "go-today", "go-rules", "go-apps"].forEach((id) => {
   const node = new El("div");
   node.id = id;
+  // A destination in the rail is a mark and then its name, in that order, which is
+  // what the page reaches into when it puts the name into the reader's language. An
+  // empty box here would let that go untested and still pass.
+  if (id.startsWith("go-")) {
+    node.appendChild(new El("svg"));
+    node.appendChild(new El("span"));
+  }
   known.set(id, node);
   document.appendChild(node);
 });

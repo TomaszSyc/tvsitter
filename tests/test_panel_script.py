@@ -50,4 +50,6 @@ def test_the_script_is_closed_inside_the_document() -> None:
     script as far as the test above is concerned.
     """
     assert "</script" not in _SCRIPT.lower()
-    assert render_shell().lower().count("</script>") == 1
+    # Two blocks: the words the page says, then the page. Both have to be closed once
+    # and no more, and a third would mean something has been cut in half.
+    assert render_shell().lower().count("</script>") == 2

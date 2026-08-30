@@ -17,11 +17,13 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import shutil
 import subprocess
 
 from panel.page import _SCRIPT
+from panel.words import words
 import pytest
 
 DRIVERS = Path(__file__).resolve().parent / "page"
@@ -40,9 +42,13 @@ def test_the_page_behaves(driver: Path, tmp_path: Path) -> None:
 
     served = tmp_path / "page.js"
     served.write_text(_SCRIPT, encoding="utf-8")
+    # The Polish words, in the shape the document carries them. Handed to every driver
+    # and ignored by the ones that read the page in English.
+    catalogue = tmp_path / "words.json"
+    catalogue.write_text(json.dumps(words("pl")), encoding="utf-8")
 
     done = subprocess.run(
-        [node, str(driver), str(served)],
+        [node, str(driver), str(served), str(catalogue)],
         capture_output=True,
         text=True,
         check=False,
