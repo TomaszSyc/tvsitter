@@ -75,6 +75,23 @@ An issue is closed by its own keyword. `Closes #12 and #13` closes only #12, whi
 write, invisible in review, and has left issues open here three times. Write `Closes #12. Closes
 #13.`
 
+## Adding a member to a Kotlin class
+
+Anchor the insertion on the **end of the member before it**, never on the start of the member
+after it. A declaration in this repository usually has a KDoc above it, and an insertion
+anchored on the declaration lands between the two — orphaning the KDoc, which ktlint refuses
+as "A KDoc is not allowed inside 'class_body'".
+
+This has happened eight times. Seven were caught by the spotless pre-commit hook, which exists
+because the eighth was not and reached the remote. The hook is the reason it costs a minute
+rather than a bad commit, and it is not a reason to keep doing it: run
+
+```
+./gradlew spotlessCheck
+```
+
+straight after editing Kotlin, rather than finding out at commit time.
+
 ## Style
 
 - Kotlin: see `.editorconfig`, 120 column limit.
