@@ -1,6 +1,6 @@
 # Development and CI tooling only. The integration itself declares no requirements and
 # gets its dependencies from Home Assistant at runtime.
-ruff==0.16.4
+ruff==0.16.5
 pytest==9.0.3
 
 # Home Assistant is here so CI can import the integration against the real thing. That is
