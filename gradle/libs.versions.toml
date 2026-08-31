@@ -10,7 +10,7 @@ serialization = "1.11.0"
 coroutines = "1.11.0"
 hivemq = "1.4.0"
 junit = "6.1.3"
-spotless = "8.10.0"
+spotless = "8.10.1"
 # Last 1.x release. Its Gradle plugin uses ReportingExtension.file(String), which is
 # deprecated and removed in Gradle 10, so this needs a 2.x bump before that upgrade.
 detekt = "1.23.8"
