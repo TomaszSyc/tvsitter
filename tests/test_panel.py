@@ -14,7 +14,7 @@ from panel.home_assistant import Television, collect
 DEVICE = "b0fc4e4987a5b78b71faf37e6a219e9b"
 
 
-def device(name: str = "TV Salon", device_id: str = DEVICE) -> dict[str, Any]:
+def device(name: str = "TV Lounge", device_id: str = DEVICE) -> dict[str, Any]:
     """Build a device registry row of the shape Home Assistant serves."""
     return {"id": device_id, "name": name, "name_by_user": None}
 
@@ -45,15 +45,15 @@ def test_a_television_is_found_through_the_registry() -> None:
     found = collect(
         [device()],
         [
-            entity("sensor.tv_salon_reguly", "rules"),
-            entity("binary_sensor.tv_salon_ekran", "screen"),
+            entity("sensor.tv_lounge_reguly", "rules"),
+            entity("binary_sensor.tv_lounge_ekran", "screen"),
         ],
     )
 
-    assert [one.name for one in found] == ["TV Salon"]
+    assert [one.name for one in found] == ["TV Lounge"]
     assert found[0].entities == {
-        "rules": "sensor.tv_salon_reguly",
-        "screen": "binary_sensor.tv_salon_ekran",
+        "rules": "sensor.tv_lounge_reguly",
+        "screen": "binary_sensor.tv_lounge_ekran",
     }
 
 
@@ -62,7 +62,7 @@ def test_other_integrations_are_not_televisions() -> None:
     found = collect(
         [device(), device("Kuchnia", "other")],
         [
-            entity("sensor.tv_salon_reguly", "rules"),
+            entity("sensor.tv_lounge_reguly", "rules"),
             entity("light.kuchnia", platform="hue", device_id="other"),
         ],
     )
@@ -86,10 +86,10 @@ def test_two_televisions_with_one_name_are_still_two() -> None:
 def test_a_renamed_television_keeps_the_name_the_parent_gave_it() -> None:
     """`name_by_user` is the one on screen everywhere else, so it is the one here."""
     row = device()
-    row["name_by_user"] = "Salon dzieci"
+    row["name_by_user"] = "Lounge dzieci"
 
     assert (
-        collect([row], [entity("sensor.x_reguly", "rules")])[0].name == "Salon dzieci"
+        collect([row], [entity("sensor.x_reguly", "rules")])[0].name == "Lounge dzieci"
     )
 
 
@@ -111,10 +111,10 @@ def test_the_per_app_entities_are_filed_under_their_package() -> None:
     found = collect(
         [device()],
         [
-            entity("sensor.tv_salon_reguly", "rules"),
-            entity("sensor.tv_salon_netflix", unique_id=f"{DEVICE}_app_com.netflix"),
+            entity("sensor.tv_lounge_reguly", "rules"),
+            entity("sensor.tv_lounge_netflix", unique_id=f"{DEVICE}_app_com.netflix"),
             entity(
-                "number.tv_salon_netflix_limit",
+                "number.tv_lounge_netflix_limit",
                 unique_id=f"{DEVICE}_app_limit_com.netflix",
             ),
         ],
@@ -122,15 +122,15 @@ def test_the_per_app_entities_are_filed_under_their_package() -> None:
 
     assert found[0].apps == {
         "com.netflix": {
-            "sensor": "sensor.tv_salon_netflix",
-            "limit": "number.tv_salon_netflix_limit",
+            "sensor": "sensor.tv_lounge_netflix",
+            "limit": "number.tv_lounge_netflix_limit",
         }
     }
 
 
 def make(**states: str) -> Television:
     """Build a television whose entities say the given things."""
-    television = Television(device_id=DEVICE, name="TV Salon")
+    television = Television(device_id=DEVICE, name="TV Lounge")
     for key, value in states.items():
         television.entities[key] = f"sensor.{key}"
         television.states[f"sensor.{key}"] = {"state": value, "attributes": {}}
@@ -156,11 +156,11 @@ def test_an_unset_number_is_not_zero() -> None:
 
 def test_an_app_is_called_what_the_television_calls_it() -> None:
     """The label lives on the set, and arrives with the device name in front of it."""
-    television = Television(device_id=DEVICE, name="TV Salon")
+    television = Television(device_id=DEVICE, name="TV Lounge")
     television.apps["com.netflix"] = {"sensor": "sensor.n", "limit": "number.n"}
     television.states["sensor.n"] = {
         "state": "14.8",
-        "attributes": {"friendly_name": "TV Salon Netflix"},
+        "attributes": {"friendly_name": "TV Lounge Netflix"},
     }
 
     assert television.app_name("com.netflix") == "Netflix"
@@ -169,7 +169,7 @@ def test_an_app_is_called_what_the_television_calls_it() -> None:
 
 def test_an_app_with_no_budget_of_its_own_reads_as_nothing() -> None:
     """Unset runs on the day's allowance; zero is blocked. Never the same answer."""
-    television = Television(device_id=DEVICE, name="TV Salon")
+    television = Television(device_id=DEVICE, name="TV Lounge")
     television.apps["a"] = {"sensor": "sensor.a", "limit": "number.a"}
     television.apps["b"] = {"sensor": "sensor.b", "limit": "number.b"}
     television.states["number.a"] = {"state": "unknown", "attributes": {}}
@@ -181,11 +181,14 @@ def test_an_app_with_no_budget_of_its_own_reads_as_nothing() -> None:
 
 def test_the_rules_come_from_the_television_without_the_name_tacked_on() -> None:
     """`friendly_name` is Home Assistant's, not a rule, and it is not one to show."""
-    television = Television(device_id=DEVICE, name="TV Salon")
+    television = Television(device_id=DEVICE, name="TV Lounge")
     television.entities["rules"] = "sensor.r"
     television.states["sensor.r"] = {
         "state": "52",
-        "attributes": {"daily_limit_s": 3600, "friendly_name": "TV Salon Wersja reguł"},
+        "attributes": {
+            "daily_limit_s": 3600,
+            "friendly_name": "TV Lounge Wersja reguł",
+        },
     }
 
     assert television.rules == {"daily_limit_s": 3600}

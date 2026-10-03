@@ -28,7 +28,7 @@ from custom_components.tvsitter.switch import BlockSettingsSwitch
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
 
-PREFIX = "tvsitter/salon"
+PREFIX = "tvsitter/lounge"
 
 
 def make_client(hass: HomeAssistant, available: bool = True) -> TvSitterClient:
@@ -38,7 +38,7 @@ def make_client(hass: HomeAssistant, available: bool = True) -> TvSitterClient:
     a television that is not waits for it instead of going out (#135), which is what
     test_pending_rules.py is about.
     """
-    client = TvSitterClient(hass, name="TV Salon", topic_prefix=PREFIX)
+    client = TvSitterClient(hass, name="TV Lounge", topic_prefix=PREFIX)
     client.available = available
     return client
 

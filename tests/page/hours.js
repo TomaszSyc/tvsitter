@@ -29,7 +29,7 @@ function blank() {
 
 function television() {
   return {
-    id: "tv1", name: "TV Salon", reporting: true, screen: false, locked: false,
+    id: "tv1", name: "TV Lounge", reporting: true, screen: false, locked: false,
     playing: null, pin_set: true, used_today: 0, limit_today: null,
     remaining_today: null, bonus_today: 0, used_yesterday: null,
     last_reported: null, rules_revision: 1, daily_limit: 60, sleep_timer: null,
@@ -52,7 +52,7 @@ function serve(body) {
   sent = body.days;
   const tv = state.televisions[0];
   if (world === "refused") {
-    return {ok: false, error: "TV Salon takes its hours from schedule.evenings."};
+    return {ok: false, error: "TV Lounge takes its hours from schedule.evenings."};
   }
   if (world === "asleep") {
     tv.pending_rules = {windows: [{id: "held", from: "16:00", to: "19:30"}]};

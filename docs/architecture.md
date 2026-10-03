@@ -8,13 +8,13 @@ superseded it.
 
 - TV: Philips Google TV TA5 (TPV, `PH1M_WW_9972`), Android 14 (API 34).
 - Home Assistant 2026.8.2 on HAOS, Mosquitto broker add-on, HACS.
-- Notifications: `notify.mobile_app_pixel_9_pro` and `notify.mobile_app_pixel_watch_4`.
+- Notifications: the companion app on a phone and on a watch.
 
 ## D1 — Enforcement on the TV, not over ADB
 
 The obvious approach is to drive the TV from Home Assistant through the `androidtv`
 integration (ADB): `am force-stop`, `pm disable-user`, `input keyevent SLEEP`. Rejected,
-because ADB is not stable enough on this hardware. The `media_player.philips_tb` entity
+because ADB is not stable enough on this hardware. The `androidtv` media player entity
 logged 577 `off`↔`idle` state changes in 48 hours, 10–60 seconds apart, while the
 independent `philips_js` integration reported clean single transitions over the same
 period. A lock that only fires most of the time is not much of a lock. Turning network
@@ -512,7 +512,7 @@ Mqtt5ConnAckException: CONNECT failed as CONNACK contained an Error Code: NOT_AU
 ```
 
 ```
-Client tvsitter-tvsitter-salon disconnected: not authorised.
+Client tvsitter-tvsitter-lounge disconnected: not authorised.
 error: received null username or password for unpwd check
 ```
 
@@ -1338,7 +1338,7 @@ central evaluator. Not being built now; filed so the door stays open.
 ### D37 — a rule waits for the television; a command does not (2026-08-30)
 
 #135 arrived as a refusal that read wrong: a parent painted a week in the panel and was told
-"TV Salon is not listening; the change would go nowhere". The refusal was right about the
+"TV Lounge is not listening; the change would go nowhere". The refusal was right about the
 wire and wrong about the product. `<p>/cmd` is deliberately not retained — a retained `lock`
 would come back after every broker restart (D5) — so a `set_rules` published to a sleeping
 television really is lost. But the answer to that is to send it when the set comes back, not

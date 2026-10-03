@@ -26,7 +26,7 @@ blueprint:
       name: Notification action
       description: >-
         The old-style notify action for the parent's phone, such as
-        notify.mobile_app_pixel_9_pro. It has to be the old service rather than a notify
+        notify.mobile_app_phone. It has to be the old service rather than a notify
         entity: action buttons only work there, and they are the whole point.
       selector:
         text:
@@ -49,7 +49,7 @@ blueprint:
       name: Second notification action
       description: >-
         Used only when the switch above is on, for example
-        notify.mobile_app_pixel_watch_4.
+        notify.mobile_app_watch.
       default: notify.persistent_notification
       selector:
         text:

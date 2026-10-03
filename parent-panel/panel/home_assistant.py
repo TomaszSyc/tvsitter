@@ -7,7 +7,7 @@ writer it was built for.
 
 Which entity is which comes from the registry, never from an entity id. Entity ids are
 built from translated names — on a Polish Home Assistant the rules sensor is
-`sensor.tv_salon_reguly` — so matching on a suffix works in English and silently finds
+`sensor.tv_lounge_reguly` — so matching on a suffix works in English and silently finds
 nothing anywhere else. `platform`, `device_id`, `unique_id` and `translation_key` are
 not translated.
 
@@ -235,7 +235,7 @@ class HomeAssistant:
         ) as answer:
             if answer.status >= 400:
                 # The sentence Home Assistant wrote, kept apart from the rest. It is the
-                # only part worth putting in front of a parent — "TV Salon is not
+                # only part worth putting in front of a parent — "TV Lounge is not
                 # listening" answers the question, and `tvsitter.set_windows was refused
                 # by 500` does not. Never a PIN: `set_pin` refuses before it reaches
                 # here, precisely because the sentence would carry the value.

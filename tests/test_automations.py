@@ -29,9 +29,9 @@ import pytest
 
 DEVICE = "b0fc4e4987a5b78b71faf37e6a219e9b"
 OTHER = "9a1d5f2c4e8b47a3bc0e6d1f8a2b3c4d"
-EVENT = "event.tv_salon_prosba_o_czas"
-PHONE = "notify.mobile_app_pixel_9_pro"
-WATCH = "notify.mobile_app_pixel_watch_4"
+EVENT = "event.tv_lounge_prosba_o_czas"
+PHONE = "notify.mobile_app_phone"
+WATCH = "notify.mobile_app_watch"
 
 
 def services(*notify: str) -> list[dict[str, Any]]:
@@ -51,7 +51,7 @@ def services(*notify: str) -> list[dict[str, Any]]:
 
 def television(
     device_id: str = DEVICE,
-    name: str = "TV Salon",
+    name: str = "TV Lounge",
     event: str | None = EVENT,
     states: dict[str, dict[str, Any]] | None = None,
 ) -> Television:
@@ -193,20 +193,20 @@ def test_the_id_is_the_television_rather_than_the_clock() -> None:
 
 def test_the_automation_is_the_blueprint_and_the_answers_to_its_inputs() -> None:
     """Nothing of what it does is written here — that is the blueprint's, once."""
-    written = body("TV Salon", EVENT, PHONE, None)
+    written = body("TV Lounge", EVENT, PHONE, None)
 
     assert written["use_blueprint"] == {
         "path": BLUEPRINT,
         "input": {"request_event": EVENT, "notify_action": PHONE},
     }
-    assert "TV Salon" in written["alias"]
+    assert "TV Lounge" in written["alias"]
     assert "triggers" not in written
     assert "actions" not in written
 
 
 def test_the_offers_and_the_expiry_are_left_to_the_blueprint() -> None:
     """Written here they would be pinned to whatever the panel thought once."""
-    asked = body("TV Salon", EVENT, PHONE, WATCH)["use_blueprint"]["input"]
+    asked = body("TV Lounge", EVENT, PHONE, WATCH)["use_blueprint"]["input"]
 
     assert "first_offer" not in asked
     assert "second_offer" not in asked
@@ -215,7 +215,7 @@ def test_the_offers_and_the_expiry_are_left_to_the_blueprint() -> None:
 
 def test_a_watch_is_switched_on_as_well_as_named() -> None:
     """The blueprint runs the second action only when the boolean beside it is on."""
-    asked = body("TV Salon", EVENT, PHONE, WATCH)["use_blueprint"]["input"]
+    asked = body("TV Lounge", EVENT, PHONE, WATCH)["use_blueprint"]["input"]
 
     assert asked["also_notify"] is True
     assert asked["second_notify_action"] == WATCH
@@ -223,7 +223,7 @@ def test_a_watch_is_switched_on_as_well_as_named() -> None:
 
 def test_no_watch_leaves_the_switch_out_rather_than_writing_it_off() -> None:
     """A post replaces the whole automation, so absent is off and stays off."""
-    asked = body("TV Salon", EVENT, PHONE, None)["use_blueprint"]["input"]
+    asked = body("TV Lounge", EVENT, PHONE, None)["use_blueprint"]["input"]
 
     assert "also_notify" not in asked
     assert "second_notify_action" not in asked
@@ -316,11 +316,11 @@ async def test_an_automation_made_by_hand_is_written_over_rather_than_doubled() 
 async def test_another_television_gets_an_automation_of_its_own() -> None:
     """One per request, not one per house."""
     home = Fake()
-    salon = television()
+    lounge = television()
     kitchen = television(OTHER, "TV Kuchnia", "event.tv_kuchnia_prosba_o_czas")
 
-    await configure(home, [salon, kitchen], {"id": DEVICE, "notify": PHONE})
-    await configure(home, [salon, kitchen], {"id": OTHER, "notify": PHONE})
+    await configure(home, [lounge, kitchen], {"id": DEVICE, "notify": PHONE})
+    await configure(home, [lounge, kitchen], {"id": OTHER, "notify": PHONE})
 
     assert sorted(home.automations) == sorted([ours(DEVICE), ours(OTHER)])
 
@@ -360,16 +360,16 @@ async def test_the_page_is_told_what_is_set_and_what_can_be_chosen() -> None:
             )
         }
     )
-    salon = television(states=running(ours(DEVICE)))
+    lounge = television(states=running(ours(DEVICE)))
     kitchen = television(OTHER, "TV Kuchnia", "event.tv_kuchnia_prosba_o_czas")
 
-    told = await offer(home, [salon, kitchen])
+    told = await offer(home, [lounge, kitchen])
 
     assert told["notify"] == [PHONE, WATCH]
     assert told["error"] is None
     assert told["televisions"][0] == {
         "id": DEVICE,
-        "name": "TV Salon",
+        "name": "TV Lounge",
         "ready": True,
         "configured": True,
         "notify": PHONE,
@@ -390,7 +390,7 @@ async def test_a_television_with_no_request_event_is_offered_nothing() -> None:
     with pytest.raises(ValueError) as refusal:
         await configure(home, [old], {"id": DEVICE, "notify": PHONE})
 
-    assert "TV Salon" in str(refusal.value)
+    assert "TV Lounge" in str(refusal.value)
     assert home.automations == {}
 
 

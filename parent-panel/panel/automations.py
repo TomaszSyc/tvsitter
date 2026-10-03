@@ -40,7 +40,7 @@ _LOGGER = logging.getLogger("panel")
 BLUEPRINT = "tvsitter/more_time_request.yaml"
 
 # The entity the blueprint watches, by translation key rather than by entity id — a
-# Polish Home Assistant calls it `event.tv_salon_prosba_o_czas`.
+# Polish Home Assistant calls it `event.tv_lounge_prosba_o_czas`.
 REQUEST_EVENT = "time_request"
 
 NOTIFY = "notify"

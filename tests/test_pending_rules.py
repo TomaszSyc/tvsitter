@@ -36,7 +36,7 @@ from homeassistant.components.schedule.const import SERVICE_GET as SERVICE_GET_S
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 
-PREFIX = "tvsitter/salon"
+PREFIX = "tvsitter/lounge"
 
 
 def snapshot(**overrides: object) -> StateSnapshot:
@@ -60,7 +60,7 @@ def sleeping(hass: HomeAssistant, **options: object) -> TvSitterClient:
     """
     entry = MockConfigEntry(domain=DOMAIN, options=options)
     entry.add_to_hass(hass)
-    client = TvSitterClient(hass, name="TV Salon", topic_prefix=PREFIX, entry=entry)
+    client = TvSitterClient(hass, name="TV Lounge", topic_prefix=PREFIX, entry=entry)
     client.snapshot = snapshot(rules_rev=4)
     client.available = False
     return client
@@ -416,7 +416,7 @@ async def test_a_waiting_change_survives_a_client_built_again(
     entry = client.entry
 
     after_restart = TvSitterClient(
-        hass, name="TV Salon", topic_prefix=PREFIX, entry=entry
+        hass, name="TV Lounge", topic_prefix=PREFIX, entry=entry
     )
 
     assert after_restart.pending_rules == {"daily_limit_s": 2700}
@@ -433,7 +433,7 @@ async def test_a_restarted_change_still_goes_out_on_the_reconnect(
     client = sleeping(hass)
     await DailyLimitNumber(client).async_set_native_value(45)
     after_restart = TvSitterClient(
-        hass, name="TV Salon", topic_prefix=PREFIX, entry=client.entry
+        hass, name="TV Lounge", topic_prefix=PREFIX, entry=client.entry
     )
     after_restart.snapshot = snapshot(rules_rev=4)
 
@@ -632,7 +632,7 @@ async def test_a_client_without_an_entry_still_holds_and_sends(
     hass: HomeAssistant,
 ) -> None:
     """Nothing can remember one without an entry, and holding must not fail for it."""
-    client = TvSitterClient(hass, name="TV Salon", topic_prefix=PREFIX)
+    client = TvSitterClient(hass, name="TV Lounge", topic_prefix=PREFIX)
     client.snapshot = snapshot(rules_rev=4)
     client.available = False
 

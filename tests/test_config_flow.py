@@ -61,9 +61,9 @@ def test_addresses_a_tv_can_use(host: str) -> None:
 @pytest.mark.parametrize(
     ("raw", "expected"),
     [
-        ("tvsitter/salon", "tvsitter/salon"),
-        ("  tvsitter/salon  ", "tvsitter/salon"),
-        ("/tvsitter/salon/", "tvsitter/salon"),
+        ("tvsitter/lounge", "tvsitter/lounge"),
+        ("  tvsitter/lounge  ", "tvsitter/lounge"),
+        ("/tvsitter/lounge/", "tvsitter/lounge"),
         ("tvsitter/+", None),
         ("tvsitter/#", None),
         ("", None),
@@ -130,11 +130,11 @@ def test_no_defaults_but_a_typed_host_is_enough() -> None:
 
 def test_pair_schema_accepts_a_filled_in_form() -> None:
     """Guards the sectioned schema, which is the part that cannot be eyeballed."""
-    schema = config_flow._pair_schema("tvsitter/salon", HA_BROKER)
+    schema = config_flow._pair_schema("tvsitter/lounge", HA_BROKER)
     validated = schema(
         {
             "pin": "927745",
-            "topic_prefix": "tvsitter/salon",
+            "topic_prefix": "tvsitter/lounge",
             "broker": {
                 "host": "192.0.2.10",
                 "port": 1883,
@@ -150,9 +150,9 @@ def test_pair_schema_accepts_a_filled_in_form() -> None:
 
 def test_pair_schema_defaults_the_broker_section_from_home_assistant() -> None:
     """The address a TV can reach is pre-filled, so the common path needs no typing."""
-    schema = config_flow._pair_schema("tvsitter/salon", HA_BROKER)
+    schema = config_flow._pair_schema("tvsitter/lounge", HA_BROKER)
     validated = schema(
-        {"pin": "927745", "topic_prefix": "tvsitter/salon", "broker": {}}
+        {"pin": "927745", "topic_prefix": "tvsitter/lounge", "broker": {}}
     )
     assert validated["broker"]["host"] == HA_BROKER.host
     assert validated["broker"]["port"] == HA_BROKER.port
@@ -162,20 +162,20 @@ def test_pair_schema_defaults_the_broker_section_from_home_assistant() -> None:
 
 def test_pair_schema_still_requires_a_pin() -> None:
     """The PIN is the whole point of the step."""
-    schema = config_flow._pair_schema("tvsitter/salon", HA_BROKER)
+    schema = config_flow._pair_schema("tvsitter/lounge", HA_BROKER)
     with pytest.raises(vol.Invalid):
-        schema({"topic_prefix": "tvsitter/salon", "broker": {}})
+        schema({"topic_prefix": "tvsitter/lounge", "broker": {}})
 
 
 def test_pair_response_is_read_the_way_the_tv_writes_it() -> None:
     """Field names come from PairResponse's @SerialName annotations, not from Python."""
     accepted = pairing.PairResult.from_payload(
-        json.loads('{"ok":true,"device_id":"dd17356d","name":"Salon"}')
+        json.loads('{"ok":true,"device_id":"dd17356d","name":"Lounge"}')
     )
     assert (accepted.ok, accepted.device_id, accepted.name) == (
         True,
         "dd17356d",
-        "Salon",
+        "Lounge",
     )
 
     refused = pairing.PairResult.from_payload(

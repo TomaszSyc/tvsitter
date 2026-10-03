@@ -25,7 +25,7 @@ function blank() {
 
 const state = {
   televisions: [{
-    id: "tv1", name: "TV Salon", reporting: true, screen: true, locked: false,
+    id: "tv1", name: "TV Lounge", reporting: true, screen: true, locked: false,
     playing: null, pin_set: true, used_today: 0, limit_today: null,
     remaining_today: null, bonus_today: 0, used_yesterday: null,
     last_reported: null, rules_revision: 1, daily_limit: 60, sleep_timer: null,
@@ -40,9 +40,9 @@ const state = {
 
 // What `/api/setup` says, set per scene.
 let offered = {
-  notify: ["notify.mobile_app_pixel_9_pro", "notify.mobile_app_pixel_watch_4"],
+  notify: ["notify.mobile_app_phone", "notify.mobile_app_watch"],
   televisions: [{
-    id: "tv1", name: "TV Salon", ready: true, configured: false,
+    id: "tv1", name: "TV Lounge", ready: true, configured: false,
     notify: null, also_notify: null,
   }],
   error: null,
@@ -111,7 +111,7 @@ async function main() {
   process.stdout.write("\nThe phones this house has\n");
   same("both pickers are offered", pickers.length, 2);
   same("each one names the phones", pickers[0].children.map((one) => one.textContent),
-    ["Nobody", "Pixel 9 pro", "Pixel watch 4"]);
+    ["Nobody", "Phone", "Watch"]);
   same("and the second says so", pickers[1].children[0].textContent, "Nobody else");
   same("nothing is chosen to begin with", [pickers[0].value, pickers[1].value],
     ["", ""]);
@@ -119,17 +119,17 @@ async function main() {
   ok("and nothing is being explained away", nothing.hidden === true);
 
   process.stdout.write("\nChoosing a phone\n");
-  pickers[0].value = "notify.mobile_app_pixel_9_pro";
-  pickers[1].value = "notify.mobile_app_pixel_watch_4";
+  pickers[0].value = "notify.mobile_app_phone";
+  pickers[1].value = "notify.mobile_app_watch";
   fire(button, "click", {});
   await settle();
   same("what was chosen is what was sent", posted,
-    {id: "tv1", notify: "notify.mobile_app_pixel_9_pro",
-      also_notify: "notify.mobile_app_pixel_watch_4"});
+    {id: "tv1", notify: "notify.mobile_app_phone",
+      also_notify: "notify.mobile_app_watch"});
   ok("and it says so", note.textContent.indexOf("Saved") >= 0);
   same("what came back is what stays chosen",
     [pickers[0].value, pickers[1].value],
-    ["notify.mobile_app_pixel_9_pro", "notify.mobile_app_pixel_watch_4"]);
+    ["notify.mobile_app_phone", "notify.mobile_app_watch"]);
 
   process.stdout.write("\nA refusal\n");
   refused = "The second device has to be a different one.";
@@ -152,8 +152,8 @@ async function main() {
 
   process.stdout.write("\nA television from before there were time requests\n");
   offered = {
-    notify: ["notify.mobile_app_pixel_9_pro"],
-    televisions: [{id: "tv1", name: "TV Salon", ready: false, configured: false,
+    notify: ["notify.mobile_app_phone"],
+    televisions: [{id: "tv1", name: "TV Lounge", ready: false, configured: false,
       notify: null, also_notify: null}],
     error: null,
   };

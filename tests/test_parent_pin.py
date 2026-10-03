@@ -28,7 +28,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.util import dt as dt_util
 
-PREFIX = "tvsitter/salon"
+PREFIX = "tvsitter/lounge"
 PIN = "4829"
 SALT = "0f1e2d3c4b5a69788796a5b4c3d2e1f0"
 
@@ -39,7 +39,7 @@ def make_client(hass: HomeAssistant) -> TvSitterClient:
     Marked as listening, because that is what these tests are about. Writing to a
     television that is not is refused on purpose (#90), and has its own tests.
     """
-    client = TvSitterClient(hass, name="TV Salon", topic_prefix=PREFIX)
+    client = TvSitterClient(hass, name="TV Lounge", topic_prefix=PREFIX)
     client.available = True
     return client
 

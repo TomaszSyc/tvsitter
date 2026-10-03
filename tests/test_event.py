@@ -23,13 +23,13 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.util import dt as dt_util
 
-PREFIX = "tvsitter/salon"
+PREFIX = "tvsitter/lounge"
 REQUEST_ID = "8f14e45f"
 
 
 def make_client(hass: HomeAssistant) -> TvSitterClient:
     """Build a client with nothing subscribed; the arrivals are handed to it by hand."""
-    return TvSitterClient(hass, name="TV Salon", topic_prefix=PREFIX)
+    return TvSitterClient(hass, name="TV Lounge", topic_prefix=PREFIX)
 
 
 def snapshot(**overrides: object) -> StateSnapshot:

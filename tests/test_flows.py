@@ -41,7 +41,7 @@ def discovered(**properties: Any) -> ZeroconfServiceInfo:
     """Build a discovery, with the TXT record PairingProtocol publishes."""
     txt: dict[str, Any] = {
         "id": DEVICE_ID,
-        "name": "Salon",
+        "name": "Lounge",
         "version": "0.1.0-m0",
         "paired": "false",
     }
@@ -50,7 +50,7 @@ def discovered(**properties: Any) -> ZeroconfServiceInfo:
         ip_address=ip_address(TV_HOST),
         ip_addresses=[ip_address(TV_HOST)],
         port=TV_PORT,
-        hostname="salon.local.",
+        hostname="lounge.local.",
         type="_tvsitter._tcp.local.",
         name=f"TV Sitter {DEVICE_ID}._tvsitter._tcp.local.",
         properties=txt,
@@ -134,11 +134,11 @@ async def test_user_flow_creates_an_entry(hass: HomeAssistant) -> None:
     assert started["step_id"] == "user"
 
     result = await hass.config_entries.flow.async_configure(
-        started["flow_id"], {"name": "TV Salon", "topic_prefix": "tvsitter/salon"}
+        started["flow_id"], {"name": "TV Lounge", "topic_prefix": "tvsitter/lounge"}
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert result["title"] == "TV Salon"
-    assert result["data"] == {"name": "TV Salon", "topic_prefix": "tvsitter/salon"}
+    assert result["title"] == "TV Lounge"
+    assert result["data"] == {"name": "TV Lounge", "topic_prefix": "tvsitter/lounge"}
 
 
 @pytest.mark.parametrize("prefix", ["tvsitter/+", "tvsitter/#", "", "   ", "/"])
@@ -150,7 +150,7 @@ async def test_user_flow_rejects_an_unusable_prefix(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
     result = await hass.config_entries.flow.async_configure(
-        started["flow_id"], {"name": "TV Salon", "topic_prefix": prefix}
+        started["flow_id"], {"name": "TV Lounge", "topic_prefix": prefix}
     )
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"topic_prefix": "invalid_topic_prefix"}
@@ -172,15 +172,15 @@ async def test_the_same_prefix_cannot_be_added_twice(hass: HomeAssistant) -> Non
     """Two entries on one prefix would send commands to the same TV."""
     MockConfigEntry(
         domain=DOMAIN,
-        unique_id="tvsitter/salon",
-        data={"name": "TV Salon", "topic_prefix": "tvsitter/salon"},
+        unique_id="tvsitter/lounge",
+        data={"name": "TV Lounge", "topic_prefix": "tvsitter/lounge"},
     ).add_to_hass(hass)
 
     started = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
     result = await hass.config_entries.flow.async_configure(
-        started["flow_id"], {"name": "Another name", "topic_prefix": "tvsitter/salon"}
+        started["flow_id"], {"name": "Another name", "topic_prefix": "tvsitter/lounge"}
     )
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "already_configured"
@@ -198,7 +198,7 @@ async def test_discovery_offers_the_pairing_form(hass: HomeAssistant) -> None:
 
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "pair"
-    assert result["description_placeholders"] == {"name": "Salon"}
+    assert result["description_placeholders"] == {"name": "Lounge"}
 
 
 async def test_discovery_defaults_the_prefix_from_the_tv_name(
@@ -206,9 +206,9 @@ async def test_discovery_defaults_the_prefix_from_the_tv_name(
 ) -> None:
     """With nothing advertised, the owner recognises the name rather than the id."""
     add_mqtt_entry(hass)
-    result = await start_zeroconf(hass, name="Salon telewizor")
+    result = await start_zeroconf(hass, name="Lounge telewizor")
 
-    assert suggested_prefix(result) == "tvsitter/salon_telewizor"
+    assert suggested_prefix(result) == "tvsitter/lounge_telewizor"
 
 
 async def test_discovery_prefers_the_prefix_the_tv_is_already_using(
@@ -216,16 +216,16 @@ async def test_discovery_prefers_the_prefix_the_tv_is_already_using(
 ) -> None:
     """Re-pairing a working TV must not invite a new prefix (#33).
 
-    The derived value would be `tvsitter/salon_telewizor` here, and accepting it would
+    The derived value would be `tvsitter/lounge_telewizor` here, and accepting it would
     move the TV onto a prefix Home Assistant had just invented, leaving the entities
     behind.
     """
     add_mqtt_entry(hass)
     result = await start_zeroconf(
-        hass, name="Salon telewizor", prefix="tvsitter/parter/salon"
+        hass, name="Lounge telewizor", prefix="tvsitter/parter/lounge"
     )
 
-    assert suggested_prefix(result) == "tvsitter/parter/salon"
+    assert suggested_prefix(result) == "tvsitter/parter/lounge"
 
 
 @pytest.mark.parametrize("advertised", ["tvsitter/+", "tvsitter/#", "", "   ", "/"])
@@ -234,9 +234,9 @@ async def test_an_unusable_advertised_prefix_falls_back_to_the_name(
 ) -> None:
     """A wildcard would subscribe to other TVs' topics, so it is not offered."""
     add_mqtt_entry(hass)
-    result = await start_zeroconf(hass, name="Salon", prefix=advertised)
+    result = await start_zeroconf(hass, name="Lounge", prefix=advertised)
 
-    assert suggested_prefix(result) == "tvsitter/salon"
+    assert suggested_prefix(result) == "tvsitter/lounge"
 
 
 async def test_discovery_ignores_a_tv_that_is_already_paired(
@@ -264,7 +264,7 @@ async def test_discovery_of_a_configured_tv_stops_there(hass: HomeAssistant) -> 
     MockConfigEntry(
         domain=DOMAIN,
         unique_id=DEVICE_ID,
-        data={"name": "Salon", "topic_prefix": "tvsitter/salon"},
+        data={"name": "Lounge", "topic_prefix": "tvsitter/lounge"},
     ).add_to_hass(hass)
 
     result = await start_zeroconf(hass)
@@ -283,20 +283,20 @@ async def test_pairing_sends_the_broker_details_and_creates_an_entry(
     """The success path, including what actually goes over the wire."""
     add_mqtt_entry(hass)
     aioclient_mock.post(
-        PAIR_URL, json={"ok": True, "device_id": DEVICE_ID, "name": "Salon"}
+        PAIR_URL, json={"ok": True, "device_id": DEVICE_ID, "name": "Lounge"}
     )
 
     started = await start_zeroconf(hass)
     result = await hass.config_entries.flow.async_configure(
         started["flow_id"],
-        {"pin": "927745", "topic_prefix": "tvsitter/salon", "broker": {}},
+        {"pin": "927745", "topic_prefix": "tvsitter/lounge", "broker": {}},
     )
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert result["title"] == "Salon"
+    assert result["title"] == "Lounge"
     assert result["data"] == {
-        "name": "Salon",
-        "topic_prefix": "tvsitter/salon",
+        "name": "Lounge",
+        "topic_prefix": "tvsitter/lounge",
         "device_id": DEVICE_ID,
     }
 
@@ -308,7 +308,7 @@ async def test_pairing_sends_the_broker_details_and_creates_an_entry(
         "port": 1883,
         "username": "ha-user",
         "password": "ha-secret",
-        "topic_prefix": "tvsitter/salon",
+        "topic_prefix": "tvsitter/lounge",
         "use_tls": False,
     }
 
@@ -323,20 +323,20 @@ async def test_pairing_adopts_a_tv_that_was_added_by_hand(
     """
     add_mqtt_entry(hass)
     aioclient_mock.post(
-        PAIR_URL, json={"ok": True, "device_id": DEVICE_ID, "name": "Salon"}
+        PAIR_URL, json={"ok": True, "device_id": DEVICE_ID, "name": "Lounge"}
     )
     by_hand = MockConfigEntry(
         domain=DOMAIN,
-        unique_id="tvsitter/salon",
+        unique_id="tvsitter/lounge",
         title="Added by hand",
-        data={"name": "Added by hand", "topic_prefix": "tvsitter/salon"},
+        data={"name": "Added by hand", "topic_prefix": "tvsitter/lounge"},
     )
     by_hand.add_to_hass(hass)
 
     started = await start_zeroconf(hass)
     result = await hass.config_entries.flow.async_configure(
         started["flow_id"],
-        {"pin": "927745", "topic_prefix": "tvsitter/salon", "broker": {}},
+        {"pin": "927745", "topic_prefix": "tvsitter/lounge", "broker": {}},
     )
 
     assert result["type"] is FlowResultType.ABORT
@@ -348,7 +348,7 @@ async def test_pairing_adopts_a_tv_that_was_added_by_hand(
     assert entries[0].unique_id == DEVICE_ID
     assert entries[0].data["device_id"] == DEVICE_ID
     # The prefix is what the entities are keyed on, so it must survive untouched.
-    assert entries[0].data["topic_prefix"] == "tvsitter/salon"
+    assert entries[0].data["topic_prefix"] == "tvsitter/lounge"
     # And so must the name, which somebody chose. Pairing writes identity, not labels.
     assert entries[0].title == "Added by hand"
     assert entries[0].data["name"] == "Added by hand"
@@ -360,7 +360,7 @@ async def test_pairing_a_different_tv_still_creates_its_own_entry(
     """Adopting must key on the prefix, not merely on there being an entry."""
     add_mqtt_entry(hass)
     aioclient_mock.post(
-        PAIR_URL, json={"ok": True, "device_id": DEVICE_ID, "name": "Salon"}
+        PAIR_URL, json={"ok": True, "device_id": DEVICE_ID, "name": "Lounge"}
     )
     MockConfigEntry(
         domain=DOMAIN,
@@ -371,7 +371,7 @@ async def test_pairing_a_different_tv_still_creates_its_own_entry(
     started = await start_zeroconf(hass)
     result = await hass.config_entries.flow.async_configure(
         started["flow_id"],
-        {"pin": "927745", "topic_prefix": "tvsitter/salon", "broker": {}},
+        {"pin": "927745", "topic_prefix": "tvsitter/lounge", "broker": {}},
     )
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -384,7 +384,7 @@ async def test_a_container_local_broker_address_is_replaced(
     """D18. core-mosquitto would give a TV that can never connect."""
     add_mqtt_entry(hass, broker="core-mosquitto")
     aioclient_mock.post(
-        PAIR_URL, json={"ok": True, "device_id": DEVICE_ID, "name": "Salon"}
+        PAIR_URL, json={"ok": True, "device_id": DEVICE_ID, "name": "Lounge"}
     )
 
     with patch(
@@ -394,7 +394,7 @@ async def test_a_container_local_broker_address_is_replaced(
         started = await start_zeroconf(hass)
         result = await hass.config_entries.flow.async_configure(
             started["flow_id"],
-            {"pin": "927745", "topic_prefix": "tvsitter/salon", "broker": {}},
+            {"pin": "927745", "topic_prefix": "tvsitter/lounge", "broker": {}},
         )
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -410,7 +410,7 @@ async def test_a_dedicated_account_is_sent_as_typed(
     """The SECURITY.md option: an account scoped to this TV's topics."""
     add_mqtt_entry(hass)
     aioclient_mock.post(
-        PAIR_URL, json={"ok": True, "device_id": DEVICE_ID, "name": "Salon"}
+        PAIR_URL, json={"ok": True, "device_id": DEVICE_ID, "name": "Lounge"}
     )
 
     started = await start_zeroconf(hass)
@@ -418,13 +418,13 @@ async def test_a_dedicated_account_is_sent_as_typed(
         started["flow_id"],
         {
             "pin": "927745",
-            "topic_prefix": "tvsitter/salon",
-            "broker": {"username": "tv-salon", "password": "tv-only", "use_tls": True},
+            "topic_prefix": "tvsitter/lounge",
+            "broker": {"username": "tv-lounge", "password": "tv-only", "use_tls": True},
         },
     )
 
     _method, _url, sent, _headers = aioclient_mock.mock_calls[0]
-    assert sent["username"] == "tv-salon"
+    assert sent["username"] == "tv-lounge"
     assert sent["password"] == "tv-only"
     assert sent["use_tls"] is True
 
@@ -443,7 +443,7 @@ async def test_a_wrong_pin_says_how_many_attempts_are_left(
     started = await start_zeroconf(hass)
     result = await hass.config_entries.flow.async_configure(
         started["flow_id"],
-        {"pin": "000000", "topic_prefix": "tvsitter/salon", "broker": {}},
+        {"pin": "000000", "topic_prefix": "tvsitter/lounge", "broker": {}},
     )
 
     assert result["type"] is FlowResultType.FORM
@@ -463,7 +463,7 @@ async def test_an_expired_pin_is_reported_as_itself(
     started = await start_zeroconf(hass)
     result = await hass.config_entries.flow.async_configure(
         started["flow_id"],
-        {"pin": "927745", "topic_prefix": "tvsitter/salon", "broker": {}},
+        {"pin": "927745", "topic_prefix": "tvsitter/lounge", "broker": {}},
     )
 
     assert result["type"] is FlowResultType.FORM
@@ -484,7 +484,7 @@ async def test_a_refusal_carrying_a_bad_request_status_is_still_read(
     started = await start_zeroconf(hass)
     result = await hass.config_entries.flow.async_configure(
         started["flow_id"],
-        {"pin": "927745", "topic_prefix": "tvsitter/salon", "broker": {}},
+        {"pin": "927745", "topic_prefix": "tvsitter/lounge", "broker": {}},
     )
 
     assert result["type"] is FlowResultType.FORM
@@ -501,7 +501,7 @@ async def test_a_tv_that_does_not_answer_is_reported_as_such(
     started = await start_zeroconf(hass)
     result = await hass.config_entries.flow.async_configure(
         started["flow_id"],
-        {"pin": "927745", "topic_prefix": "tvsitter/salon", "broker": {}},
+        {"pin": "927745", "topic_prefix": "tvsitter/lounge", "broker": {}},
     )
 
     assert result["type"] is FlowResultType.FORM
@@ -518,7 +518,7 @@ async def test_something_else_on_that_port_is_not_mistaken_for_a_tv(
     started = await start_zeroconf(hass)
     result = await hass.config_entries.flow.async_configure(
         started["flow_id"],
-        {"pin": "927745", "topic_prefix": "tvsitter/salon", "broker": {}},
+        {"pin": "927745", "topic_prefix": "tvsitter/lounge", "broker": {}},
     )
 
     assert result["type"] is FlowResultType.FORM
@@ -549,7 +549,7 @@ async def test_pairing_gives_up_when_there_is_no_broker_to_name(
     started = await start_zeroconf(hass)
     result = await hass.config_entries.flow.async_configure(
         started["flow_id"],
-        {"pin": "927745", "topic_prefix": "tvsitter/salon", "broker": {}},
+        {"pin": "927745", "topic_prefix": "tvsitter/lounge", "broker": {}},
     )
 
     assert result["type"] is FlowResultType.ABORT

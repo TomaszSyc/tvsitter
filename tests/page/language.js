@@ -25,7 +25,7 @@ function blank() {
 
 const state = {
   televisions: [{
-    id: "tv1", name: "TV Salon", reporting: false, screen: false, locked: true,
+    id: "tv1", name: "TV Lounge", reporting: false, screen: false, locked: true,
     playing: null, pin_set: false, used_today: 0, limit_today: null,
     remaining_today: null, bonus_today: 0, used_yesterday: null,
     last_reported: null, rules_revision: 3, daily_limit: 60, sleep_timer: null,

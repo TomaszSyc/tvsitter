@@ -23,7 +23,7 @@ DEVICE = "b0fc4e4987a5b78b71faf37e6a219e9b"
 
 def television(**states: Any) -> Television:
     """Build a television saying the given things, keyed by translation key."""
-    one = Television(device_id=DEVICE, name="TV Salon")
+    one = Television(device_id=DEVICE, name="TV Lounge")
     for key, value in states.items():
         entity_id = f"x.{key}"
         one.entities[key] = entity_id
@@ -43,7 +43,7 @@ def test_the_snapshot_names_the_television_and_its_device() -> None:
     written = only(television(rules="52"))
 
     assert written["id"] == DEVICE
-    assert written["name"] == "TV Salon"
+    assert written["name"] == "TV Lounge"
 
 
 def test_on_and_off_arrive_as_booleans() -> None:
@@ -91,7 +91,7 @@ def with_apps() -> Television:
         one.apps[package] = {"sensor": f"sensor.{name}", "limit": f"number.{name}"}
         one.states[f"sensor.{name}"] = {
             "state": minutes,
-            "attributes": {"friendly_name": f"TV Salon {name}"},
+            "attributes": {"friendly_name": f"TV Lounge {name}"},
         }
         one.states[f"number.{name}"] = {"state": "unknown", "attributes": {}}
     return one
@@ -176,7 +176,7 @@ def with_noise() -> Television:
         }
         one.states[f"sensor.{package}"] = {
             "state": minutes,
-            "attributes": {"friendly_name": f"TV Salon {name}"},
+            "attributes": {"friendly_name": f"TV Lounge {name}"},
         }
         one.states[f"number.{package}"] = {"state": "unknown", "attributes": {}}
     return one
@@ -770,7 +770,7 @@ async def test_a_refused_pin_is_never_written_down_anywhere() -> None:
             """Refuse, quoting the value, as `TextEntity.async_set_value` does."""
             raise RuntimeError(
                 f"text.set_value was refused: Value {data['value']} for "
-                "text.tv_salon_parent_pin doesn't match pattern [0-9]{4}$"
+                "text.tv_lounge_parent_pin doesn't match pattern [0-9]{4}$"
             )
 
     with pytest.raises(ValueError) as refusal:
@@ -809,9 +809,9 @@ def test_home_assistants_own_sentence_survives_a_refusal() -> None:
     """
     from panel.home_assistant import said
 
-    body = '{"message": "TV Salon is not listening; the change would go nowhere"}'
+    body = '{"message": "TV Lounge is not listening; the change would go nowhere"}'
 
-    assert said(body) == "TV Salon is not listening; the change would go nowhere"
+    assert said(body) == "TV Lounge is not listening; the change would go nowhere"
 
 
 def test_a_refusal_that_says_nothing_useful_gives_nothing() -> None:
@@ -859,7 +859,7 @@ def watched(package: str, minutes: str, name: str) -> Television:
     one.apps[package] = {"sensor": f"sensor.{package}"}
     one.states[f"sensor.{package}"] = {
         "state": minutes,
-        "attributes": {"friendly_name": f"TV Salon {name}"},
+        "attributes": {"friendly_name": f"TV Lounge {name}"},
     }
     return one
 

@@ -27,12 +27,12 @@ from custom_components.tvsitter.sensor import (
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
 
-PREFIX = "tvsitter/salon"
+PREFIX = "tvsitter/lounge"
 
 
 def asleep(hass: HomeAssistant) -> TvSitterClient:
     """Build a television that has reported today and is now switched off."""
-    client = TvSitterClient(hass, name="TV Salon", topic_prefix=PREFIX)
+    client = TvSitterClient(hass, name="TV Lounge", topic_prefix=PREFIX)
     client.snapshot = StateSnapshot.from_payload(
         json.dumps(
             {
@@ -162,7 +162,7 @@ async def test_a_bedtime_still_cannot_be_armed_on_a_sleeping_television(
 
 async def test_nothing_is_shown_before_the_first_report(hass: HomeAssistant) -> None:
     """A television that has never said anything has nothing to remember about it."""
-    client = TvSitterClient(hass, name="TV Salon", topic_prefix=PREFIX)
+    client = TvSitterClient(hass, name="TV Lounge", topic_prefix=PREFIX)
 
     assert UsedTodaySensor(client).available is False
     assert ScreenOnSensor(client).available is False

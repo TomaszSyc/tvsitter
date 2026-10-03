@@ -17,7 +17,7 @@ from custom_components.tvsitter.models import StateSnapshot
 from custom_components.tvsitter.number import DailyLimitNumber
 from homeassistant.core import HomeAssistant
 
-PREFIX = "tvsitter/salon"
+PREFIX = "tvsitter/lounge"
 
 
 def make_client(hass: HomeAssistant) -> TvSitterClient:
@@ -26,7 +26,7 @@ def make_client(hass: HomeAssistant) -> TvSitterClient:
     Marked as listening, because that is what these tests are about. Writing to a
     television that is not is refused on purpose (#90), and has its own tests.
     """
-    client = TvSitterClient(hass, name="TV Salon", topic_prefix=PREFIX)
+    client = TvSitterClient(hass, name="TV Lounge", topic_prefix=PREFIX)
     client.available = True
     return client
 

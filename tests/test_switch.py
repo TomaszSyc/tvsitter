@@ -26,13 +26,13 @@ from custom_components.tvsitter.switch import (
 from homeassistant.core import HomeAssistant, State
 from homeassistant.util import dt as dt_util
 
-PREFIX = "tvsitter/salon"
-ENTITY_ID = "switch.tv_salon_lock"
+PREFIX = "tvsitter/lounge"
+ENTITY_ID = "switch.tv_lounge_lock"
 
 
 def make_client(hass: HomeAssistant) -> TvSitterClient:
     """Build a client with nothing subscribed; these tests only publish."""
-    return TvSitterClient(hass, name="TV Salon", topic_prefix=PREFIX)
+    return TvSitterClient(hass, name="TV Lounge", topic_prefix=PREFIX)
 
 
 def payload(*, locked: bool, ts: int = 1) -> str:

@@ -21,13 +21,13 @@ import pytest
 
 DEVICE = "b0fc4e4987a5b78b71faf37e6a219e9b"
 
-NETFLIX = "sensor.tv_salon_netflix"
-YOUTUBE = "sensor.tv_salon_youtube"
+NETFLIX = "sensor.tv_lounge_netflix"
+YOUTUBE = "sensor.tv_lounge_youtube"
 
 
 def television() -> Television:
     """Build a television with two apps, each with a sensor a statistic is kept for."""
-    one = Television(device_id=DEVICE, name="TV Salon")
+    one = Television(device_id=DEVICE, name="TV Lounge")
     for package, entity_id, name in (
         ("com.netflix.ninja", NETFLIX, "Netflix"),
         ("com.google.android.youtube.tv", YOUTUBE, "YouTube"),
@@ -35,7 +35,7 @@ def television() -> Television:
         one.apps[package] = {"sensor": entity_id, "limit": f"number.{name}"}
         one.states[entity_id] = {
             "state": "0",
-            "attributes": {"friendly_name": f"TV Salon {name}"},
+            "attributes": {"friendly_name": f"TV Lounge {name}"},
         }
     return one
 
@@ -242,7 +242,7 @@ async def test_a_television_with_no_apps_is_not_worth_a_socket(
     session = Session()
 
     written = await by_television(
-        home(session, monkeypatch), [Television(device_id=DEVICE, name="TV Salon")]
+        home(session, monkeypatch), [Television(device_id=DEVICE, name="TV Lounge")]
     )
 
     assert written == {}

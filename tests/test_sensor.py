@@ -38,12 +38,12 @@ from homeassistant.components.sensor import SensorStateClass
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
-PREFIX = "tvsitter/salon"
+PREFIX = "tvsitter/lounge"
 
 
 def make_client(hass: HomeAssistant, **overrides: object) -> TvSitterClient:
     """Build a client holding one state payload of the shape the TV sends."""
-    client = TvSitterClient(hass, name="TV Salon", topic_prefix=PREFIX)
+    client = TvSitterClient(hass, name="TV Lounge", topic_prefix=PREFIX)
     payload: dict[str, object] = {
         "schema": 1,
         "ts": 1787490000000,
@@ -110,7 +110,7 @@ async def test_a_television_that_has_never_reported_says_nothing(
     hass: HomeAssistant,
 ) -> None:
     """Rather than zero, which would read as a day with no television in it."""
-    client = TvSitterClient(hass, name="TV Salon", topic_prefix=PREFIX)
+    client = TvSitterClient(hass, name="TV Lounge", topic_prefix=PREFIX)
 
     assert UsedTodaySensor(client).native_value is None
     assert BonusTodaySensor(client).native_value is None
@@ -123,7 +123,7 @@ async def test_the_firmware_is_on_the_device(hass: HomeAssistant) -> None:
 
 
 def test_every_entity_name_is_translated() -> None:
-    """A missing key shows as "TV Salon Bonus_today" and nobody notices for months.
+    """A missing key shows as "TV Lounge Bonus_today" and nobody notices for months.
 
     Keys, not names: the whole point of the Polish file is that the names differ.
     """
@@ -195,7 +195,7 @@ async def test_an_app_on_a_television_that_has_not_reported_says_nothing(
     hass: HomeAssistant,
 ) -> None:
     """Zero here would claim a day with no television in it."""
-    client = TvSitterClient(hass, name="TV Salon", topic_prefix=PREFIX)
+    client = TvSitterClient(hass, name="TV Lounge", topic_prefix=PREFIX)
 
     assert AppUsageSensor(client, "com.netflix.ninja").native_value is None
 
@@ -379,7 +379,7 @@ def following(
     """
     options = {} if schedule is None else {CONF_SCHEDULE: schedule}
     entry = MockConfigEntry(domain=DOMAIN, options=options)
-    client = TvSitterClient(hass, name="TV Salon", topic_prefix=PREFIX, entry=entry)
+    client = TvSitterClient(hass, name="TV Lounge", topic_prefix=PREFIX, entry=entry)
     client.rules = dict(RULES) | rules
     return RulesSensor(client)
 
@@ -429,7 +429,7 @@ async def test_a_television_cannot_claim_to_be_following_a_helper(
 
 async def test_a_client_without_an_entry_still_reads(hass: HomeAssistant) -> None:
     """Nothing remembers a helper without one, and asking must not be an error."""
-    client = TvSitterClient(hass, name="TV Salon", topic_prefix=PREFIX)
+    client = TvSitterClient(hass, name="TV Lounge", topic_prefix=PREFIX)
     client.rules = dict(RULES)
 
     assert client.followed_schedule is None
@@ -441,7 +441,7 @@ async def test_a_helper_is_worth_saying_before_the_rules_arrive(
 ) -> None:
     """One can be followed while the set is asleep, which is when a grid gets edited."""
     entry = MockConfigEntry(domain=DOMAIN, options={CONF_SCHEDULE: "schedule.hours"})
-    client = TvSitterClient(hass, name="TV Salon", topic_prefix=PREFIX, entry=entry)
+    client = TvSitterClient(hass, name="TV Lounge", topic_prefix=PREFIX, entry=entry)
 
     assert RulesSensor(client).extra_state_attributes == {
         "following_schedule": "schedule.hours"
@@ -459,7 +459,7 @@ def forgettable(
     options = {} if schedule is None else {CONF_SCHEDULE: schedule}
     entry = MockConfigEntry(domain=DOMAIN, options=options)
     entry.add_to_hass(hass)
-    client = TvSitterClient(hass, name="TV Salon", topic_prefix=PREFIX, entry=entry)
+    client = TvSitterClient(hass, name="TV Lounge", topic_prefix=PREFIX, entry=entry)
     client.rules = dict(RULES)
     return client, RulesSensor(client)
 
@@ -556,7 +556,7 @@ async def test_forgetting_when_nothing_is_followed_is_not_an_error(
     assert client.followed_schedule is None
     assert dict(client.entry.options) == {}
 
-    bare = TvSitterClient(hass, name="TV Salon", topic_prefix=PREFIX)
+    bare = TvSitterClient(hass, name="TV Lounge", topic_prefix=PREFIX)
     await RulesSensor(bare).async_forget_schedule()
 
     assert bare.followed_schedule is None
@@ -607,7 +607,7 @@ async def test_forgetting_keeps_the_rest_of_the_entry(hass: HomeAssistant) -> No
         options={CONF_SCHEDULE: "schedule.viewing_hours", "some_later_option": 7},
     )
     entry.add_to_hass(hass)
-    client = TvSitterClient(hass, name="TV Salon", topic_prefix=PREFIX, entry=entry)
+    client = TvSitterClient(hass, name="TV Lounge", topic_prefix=PREFIX, entry=entry)
 
     await RulesSensor(client).async_forget_schedule()
 
