@@ -167,7 +167,7 @@ class TamperEvent(TvSitterEntity, EventEntity):
     message somebody needs.
     """
 
-    _attr_event_types: ClassVar[list[str]] = list(ALERT_KINDS)
+    _attr_event_types: ClassVar[list[str]] = [*ALERT_KINDS, ALERT_UNKNOWN]
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, client: TvSitterClient) -> None:
@@ -191,5 +191,5 @@ class TamperEvent(TvSitterEntity, EventEntity):
                 "%s raised %s, which this build does not know", self._client.name, kind
             )
             kind = ALERT_UNKNOWN
-        self._trigger_event(kind, {"id": alert.id, "kind": alert.kind, **alert.detail})
+        self._trigger_event(kind, {**alert.detail, "id": alert.id, "kind": alert.kind})
         self.async_write_ha_state()

@@ -549,9 +549,12 @@ class TvSitterClient:
 
     @callback
     def async_stop(self) -> None:
-        """Drop every subscription."""
+        """Drop every subscription, and the clock watching for silence."""
         while self._unsubscribers:
             self._unsubscribers.pop()()
+        if self._quiet_timer is not None:
+            self._quiet_timer()
+            self._quiet_timer = None
 
     @callback
     def async_add_request_listener(

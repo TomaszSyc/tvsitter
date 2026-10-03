@@ -7,18 +7,21 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 from __future__ import annotations
 
+from datetime import timedelta
 import json
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
+from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
 from custom_components.tvsitter.coordinator import TvSitterClient
-from custom_components.tvsitter.event import TimeRequestEvent
+from custom_components.tvsitter.event import TamperEvent, TimeRequestEvent
 from custom_components.tvsitter.models import StateSnapshot
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
+from homeassistant.util import dt as dt_util
 
 PREFIX = "tvsitter/salon"
 REQUEST_ID = "8f14e45f"
@@ -228,3 +231,83 @@ async def test_answering_nothing_says_so_rather_than_publishing(
         await entity.async_grant_time(minutes=15)
 
     publish.assert_not_called()
+
+
+def alarm(**overrides: Any) -> SimpleNamespace:
+    """One `<prefix>/alert` message, as the subscription hands it over."""
+    payload: dict[str, Any] = {
+        "schema": 1,
+        "id": "a1",
+        "kind": "clock_changed",
+        "ts": 1787400000000,
+    }
+    payload.update(overrides)
+    return SimpleNamespace(
+        topic=f"{PREFIX}/alert", payload=json.dumps(payload), qos=1, retain=False
+    )
+
+
+async def watching(hass: HomeAssistant, client: TvSitterClient) -> TamperEvent:
+    """Wire the tamper event to the client, with no real Home Assistant behind it."""
+    entity = TamperEvent(client)
+    entity.hass = hass
+    await entity.async_added_to_hass()
+    return entity
+
+
+async def test_an_alarm_becomes_an_event(hass: HomeAssistant) -> None:
+    """The kind is the event type, so an automation can pick the ones it cares about."""
+    client = make_client(hass)
+    entity = await watching(hass, client)
+
+    with patch.object(TamperEvent, "async_write_ha_state"):
+        client._handle_alert(alarm())
+
+    assert entity.state_attributes["event_type"] == "clock_changed"
+
+
+async def test_an_alarm_this_build_does_not_know_still_fires(
+    hass: HomeAssistant,
+) -> None:
+    """A newer television raising something new must not be lost on an older build."""
+    client = make_client(hass)
+    entity = await watching(hass, client)
+
+    with patch.object(TamperEvent, "async_write_ha_state"):
+        client._handle_alert(alarm(kind="hdmi_unplugged"))
+
+    assert entity.state_attributes["event_type"] == "unknown"
+    assert entity.state_attributes["kind"] == "hdmi_unplugged"
+
+
+async def test_the_detail_cannot_rename_the_alarm(hass: HomeAssistant) -> None:
+    """Free-form detail sits beside the id and kind, never over them."""
+    client = make_client(hass)
+    entity = await watching(hass, client)
+
+    with patch.object(TamperEvent, "async_write_ha_state"):
+        client._handle_alert(alarm(detail={"id": "x", "kind": "y", "jump_s": 3600}))
+
+    assert entity.state_attributes["id"] == "a1"
+    assert entity.state_attributes["kind"] == "clock_changed"
+    assert entity.state_attributes["jump_s"] == 3600
+
+
+async def test_a_stopped_client_stops_listening_for_silence(
+    hass: HomeAssistant,
+) -> None:
+    """Every reload used to leave another minute timer behind, still checking."""
+    client = make_client(hass)
+    with (
+        patch.object(client, "_check_for_silence") as checked,
+        patch(
+            "homeassistant.components.mqtt.async_subscribe",
+            AsyncMock(return_value=lambda: None),
+        ),
+    ):
+        await client.async_start()
+        client.async_stop()
+        async_fire_time_changed(hass, dt_util.utcnow() + timedelta(minutes=5))
+        await hass.async_block_till_done()
+
+    checked.assert_not_called()

@@ -11,6 +11,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 from __future__ import annotations
 
+import ast
 import json
 from pathlib import Path
 import re
@@ -21,6 +22,11 @@ MANIFEST = ROOT / "custom_components" / "tvsitter" / "manifest.json"
 APP_BUILD = ROOT / "app" / "build.gradle.kts"
 ADDON_CONFIG = ROOT / "parent-panel" / "config.yaml"
 ADDON_BUILD = ROOT / "parent-panel" / "build.yaml"
+HACS = ROOT / "hacs.json"
+INTEGRATION = ROOT / "custom_components" / "tvsitter"
+
+# The first Home Assistant release on each Python, from its own `requires_python`.
+PYTHON_FROM_RELEASE = [((2026, 3), (3, 14)), ((2025, 2), (3, 13))]
 
 SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
 
@@ -83,3 +89,20 @@ def test_the_panel_claims_only_what_is_built() -> None:
     built = set(re.findall(r"^  (\w+):", ADDON_BUILD.read_text(), re.MULTILINE))
 
     assert claimed == built, f"config.yaml claims {claimed}, build.yaml has {built}"
+
+
+def test_the_oldest_home_assistant_claimed_can_read_the_integration() -> None:
+    """HACS offers the integration to every release from the one named here up.
+
+    Ruff writes for Python 3.14, which drops the parentheses from an `except` naming two
+    exceptions. On the Python of an older release that is a syntax error, so the floor
+    has to be a release that runs 3.14.
+    """
+    floor = json.loads(HACS.read_text(encoding="utf-8"))["homeassistant"]
+    release = tuple(int(part) for part in floor.split(".")[:2])
+    python = next(py for since, py in PYTHON_FROM_RELEASE if release >= since)
+
+    for source in sorted(INTEGRATION.glob("*.py")):
+        ast.parse(
+            source.read_text(encoding="utf-8"), str(source), feature_version=python
+        )
