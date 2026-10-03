@@ -1,3 +1,6 @@
+# TV Sitter — parental control for Android TV / Google TV.
+# Copyright (C) 2026 Tomasz Syc
+# SPDX-License-Identifier: AGPL-3.0-only
 blueprint:
   name: TV Sitter — somebody is at the television
   description: >-
@@ -68,14 +71,20 @@ max: 10
 triggers:
   - trigger: state
     entity_id: !input tamper_event
-    # Not from unavailable or unknown: a restart re-reads the entity and would otherwise
-    # raise every alarm again, hours after anybody could act on it.
-    not_from:
-      - unavailable
-      - unknown
+    # Only the `to` side, as in the request blueprint (#117): the entity comes back
+    # `unknown` after a restart, and guarding `from` as well dropped the first real alarm.
     not_to:
       - unavailable
       - unknown
+
+# A restart re-reads the entity, and replaying an alarm hours after anybody could act on
+# it is what the guard on `from` was for. An event entity's state is the moment it fired,
+# so the moment has to be now.
+conditions:
+  - condition: template
+    value_template: >-
+      {{ trigger.to_state.attributes.get('id') is not none
+         and (now() - as_datetime(trigger.to_state.state)).total_seconds() < 120 }}
 
 variables:
   kind: "{{ trigger.to_state.attributes.event_type }}"

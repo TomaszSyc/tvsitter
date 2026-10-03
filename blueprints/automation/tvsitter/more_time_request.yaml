@@ -53,6 +53,19 @@ blueprint:
       default: notify.persistent_notification
       selector:
         text:
+    parents:
+      name: Who may answer
+      description: >-
+        The people whose answers count. Anything signed in to Home Assistant with the
+        companion app can press a button with the same name, so a household where a child
+        has a device of their own should list the parents here. Empty takes an answer from
+        anyone, as it always did.
+      default: []
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: person
     first_offer:
       name: First offer
       description: Minutes on the first button.
@@ -109,6 +122,9 @@ triggers:
   - trigger: event
     event_type: mobile_app_notification_action
     id: answered
+
+variables:
+  parents: !input parents
 
 conditions: []
 
@@ -187,6 +203,11 @@ actions:
           - condition: template
             value_template: >-
               {{ (trigger.event.data.action | default('', true)).startswith('TVSITTER-') }}
+          - alias: A parent pressed it
+            condition: template
+            value_template: >-
+              {% set allowed = parents | map('state_attr', 'user_id') | select | list %}
+              {{ not parents or trigger.event.context.user_id in allowed }}
         sequence:
           # action is TVSITTER-<verb>-<minutes>-<req_id>. The id is carried in the button
           # rather than looked up, so answering an old notification still answers the
@@ -195,10 +216,16 @@ actions:
           - variables:
               parts: "{{ trigger.event.data.action.split('-') }}"
               answered_id: "{{ parts[3:] | join('-') }}"
+              first: !input first_offer
+              second: !input second_offer
           - choose:
+              # Only what was on a button. The request id is readable off the event
+              # entity, so the minutes are the one thing a forged answer could choose.
               - conditions:
                   - condition: template
-                    value_template: "{{ parts[1] == 'GRANT' }}"
+                    value_template: >-
+                      {{ parts[1] == 'GRANT'
+                         and parts[2] | int(0) in [first | int, second | int] }}
                 sequence:
                   - action: tvsitter.grant_time
                     target:
