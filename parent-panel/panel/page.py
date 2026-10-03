@@ -26,260 +26,536 @@ from __future__ import annotations
 import html
 import json
 
-# The television's own palette, from TvStyle.kt, which is the original. It lives twice
-# because two languages read it, and the two halves of the product have to look like one
-# thing to the person who owns both of them.
+# Home Assistant's theme, read through tokens, so the page looks like the rest of the
+# house it is opened in rather than like something embedded in it.
 _STYLE = """
+/*
+ * Tokens, in two layers.
+ *
+ * The page lives in an iframe inside Home Assistant, and a parent who chose a theme
+ * there chose it for this page too. An iframe inherits none of the parent's custom
+ * properties, so the script copies Home Assistant's own variables onto this document
+ * (`borrow`), and every surface and text token below reads one of them first. What
+ * follows each of them is the fallback for a page opened on its own. The accent and
+ * the attention colour are the television's in every theme, in two strengths: as the
+ * set has them in the dark, and darkened until they pass on white in the light.
+ */
 :root {
+  color-scheme: light dark;
+  --fallback-bg: #F3F5F7;
+  --fallback-card: #FFFFFF;
+  --fallback-raised: #E8ECF0;
+  --fallback-ink: #17202A;
+  --fallback-muted: #56616D;
+  --fallback-line: rgba(23, 32, 42, 0.12);
+  --fallback-error: #C62828;
+  /* The television's mint, darkened until it passes as text on a light card and
+     carries white text as a fill (5.8:1 against white either way); and its amber, as
+     a mark and, darker again, as words. */
+  --mint: #00735F;
+  --on-mint: #FFFFFF;
+  --amber: #B57A00;
+  --amber-ink: #8A5A00;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --fallback-bg: #0B1117;
+    --fallback-card: #141D26;
+    --fallback-raised: #1C2732;
+    --fallback-ink: #F2F6F9;
+    --fallback-muted: #9AACBB;
+    --fallback-line: rgba(242, 246, 249, 0.12);
+    --fallback-error: #FF8A80;
+    --mint: #5BE1BE;
+    --on-mint: #0B1117;
+    --amber: #F6C467;
+    --amber-ink: #F6C467;
+  }
+}
+:root[data-theme="dark"] {
   color-scheme: dark;
-  --backdrop: #0B1017;
-  --surface: #141F2B;
-  --raised: #1C2733;
-  --edge: #24313F;
-  --accent: #5BE1BE;
-  --text: #F2F6F9;
-  --muted: #8FA3B3;
-  --warn: #FFC46B;
+  --fallback-bg: #0B1117;
+  --fallback-card: #141D26;
+  --fallback-raised: #1C2732;
+  --fallback-ink: #F2F6F9;
+  --fallback-muted: #9AACBB;
+  --fallback-line: rgba(242, 246, 249, 0.12);
+  --fallback-error: #FF8A80;
+  --mint: #5BE1BE;
+  --on-mint: #0B1117;
+  --amber: #F6C467;
+  --amber-ink: #F6C467;
+}
+:root[data-theme="light"] { color-scheme: light; }
+:root {
+  --bg: var(--primary-background-color, var(--fallback-bg));
+  --card: var(--card-background-color, var(--ha-card-background, var(--fallback-card)));
+  --raised: var(--secondary-background-color, var(--fallback-raised));
+  --ink: var(--primary-text-color, var(--fallback-ink));
+  --muted: var(--secondary-text-color, var(--fallback-muted));
+  --line: var(--divider-color, var(--fallback-line));
+  /* The television's colours rather than the theme's: the accent and the attention
+     colour are what make the panel and the set read as one product, while the
+     surfaces, text, font and corners above stay Home Assistant's. */
+  --accent: var(--mint);
+  --allow: var(--mint);
+  --warn: var(--amber);
+  --error: var(--error-color, var(--fallback-error));
+  --accent-ink: var(--mint);
+  --allow-ink: var(--mint);
+  --warn-ink: var(--amber-ink);
+  /* The theme's red is chosen as a fill, and pulled towards the text colour it passes
+     as words in both modes at once. */
+  --error-ink: color-mix(in oklab, var(--error) 68%, var(--ink));
+  --tint: color-mix(in oklab, var(--accent) 14%, var(--card));
+  --warn-tint: color-mix(in oklab, var(--warn) 14%, var(--card));
+  --error-tint: color-mix(in oklab, var(--error) 12%, var(--card));
+  /* A field and the edge of one. The edge is what tells a box apart from the card it
+     is on, so it is held to the 3:1 a control's boundary needs. */
+  --field: color-mix(in oklab, var(--ink) 3%, var(--card));
+  --edge: color-mix(in oklab, var(--ink) 38%, var(--card));
+  /* Words on a raised surface, where the theme's secondary text no longer passes. */
+  --ink-soft: color-mix(in oklab, var(--ink) 78%, var(--card));
+  /* An allowed half hour, and an empty one. Mint, the colour the television marks
+     what is allowed in, so a week reads the same on the set and here. */
+  --slot: color-mix(in oklab, var(--ink) 8%, var(--card));
+  --slot-on: var(--mint);
+  --radius: var(--ha-card-border-radius, 12px);
+  --radius-sm: 8px;
+  --shadow: var(--ha-card-box-shadow, none);
+  --font: var(--ha-font-family-body, var(--paper-font-body1_-_font-family,
+    system-ui, -apple-system, "Segoe UI", Roboto, sans-serif));
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --target: 40px;
   /* One half hour of the weekly grid, the row it sits in, the column the day is
-     named in, and the strip the hours are named across. */
-  --cell: 15px;
+     named in, and the strip the hours are named across. The half hour is a floor
+     rather than a size: on a wide screen they share the width out and come to the
+     24px a pointer needs; below it the grid scrolls inside its own box. */
+  --cell: 22px;
   --tall: 30px;
-  --label: 2.9rem;
-  --head: 1.15rem;
+  --label: 3.25rem;
+  --head: 1.5rem;
+  --gap: 2px;
+}
+/* A finger, or a screen only a finger is likely to be on: every box a finger can
+   land on, and a strip of hours tall enough to drag the week sideways by. */
+@media (pointer: coarse), (max-width: 40rem) {
+  :root {
+    --target: 44px;
+    --cell: 28px;
+    --tall: 36px;
+    --head: 2rem;
+  }
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
+html { background: var(--bg); }
 body {
   margin: 0;
-  padding: 1rem;
-  background: var(--backdrop);
-  color: var(--text);
-  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  padding: var(--s4);
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.5 var(--font);
+  -webkit-text-size-adjust: 100%;
 }
-main { max-width: 54rem; margin: 0 auto; }
-h1 { font-size: 1.4rem; margin: 0 0 0.2rem; }
-h2 { font-size: 1.1rem; margin: 0 0 1rem; }
+main { max-width: 80rem; margin: 0 auto; }
+h1, h2, h3 { line-height: 1.25; }
+h1 { font-size: 1.25rem; font-weight: 600; margin: 0; }
+h2 { font-size: 1.05rem; font-weight: 600; margin: 0 0 var(--s3); }
 h3 {
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  margin: 1.6rem 0 0.2rem;
+  letter-spacing: 0.06em;
+  margin: 0 0 var(--s2);
   text-transform: uppercase;
 }
 p { margin: 0; }
-.lead { color: var(--muted); margin-bottom: 1.4rem; }
-.empty { color: var(--muted); }
-.banner {
-  background: var(--surface);
-  border-left: 4px solid var(--warn);
-  border-radius: 14px;
-  color: var(--warn);
-  margin-bottom: 0.8rem;
-  padding: 0.85rem 1.1rem;
+b { font-weight: 600; }
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
-/* Two banners that hand a decision back rather than only reporting one: the
-   sentence, the button, and underneath both the promise of what pressing it does not
-   do. One offers the hours back off a helper; the other throws away a change the
-   television never woke up to take. */
-.banner.offer,
-.banner.waiting {
+@media (prefers-reduced-motion: no-preference) {
+  button, .where, input, select { transition: background-color 120ms, color 120ms; }
+}
+
+/* The page's own title, and which television, which is not one of the destinations
+   and never looks like one. */
+.top {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.7rem 1rem;
+  gap: var(--s3) var(--s5);
+  justify-content: space-between;
+  margin-bottom: var(--s4);
 }
-.banner.offer .said, .banner.waiting .said { flex: 1 1 15rem; }
-.banner.waiting button { flex: none; }
-.banner.offer button, .banner.offer button:hover {
-  background: var(--accent);
-  color: var(--backdrop);
+.brand { align-items: center; display: flex; gap: var(--s3); min-width: 0; }
+.brand svg {
+  color: var(--accent);
+  fill: currentColor;
   flex: none;
+  height: 2rem;
+  width: 2rem;
 }
-/* In the page's own quiet voice rather than the warning's. The reassurance is the half
-   a parent has to believe, and one in the colour of an alarm is not believed. */
-.banner .aside {
-  color: var(--muted);
-  flex-basis: 100%;
-  font-size: 0.85rem;
-}
-/* Which television, which is not one of the destinations and never looks like one. */
+.lead { color: var(--muted); font-size: 0.85rem; max-width: 40rem; }
 .chooser {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.6rem;
-  margin-bottom: 1.2rem;
+  gap: var(--s2) var(--s3);
 }
 .label {
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
-.tabs { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.tabs { display: flex; flex-wrap: wrap; gap: var(--s2); }
+.empty { color: var(--muted); }
+#nothing {
+  background: var(--card);
+  border: 1px dashed var(--edge);
+  border-radius: var(--radius);
+  padding: var(--s5);
+}
+
 /*
- * The rail. Across the top on a phone, down the side from 720px, and the same four
- * destinations in the same order either way — the width changes where it is, never what
- * is in it.
+ * The shell. One column at every width: the television's header, then the four
+ * destinations as one segmented bar, then the one destination open. A rail down the
+ * side used to take twelve rems off every pane, and the weekly grid is the one pane
+ * that needs every one of them. The panels and each television are see-through to the
+ * layout (`display: contents`) so the header can sit above the bar it belongs to while
+ * staying inside the television it describes.
  */
-.rail { display: flex; gap: 0.4rem; margin-bottom: 1.1rem; }
+.shell { display: flex; flex-direction: column; gap: var(--s4); }
+#panels, .tv { display: contents; }
+.tvhead { order: -1; }
+.rail { order: 0; }
+.pane { order: 1; }
+
+.rail {
+  background: var(--raised);
+  border-radius: 999px;
+  display: flex;
+  gap: var(--s1);
+  padding: var(--s1);
+  position: sticky;
+  top: var(--s2);
+  z-index: 10;
+}
 .where {
   align-items: center;
-  background: var(--surface);
   border-radius: 999px;
-  color: var(--muted);
+  color: var(--ink-soft);
   display: flex;
   flex: 1 1 0;
   flex-direction: column;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  gap: 0.15rem;
+  gap: 2px;
   justify-content: center;
+  min-height: var(--target);
   min-width: 0;
-  padding: 0.5rem 0.3rem;
+  padding: var(--s1) var(--s2);
   text-decoration: none;
 }
-.where svg { fill: currentColor; flex: none; height: 1.3rem; width: 1.3rem; }
-.where:hover { background: var(--edge); color: var(--text); }
-/* Filled with the accent, the way the television marks the destination it is on. */
-.where[aria-current="page"] { background: var(--accent); color: var(--backdrop); }
-.card {
-  background: var(--surface);
-  border-radius: 22px;
-  margin-bottom: 1rem;
-  padding: 1.2rem;
+.where span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
+.where svg { fill: currentColor; flex: none; height: 1.25rem; width: 1.25rem; }
+.where:hover { color: var(--ink); }
+/* Filled with the mint, the way the television marks the destination it is on. */
+.where[aria-current="page"] { background: var(--mint); color: var(--on-mint); }
 @media (min-width: 40rem) {
-  body { padding: 2rem; }
-  .card { padding: 1.7rem; }
-  .figure { padding: 0.9rem 1rem; }
+  body { padding: var(--s5); }
+  .where { flex-direction: row; font-size: 0.9rem; gap: var(--s2); }
 }
-@media (min-width: 720px) {
-  main { max-width: 66rem; }
-  .shell {
-    align-items: start;
-    display: grid;
-    gap: 1.6rem;
-    grid-template-columns: 12rem minmax(0, 1fr);
-  }
-  .rail { flex-direction: column; margin: 0; position: sticky; top: 2rem; }
-  .where {
-    flex: 0 0 auto;
-    flex-direction: row;
-    font-size: 0.95rem;
-    gap: 0.7rem;
-    justify-content: flex-start;
-    padding: 0.7rem 1.1rem;
-  }
+
+/* The destinations: cards in a column on a phone, two abreast where there is room,
+   with the cards that are a whole thing in themselves across both. */
+.pane { display: grid; gap: var(--s4); }
+@media (min-width: 60rem) {
+  .pane { align-items: start; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pane > .wide { grid-column: 1 / -1; }
 }
+/* What is waiting for a television, which takes no room while nothing is. */
+.holder { display: grid; gap: var(--s2); }
+.holder:not(:has(> :not([hidden]))) { display: none; }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--ha-card-border-color, var(--line));
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  min-width: 0;
+  padding: var(--s4);
+}
+@media (min-width: 40rem) { .card { padding: var(--s5); } }
+
+/* The television itself: its name, and how it is, on every destination. */
+.tvhead {
+  align-items: center;
+  background: var(--card);
+  border: 1px solid var(--ha-card-border-color, var(--line));
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: var(--s2) var(--s4);
+  grid-template-columns: minmax(0, 1fr);
+  padding: var(--s4);
+}
+.tvname { font-size: 1.3rem; margin: 0; overflow-wrap: anywhere; }
+.playing {
+  align-items: baseline;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.9rem;
+  gap: var(--s2);
+}
+.playing b { color: var(--ink); font-size: 1rem; overflow-wrap: anywhere; }
+@media (min-width: 40rem) {
+  .tvhead {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: var(--s4) var(--s5);
+  }
+  .tvhead .pills { grid-column: 1 / -1; grid-row: 2; }
+  .tvhead .playing { grid-column: 2; grid-row: 1; justify-content: flex-end; }
+}
+
+/* Status, as a dot and a word. The word is always in the text colour, so it reads in
+   any theme; the dot carries the colour, so it is never the only thing that does. */
+.pills { display: flex; flex-wrap: wrap; gap: var(--s2); }
+.pill {
+  align-items: center;
+  background: var(--raised);
+  border-radius: 999px;
+  color: var(--ink);
+  display: inline-flex;
+  font-size: 0.8rem;
+  font-weight: 500;
+  gap: 6px;
+  line-height: 1.2;
+  padding: 6px var(--s3) 6px 10px;
+}
+.pill::before {
+  background: var(--muted);
+  border-radius: 50%;
+  content: "";
+  flex: none;
+  height: 8px;
+  width: 8px;
+}
+.pill.yes::before { background: var(--allow); }
+.pill.bad { background: var(--warn-tint); }
+.pill.bad::before { background: var(--warn); }
+
+/* Something about a television, or about Home Assistant, that a parent has to know
+   before anything else on the page. A stripe and a tint carry the warning; the words
+   stay in the text colour, because a theme's warning orange is not legible as text. */
+.banner {
+  background: var(--warn-tint);
+  border-left: 4px solid var(--warn);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  margin: 0 0 var(--s3);
+  padding: var(--s3) var(--s4);
+}
+.card > div > .banner:last-child { margin-bottom: var(--s4); }
+/* Two banners that hand a decision back rather than only reporting one: the
+   sentence, the button, and underneath both the promise of what pressing it does not
+   do. One offers the hours back off a helper; the other throws away a change the
+   television never woke up to take. */
+.banner.offer, .banner.waiting {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s4);
+  margin: 0;
+}
+.banner.offer { margin-bottom: var(--s3); }
+.banner.offer .said, .banner.waiting .said { flex: 1 1 15rem; }
+.banner.offer button, .banner.waiting button { flex: none; }
+/* In the page's own quiet voice rather than the warning's. The reassurance is the half
+   a parent has to believe, and one in the colour of an alarm is not believed. */
+.banner .aside { color: var(--muted); flex-basis: 100%; font-size: 0.85rem; }
+
+/* Controls. Quiet by default; the one that does the card's job is filled with the
+   mint, under a label chosen to pass on it in either mode. */
 button {
+  align-items: center;
   background: var(--raised);
   border: 0;
   border-radius: 999px;
-  color: var(--text);
+  color: var(--ink);
   cursor: pointer;
+  display: inline-flex;
   font: inherit;
-  padding: 0.55rem 1.1rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  gap: var(--s2);
+  justify-content: center;
+  min-height: var(--target);
+  padding: 0 var(--s4);
 }
-button:hover { background: var(--edge); }
-button[aria-pressed="true"] { background: var(--accent); color: var(--backdrop); }
-/* The colour the page warns in, on the one button that takes something away. */
-.danger, .danger:hover { background: var(--warn); color: var(--backdrop); }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-input {
-  background: var(--backdrop);
+button:hover { background: color-mix(in oklab, var(--ink) 12%, var(--card)); }
+button:disabled { cursor: default; }
+button[aria-pressed="true"], .primary, .lock.up {
+  background: var(--mint);
+  color: var(--on-mint);
+  font-weight: 600;
+}
+button[aria-pressed="true"]:hover, .primary:hover, .lock.up:hover {
+  background: color-mix(in oklab, var(--mint) 86%, var(--ink));
+}
+/* The colour the page warns in, on the buttons that take something away. */
+.danger, .danger:hover {
+  background: var(--error-tint);
+  color: var(--error-ink);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--error) 55%, var(--card));
+}
+.danger:hover { background: color-mix(in oklab, var(--error) 20%, var(--card)); }
+input, select {
+  background: var(--field);
   border: 1px solid var(--edge);
-  border-radius: 12px;
-  color: var(--text);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
   font: inherit;
-  padding: 0.45rem 0.6rem;
-  width: 5rem;
+  min-height: var(--target);
+  padding: 0 var(--s3);
 }
-/* Written with the boxes rather than left to the platform: a select in its default
-   dress is a light grey control on a dark page, and the one place a parent picks
-   something from a list should not look as though it came from somewhere else. */
-select {
-  background: var(--backdrop);
-  border: 1px solid var(--edge);
-  border-radius: 12px;
-  color: var(--text);
-  font: inherit;
-  max-width: 100%;
-  padding: 0.45rem 0.6rem;
+input { width: 5.5rem; }
+input:hover, select:hover { border-color: var(--muted); }
+input:focus-visible, select:focus-visible {
+  border-color: var(--accent);
+  outline-offset: 0;
 }
+input::placeholder { color: var(--muted); opacity: 1; }
+select { max-width: 100%; min-width: 9rem; }
+input[type="number"] { font-variant-numeric: tabular-nums; text-align: right; }
 input[type="checkbox"] {
   accent-color: var(--accent);
-  height: 1.35rem;
+  cursor: pointer;
+  flex: none;
+  height: 22px;
+  margin: 0;
+  min-height: 0;
   padding: 0;
-  width: 1.35rem;
+  width: 22px;
 }
-.pills { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
-.pill {
-  background: var(--raised);
-  border-radius: 999px;
-  color: var(--muted);
-  font-size: 0.85rem;
-  padding: 0.2rem 0.8rem;
-}
-.pill.yes { color: var(--accent); }
-.pill.bad { color: var(--warn); }
+
+/* Figures: a value somebody reads, and what it is, under it. */
 .figures {
   display: grid;
-  gap: 0.7rem;
+  gap: var(--s3);
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 .figures.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .figure {
-  background: var(--backdrop);
-  border-radius: 16px;
-  padding: 0.75rem 0.7rem;
+  background: var(--field);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 2px;
+  min-width: 0;
+  padding: var(--s3);
 }
 .figure b {
-  display: block;
-  font-size: clamp(1.05rem, 4.6vw, 1.5rem);
-  font-weight: 600;
+  font-size: clamp(1.05rem, 4.4vw, 1.5rem);
+  font-variant-numeric: tabular-nums;
   line-height: 1.15;
   overflow-wrap: anywhere;
 }
 .figure span { color: var(--muted); font-size: 0.8rem; }
-.figure.spent b { color: var(--warn); }
-.lock {
-  border-radius: 18px;
-  font-size: 1.05rem;
-  font-weight: 600;
-  margin-top: 1rem;
-  padding: 1rem;
-  width: 100%;
+.figure.spent b { color: var(--warn-ink); }
+
+/* The start destination's one figure, the one a parent opens the page to read. Down
+   the left of the destination on a wide screen, with the two smaller cards stacked
+   beside it, rather than a full-width slab with one number in a corner of it. */
+.hero { display: grid; gap: var(--s4); }
+.hero .figure.big { background: none; padding: 0; }
+.hero .figure.big b {
+  font-size: clamp(2.2rem, 10vw, 3.25rem);
+  font-weight: 650;
+  letter-spacing: -0.01em;
 }
-.lock.up { background: var(--accent); color: var(--backdrop); }
+.hero .figure.big span { font-size: 0.85rem; font-weight: 600; }
+.hero .minor .figure { background: none; padding: 0; }
+.hero .minor .figure b { font-size: 1.05rem; }
+.lock { font-size: 1rem; font-weight: 600; min-height: 52px; width: 100%; }
+@media (min-width: 60rem) {
+  .pane > .hero.wide { grid-column: 1; grid-row: span 2; }
+}
+
+/* How much of the day is gone: a bar against the limit. Decorative — the figures
+   beside it carry the numbers — and not drawn at all for a day with no limit. */
+.meter {
+  background: var(--slot);
+  border-radius: 999px;
+  height: 10px;
+  overflow: hidden;
+}
+.meter span {
+  background: var(--accent);
+  border-radius: 999px;
+  display: block;
+  height: 100%;
+}
+.meter.over span { background: var(--warn); }
+
 .row {
   align-items: center;
-  border-top: 1px solid var(--raised);
+  border-top: 1px solid var(--line);
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  padding: 0.75rem 0;
+  gap: var(--s2) var(--s3);
+  padding: var(--s3) 0;
 }
 /* A card opening with a row opens with a rule across it, which reads as a mistake —
    and one directly under a heading reads as the heading being underlined. */
-.row:first-child, .card h2 + .row { border-top: 0; }
-.row .name { flex: 1 1 8rem; min-width: 0; }
+.row:first-child, .card h2 + .row, .hint + .row,
+.card h2 + [hidden] + .row { border-top: 0; }
+.row:last-child { padding-bottom: 0; }
+.row .name { flex: 1 1 9rem; font-weight: 500; min-width: 0; }
 /* A label that gives the rest of the row its width back, where what follows it is a
    short box and a button rather than a number and a unit. */
 .row .name.short { flex: 0 1 auto; }
+.row label.name.short {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  font-weight: 500;
+}
+.row label.name.short span { color: var(--muted); font-size: 0.8rem; }
 .row .name small {
   color: var(--muted);
   display: block;
   font-size: 0.75rem;
+  font-weight: 400;
   overflow-wrap: anywhere;
 }
-.row b { font-variant-numeric: tabular-nums; }
-.unit { color: var(--muted); }
-.tick { align-items: center; display: flex; gap: 0.45rem; }
-.hint, .note { flex-basis: 100%; font-size: 0.85rem; }
-.hint { color: var(--muted); }
+.unit { color: var(--muted); font-size: 0.9rem; }
+.tick {
+  align-items: center;
+  cursor: pointer;
+  display: inline-flex;
+  gap: var(--s2);
+  min-height: var(--target);
+}
+.hint { color: var(--muted); flex-basis: 100%; font-size: 0.85rem; }
+.card > .hint { margin-bottom: var(--s2); }
+.foot { color: var(--muted); font-size: 0.8rem; }
+
 /*
  * What one control has to say for itself, drawn under that control.
  *
@@ -289,43 +565,44 @@ input[type="checkbox"] {
  * wider than a phone.
  */
 .note {
-  align-items: flex-start;
-  color: var(--accent);
+  align-items: center;
+  color: var(--accent-ink);
   display: flex;
-  gap: 0.5rem;
-  margin-top: 0.3rem;
+  flex-basis: 100%;
+  font-size: 0.85rem;
+  font-weight: 500;
+  gap: var(--s2);
+  margin-top: var(--s2);
 }
-.note .words { min-width: 0; overflow-wrap: anywhere; }
-.note button { flex: none; font-size: 0.8rem; padding: 0.2rem 0.7rem; }
+.note .words { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.note button { flex: none; font-size: 0.8rem; min-height: 32px; padding: 0 var(--s3); }
 /* A refusal is the one message nobody catches, so it is the one that stays — and one
    that stays is drawn as something still on the page rather than as a line of text
    that happens not to have gone. */
 .note.bad {
-  background: var(--backdrop);
-  border-left: 3px solid var(--warn);
-  border-radius: 10px;
-  color: var(--warn);
-  padding: 0.5rem 0.7rem;
+  background: var(--error-tint);
+  border-left: 3px solid var(--error);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  padding: var(--s2) var(--s2) var(--s2) var(--s3);
 }
+
 /*
  * The week as one strip, not as seven forms.
  *
- * Seven rounded blocks, each holding a small box and the word "min", was mostly empty
- * space: the card said its unit seven times and its answer once, and the one day
- * anybody had actually set looked exactly like the six they had not. It is one rule
- * shown seven times, so it is drawn the way the hours below it are — a single inset
- * panel, one column per day, the day named in the same muted three letters. The unit
- * is said once above the seven of them, and what a day is worth is the colour of its
- * number: its own allowance, or nought, or nothing.
+ * It is one rule shown seven times, so it is drawn the way the hours below it are — a
+ * single inset panel, one column per day, the day named in the same muted three
+ * letters. The unit is said once above the seven of them, and what a day is worth is
+ * the colour of its number: its own allowance, or nought, or nothing.
  */
 .allowances {
-  background: var(--backdrop);
-  border-radius: 16px;
+  background: var(--field);
+  border-radius: var(--radius-sm);
   display: grid;
-  gap: 1px;
+  gap: var(--s1);
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  margin-top: 0.7rem;
-  padding: 0.5rem;
+  margin-top: var(--s3);
+  padding: var(--s2);
 }
 .allowance { min-width: 0; text-align: center; }
 .allowance label {
@@ -333,49 +610,66 @@ input[type="checkbox"] {
   display: block;
   font-size: 0.75rem;
   font-weight: 600;
-  margin-bottom: 0.25rem;
+  margin-bottom: var(--s1);
 }
 /* The box takes its column's width and gives up the spinner for it: three digits and
    a pair of arrows do not both fit in a seventh of a phone, and the arrows are the
-   half nobody came here to press. Lighter than the strip it sits in, the way a half
-   hour of the grid is lighter than the grid. */
+   half nobody came here to press. */
 .allowance input {
   appearance: textfield;
-  background: var(--surface);
-  border: 0;
-  border-radius: 10px;
+  -moz-appearance: textfield;
+  background: var(--card);
   display: block;
-  font-variant-numeric: tabular-nums;
   margin: 0 auto;
-  /* Three digits wide and no wider. A box that took a seventh of a desktop would put
-     one number in the middle of a slab, which is the emptiness this card had. */
-  max-width: 4.2rem;
+  max-width: 4.5rem;
   min-width: 0;
-  padding: 0.35rem 0.15rem;
+  padding: 0 2px;
   text-align: center;
   width: 100%;
 }
-.allowance input::-webkit-inner-spin-button { appearance: none; margin: 0; }
-.allowance input::placeholder { color: var(--muted); opacity: 1; }
+.allowance input::-webkit-inner-spin-button,
+.allowance input::-webkit-outer-spin-button { appearance: none; margin: 0; }
 /* A day somebody set is the thing on this card worth seeing, so it is the only thing
    on it with a colour. Nought takes viewing away, and this page takes things away in
    the warning colour. */
-.allowance input.set { color: var(--accent); font-weight: 600; }
-.allowance input.none { color: var(--warn); font-weight: 600; }
-.split { display: grid; gap: 0.9rem; margin-top: 1.3rem; }
-.app { display: grid; gap: 0.35rem 0.8rem; grid-template-columns: 1fr auto; }
+.allowance input.set {
+  border-color: color-mix(in oklab, var(--accent) 60%, var(--card));
+  color: var(--accent-ink);
+  font-weight: 650;
+}
+.allowance input.none {
+  border-color: color-mix(in oklab, var(--warn) 70%, var(--card));
+  color: var(--warn-ink);
+  font-weight: 650;
+}
+
+/* Where the time went: one list per stretch of time, side by side where they fit. */
+.parts { display: grid; gap: var(--s5); margin-top: var(--s5); }
+@media (min-width: 60rem) {
+  .parts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.part .hint { margin-bottom: var(--s2); }
+.split { display: grid; gap: var(--s3); }
+.app {
+  display: grid;
+  gap: var(--s1) var(--s3);
+  grid-template-columns: minmax(0, 1fr) auto;
+}
 .app .who {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.app .much em { color: var(--muted); font-style: normal; }
+.app .much { font-variant-numeric: tabular-nums; font-weight: 600; }
+.app .much em { color: var(--muted); font-style: normal; font-weight: 400; }
 .track {
-  background: var(--raised);
+  background: var(--slot);
   border-radius: 999px;
   grid-column: 1 / -1;
-  height: 10px;
+  height: 8px;
   overflow: hidden;
 }
 .track span {
@@ -384,7 +678,23 @@ input[type="checkbox"] {
   display: block;
   height: 100%;
 }
-.foot { color: var(--muted); font-size: 0.8rem; margin-top: 1.1rem; }
+.today .foot { margin-top: var(--s3); }
+.today .meter { margin-top: var(--s3); }
+
+/* The apps, two abreast on a wide screen: a long list in one narrow column is a page
+   of scrolling past the ones nobody came for. */
+.applist { display: grid; column-gap: var(--s6); }
+.applist > .row:first-child { border-top: 0; }
+@media (min-width: 60rem) {
+  .applist { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .applist > .row:nth-child(2) { border-top: 0; }
+}
+/* The name on a line of its own on a phone, so the budget, its unit and the tick stay
+   together on the next one rather than the unit wrapping away from its box. */
+.applist .row .name { flex: 1 1 100%; }
+.applist .row .tick { margin-left: auto; }
+@media (min-width: 40rem) { .applist .row .name { flex: 1 1 10rem; } }
+
 /*
  * The week as a grid: seven rows of half hours, drawn on rather than listed.
  *
@@ -397,124 +707,165 @@ input[type="checkbox"] {
  * The hours and the week scroll together and are still two grids, because the week
  * takes `touch-action: none` — a finger drawn across it is drawing hours, not scrolling
  * — and a phone would otherwise have no way to reach the far end of the day. The strip
- * of hours above it keeps `pan-x` and drags the pair.
+ * of hours above it keeps `pan-x` and drags the pair, which is why it is taller under a
+ * finger than under a pointer.
  *
  * The half hours are `1fr` with a floor under them: they share out a wide screen and
- * stop shrinking at a size a finger can still land on, which is where the card scrolls
+ * stop shrinking at a size a finger can still land on, which is where the box scrolls
  * instead. Forty-eight boxes squeezed onto a phone is forty-eight boxes nobody can tell
  * apart, which is the one thing this card exists to show.
  */
 .hoursbox {
-  background: var(--backdrop);
-  border-radius: 16px;
+  background: var(--field);
+  border-radius: var(--radius-sm);
   display: flex;
-  margin: 0.6rem 0;
-  padding: 0.5rem;
+  margin: var(--s3) 0 var(--s2);
+  padding: var(--s2);
 }
 .names {
   display: grid;
   flex: none;
-  gap: 1px;
+  gap: var(--gap);
   /* The empty first row is the strip of hours, so the days line up beside them. */
   grid-template-rows: var(--head) repeat(7, var(--tall));
-  margin-right: 0.4rem;
+  margin-right: var(--s2);
   width: var(--label);
 }
 /* Without this the scroller takes the width of its widest row and nothing scrolls. */
-.hours { flex: 1 1 auto; min-width: 0; overflow-x: auto; }
+.hours {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+/* Where the week runs on past the edge, its last boxes fade rather than stop, which
+   is the only sign a phone gives that there is more of the day to the right. */
+@media (max-width: 75rem) {
+  .hours {
+    -webkit-mask-image: linear-gradient(
+      to right, #000 calc(100% - 28px), rgba(0, 0, 0, 0.3)
+    );
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), rgba(0, 0, 0, 0.3));
+  }
+}
 .ticks, .week {
   display: grid;
-  gap: 1px;
+  gap: var(--gap);
   grid-template-columns: repeat(48, minmax(var(--cell), 1fr));
 }
 .ticks {
   grid-auto-rows: var(--head);
-  /* The gap the days keep between the strip and Monday, kept here as well. */
-  margin-bottom: 1px;
+  margin-bottom: var(--gap);
   touch-action: pan-x;
 }
-.tick {
+.hour {
+  align-items: center;
+  border-left: 1px solid var(--edge);
   color: var(--muted);
-  font-size: 0.7rem;
+  display: flex;
+  font-size: 0.72rem;
   font-variant-numeric: tabular-nums;
   grid-column: span 4;
-  line-height: var(--head);
+  padding-left: var(--s1);
 }
 .week {
   grid-auto-rows: var(--tall);
   touch-action: none;
   user-select: none;
+  -webkit-user-select: none;
 }
 /* Nothing to draw while a schedule helper owns the hours, so the finger has it back —
    and the week reads as a picture of the hours rather than as boxes that ignored it. */
-.week.off { opacity: 0.75; touch-action: pan-x; }
+.week.off { opacity: 0.7; touch-action: pan-x; }
 .day {
-  background: var(--raised);
-  border-radius: 8px;
-  color: var(--muted);
-  font-size: 0.75rem;
+  background: var(--card);
+  border-radius: 6px;
+  color: var(--ink);
+  font-size: 0.78rem;
   font-weight: 600;
-  padding: 0 0.4rem;
-  text-align: left;
+  justify-content: flex-start;
+  min-height: 0;
+  padding: 0 var(--s2);
 }
+.day:hover { background: var(--tint); }
+/* Read-only, so a day is a label rather than something that looks pressable. */
+.day:disabled, .day:disabled:hover { background: none; color: var(--muted); }
 /* Written twice over the shared button rule, which would put a hover colour on both. */
 .cell, .cell:hover {
-  background: var(--surface);
+  background: var(--slot);
   border-radius: 3px;
+  min-height: 0;
   padding: 0;
 }
-.cell.on, .cell.on:hover { background: var(--accent); }
-.cell:enabled:hover { box-shadow: inset 0 0 0 1px var(--muted); }
-/* A ring three pixels off a fourteen-pixel box swallows its neighbours. */
-.cell:focus-visible { outline-offset: 1px; }
-.cell:disabled, .day:disabled { cursor: default; }
-/* Read-only, so a day is a label rather than something that looks pressable. */
-.day:disabled { background: none; }
+.cell.on, .cell.on:hover { background: var(--slot-on); }
+.cell:enabled:hover { box-shadow: inset 0 0 0 2px var(--muted); }
+/* A ring two pixels off a small box swallows its neighbours, and the theme's colour
+   can be the green the box is filled with. */
+.cell:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+  position: relative;
+  z-index: 1;
+}
+.cell:disabled { cursor: default; }
 /* A run of marked half hours has to read as one span of time rather than as a row of
    dots. The gap between boxes stays, because a finger drawing across them needs to see
    where one ends; a marked box paints over the gap to its right instead, so neighbours
    join into a bar and a single half hour is still a box. */
-.cell.on, .cell.on:hover { box-shadow: 1px 0 0 0 var(--accent); }
+.cell.on, .cell.on:hover { box-shadow: var(--gap) 0 0 0 var(--slot-on); }
+/* Square where a run continues, so the joins do not leave notches in the bar. */
+.cell.on:has(+ .cell.on) { border-bottom-right-radius: 0; border-top-right-radius: 0; }
+.cell.on + .cell.on { border-bottom-left-radius: 0; border-top-left-radius: 0; }
+.cell.on:enabled:hover {
+  box-shadow: var(--gap) 0 0 0 var(--slot-on), inset 0 0 0 2px var(--ink);
+}
 /* Where the hour named above the grid falls, carried down through the week. Without it
-   forty-eight identical boxes are a smear nobody can find half past six in — which is
-   the whole complaint against a grid that shows exactly the right thing. */
-.cell.mark { border-left: 1px solid rgba(143, 163, 179, 0.45); }
-.cell.on.mark { border-left-color: rgba(11, 16, 23, 0.35); }
-.tick { border-left: 1px solid rgba(143, 163, 179, 0.25); padding-left: 0.25rem; }
+   forty-eight identical boxes are a smear nobody can find half past six in. */
+.cell.mark { border-left: 1px solid color-mix(in oklab, var(--ink) 22%, transparent); }
+.cell.on.mark { border-left-color: color-mix(in oklab, var(--card) 22%, transparent); }
 /* Midnight and noon, which are the two the eye actually navigates by. */
-.cell.noon { border-left-color: rgba(143, 163, 179, 0.85); }
-.cell.on.noon { border-left-color: rgba(11, 16, 23, 0.6); }
-/* What is being drawn, said over the grid while it is drawn. A rectangle of boxes is
-   something to count; the hours it means are the decision. Fixed to the window so it
+.cell.noon { border-left: 2px solid color-mix(in oklab, var(--ink) 45%, transparent); }
+.cell.on.noon { border-left-color: color-mix(in oklab, var(--card) 45%, transparent); }
+/* What is being drawn, said over the grid while it is drawn. Fixed to the window so it
    can sit above a finger anywhere on the week, and never under the pointer itself. */
 .range {
-  background: var(--raised);
+  background: var(--card);
   border: 1px solid var(--edge);
-  border-radius: 10px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
   color: var(--muted);
-  font-size: 0.82rem;
+  font-size: 0.85rem;
   font-variant-numeric: tabular-nums;
-  padding: 0.3rem 0.6rem;
+  padding: 6px var(--s3);
   pointer-events: none;
   position: fixed;
   transform: translate(-50%, -150%);
   white-space: nowrap;
   z-index: 20;
 }
-.range b { color: var(--accent); font-weight: 600; }
-.range.clearing b { color: var(--warn); }
+.range b { color: var(--allow-ink); }
+.range.clearing b { color: var(--warn-ink); }
 /* Under the pointer instead of over it, for a gesture near the top of the window,
    where above it would be off the screen altogether. */
 .range.below { transform: translate(-50%, 60%); }
-/* Drawn here, not yet on the television. Warning-coloured because the grid is saying
-   something other than what the set is enforcing, which is the one state this card was
-   built to never show silently. */
+/* Drawn here, not yet on the television. A state the grid is in rather than something
+   that just happened, so it is a line with a mark rather than a message that goes. */
 .held {
-  color: var(--warn);
+  align-items: center;
+  color: var(--ink);
+  display: flex;
   font-size: 0.85rem;
-  margin: 0.35rem 0 0;
+  gap: var(--s2);
 }
+.held::before {
+  background: var(--warn);
+  border-radius: 50%;
+  content: "";
+  flex: none;
+  height: 8px;
+  width: 8px;
+}
+.hourscard > .empty { font-size: 0.85rem; margin-top: var(--s2); }
 """
 
 # The rail is markup rather than script because the destinations are the one thing on
@@ -527,13 +878,18 @@ input[type="checkbox"] {
 # gets the tile grid every launcher already uses for the same idea.
 _BODY = """
 <main>
-<h1>TV Sitter</h1>
-<p class="lead" id="lead">Everything here comes from Home Assistant, which is the
-only thing that talks to the televisions.</p>
+<header class="top">
+<div class="brand"><svg viewBox="0 0 24 24" aria-hidden="true"><path
+d="M12,2A10,10 0 1,0 22,12A10,10 0 0,0 12,2ZM12,4A8,8 0 0,1 20,12A8,8 0 0,1
+12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4Z"/><path d="M12,12L12,6A6,6 0 1,1 6,12Z"/></svg>
+<div><h1>TV Sitter</h1>
+<p class="lead" id="lead">Everything here comes from Home Assistant.</p></div>
+</div>
 <div class="chooser" id="chooser" hidden>
 <p class="label" id="which">Television</p>
 <div class="tabs" id="tabs" role="group" aria-labelledby="which"></div>
 </div>
+</header>
 <p class="banner" id="banner" hidden></p>
 <p class="empty" id="nothing" hidden></p>
 <div class="shell">
@@ -687,6 +1043,18 @@ _SCRIPT = """
     ["fri", phrase("Friday"), phrase("Fri")],
     ["sat", phrase("Saturday"), phrase("Sat")],
     ["sun", phrase("Sunday"), phrase("Sun")],
+  ];
+
+  // Home Assistant's theme variables the stylesheet reads. An iframe inherits none of
+  // its parent's custom properties, so these are copied across by name; anything a
+  // theme leaves unset keeps the page's own fallback. Surfaces, text, font and corners
+  // only: the accent is the television's mint, not the theme's primary colour.
+  const THEMED = [
+    "primary-background-color", "secondary-background-color",
+    "card-background-color", "ha-card-background", "primary-text-color",
+    "secondary-text-color", "divider-color", "error-color", "ha-card-border-radius",
+    "ha-card-border-color", "ha-card-box-shadow", "ha-font-family-body",
+    "paper-font-body1_-_font-family",
   ];
 
   const banner = document.getElementById("banner");
@@ -882,8 +1250,8 @@ _SCRIPT = """
     const took = done || phrase("Saved");
     if (UNSENT.indexOf(body.action) >= 0) return took;
     if (!view || !view.tv || !view.tv.pending_rules) return took;
-    return phrase("{took} The television is asleep, so it is waiting rather than " +
-      "in force, and goes the moment the set is back.", {took: ended(took)});
+    return phrase("{took} It reaches the television when the set wakes up.",
+      {took: ended(took)});
   }
 
   /** End a sentence that may have ended already, so two can be joined. */
@@ -914,9 +1282,8 @@ _SCRIPT = """
   function paint(list, error) {
     nothing.hidden = list.length > 0 || Boolean(error);
     if (!list.length) {
-      nothing.textContent = phrase("No televisions yet. The panel reads them from " +
-        "the TV Sitter integration, so add that first \\u2014 this page is a " +
-        "second way to see what it already knows, not a way round it.");
+      nothing.textContent =
+        phrase("No televisions yet: add the TV Sitter integration first.");
     }
     shelve(list);
     if (chosen === null || !views.has(chosen)) {
@@ -997,11 +1364,12 @@ _SCRIPT = """
     const view = {
       id: id,
       tv: null,
-      node: el("div"),
+      node: el("div", "tv"),
       updates: [],
       apps: new Map(),
       panes: new Map(),
     };
+    headOf(view);
     view.tab = el("button");
     view.tab.type = "button";
     view.tab.addEventListener("click", () => {
@@ -1062,22 +1430,83 @@ _SCRIPT = """
     return {box: box, value: value};
   }
 
-  /** The start destination: is it working, what is on, and is the lock up. */
+  /**
+   * How much of the day is gone, as a bar against the limit.
+   *
+   * Out of the reading order: the figures beside it say the same thing in numbers,
+   * which is what anything reading the page out wants, and a second voice saying
+   * "sixty percent" would only be a rounder version of it.
+   */
+  function gauge() {
+    const node = el("div", "meter");
+    node.setAttribute("aria-hidden", "true");
+    node.appendChild(el("span"));
+    return node;
+  }
+
+  /** A day with no limit has nothing to be measured against, so it has no bar. */
+  function fill(meter, used, limit) {
+    const measured = !unset(limit) && limit > 0 && !unset(used);
+    meter.hidden = !measured;
+    if (!measured) return;
+    meter.children[0].style.width = Math.min(100, (100 * used) / limit) + "%";
+    meter.classList.toggle("over", used >= limit);
+  }
+
+  /**
+   * Which television this is and how it is, above whichever destination is open.
+   *
+   * On every destination rather than on the first, because the question it answers —
+   * is it on, is it listening, is it locked — is the one a parent has in mind while
+   * changing anything else; and the name, because two sets look exactly alike
+   * otherwise. Locked is said only while it is true: a pill that reads "not locked"
+   * on an ordinary evening is noise in the one row that has to stay quiet to be read.
+   */
+  function headOf(view) {
+    const head = el("header", "tvhead");
+    const name = el("h2", "tvname");
+    const pills = el("div", "pills");
+    const reporting = pill(pills);
+    const screen = pill(pills);
+    const locked = pill(pills);
+    const pin = pill(pills);
+    const playing = el("p", "playing");
+    const what = el("b");
+    playing.append(el("span", null, phrase("Playing")), what);
+    head.append(name, playing, pills);
+    view.node.appendChild(head);
+
+    view.updates.push((tv) => {
+      name.textContent = tv.name;
+      tell(reporting, phrase(tv.reporting ? "Reporting" : "Not reporting"),
+        tv.reporting ? "yes" : "bad");
+      tell(screen, phrase(tv.screen ? "Screen on" : "Screen off"),
+        tv.screen ? "yes" : "");
+      tell(locked, phrase("Locked"), "bad");
+      locked.hidden = !tv.locked;
+      tell(pin, phrase(tv.pin_set ? "PIN set" : "No PIN"),
+        tv.pin_set ? "yes" : "bad");
+      what.textContent = tv.playing || phrase("Nothing");
+    });
+  }
+
+  /** The start destination: what is left of the day, and is the lock up. */
   function nowPane(view) {
     const box = card(view, "now");
+    box.classList.add("hero", "wide");
     const trouble = el("div");
-    const pills = el("div", "pills");
-    const screen = pill(pills);
-    const reporting = pill(pills);
-    const pin = pill(pills);
-    const figures = el("div", "figures two");
-    const playing = figure(figures, phrase("Playing"));
-    const left = figure(figures, phrase("Left today"));
+    const left = figure(box, phrase("Left today"));
+    left.box.classList.add("big");
+    const meter = gauge();
+    const minor = el("div", "figures two minor");
+    const used = figure(minor, phrase("Watched"));
+    const limit = figure(minor, phrase("Limit today"));
     const lock = el("button", "lock");
     lock.type = "button";
     const note = notice();
     const foot = el("p", "foot");
-    box.append(trouble, pills, figures, lock, note, foot);
+    box.insertBefore(trouble, left.box);
+    box.append(meter, minor, lock, note, foot);
 
     lock.addEventListener("click", () => {
       act({id: view.id, action: "lock", on: !view.tv.locked}, note);
@@ -1089,14 +1518,11 @@ _SCRIPT = """
       // figure that is missing.
       const said = tv.trouble || [];
       trouble.replaceChildren(...said.map((one) => el("p", "banner", one)));
-      tell(screen, phrase(tv.screen ? "Screen on" : "Screen off"),
-        tv.screen ? "yes" : "");
-      tell(reporting, phrase(tv.reporting ? "Reporting" : "Not reporting"),
-        tv.reporting ? "yes" : "bad");
-      tell(pin, phrase(tv.pin_set ? "PIN set" : "No PIN"),
-        tv.pin_set ? "yes" : "bad");
-      playing.value.textContent = tv.playing || phrase("Nothing");
+      trouble.hidden = !said.length;
       spend(left, tv.remaining_today);
+      used.value.textContent = length(tv.used_today);
+      limit.value.textContent = length(tv.limit_today);
+      fill(meter, tv.used_today, tv.limit_today);
       lock.textContent = phrase(tv.locked ? "Lift the lock" : "Lock the television");
       lock.classList.toggle("up", Boolean(tv.locked));
       foot.textContent =
@@ -1130,18 +1556,17 @@ _SCRIPT = """
    */
   function askingCard(view) {
     const box = card(view, "now", phrase("Asking for more time"));
-    const lead = el("p", "hint",
-      phrase("When the child asks for more time, Home Assistant sends the question " +
-        "to a phone with buttons to answer it."));
+    // No sentence under the title: the card's name and the two pickers already say
+    // what it is for, and the panel keeps explanations to what a glance needs.
     const nothing = el("p", "empty");
     const row = el("div", "row");
     const first = picker(row, phrase("Ask"));
     const second = picker(row, phrase("And also"));
-    const save = el("button", null, phrase("Save"));
+    const save = el("button", "primary", phrase("Save"));
     save.type = "button";
     const note = notice();
     row.appendChild(save);
-    box.append(lead, nothing, row, note);
+    box.append(nothing, row, note);
 
     /** Fill one picker with the phones, leaving whatever is chosen chosen. */
     function offer(into, phones, chosen, none) {
@@ -1196,14 +1621,12 @@ _SCRIPT = """
       const phones = (said && said.notify) || [];
       const usable = Boolean(mine && mine.ready) && phones.length > 0;
       row.hidden = !usable;
-      lead.hidden = !usable;
       nothing.hidden = usable;
       if (!usable) {
         nothing.textContent = (said && said.error) || phrase(mine && !mine.ready
-          ? "This television has no time request to answer. It was set up by an " +
-            "older version of the integration, which had none."
-          : "No phone with the Home Assistant app on it was found, and only a phone " +
-            "can carry buttons to answer with.");
+          ? "This television, added by an older integration, has no time request " +
+            "to answer."
+          : "No phone with the Home Assistant app was found.");
         return;
       }
       offer(first, phones, mine.notify, phrase("Nobody"));
@@ -1223,8 +1646,7 @@ _SCRIPT = """
   function pinCard(view) {
     const box = card(view, "now", phrase("The parent PIN"));
     box.appendChild(el("p", "hint",
-      phrase("Home Assistant hashes it and sends the hash, so the television is " +
-        "never told the digits typed here.")));
+      phrase("The television only ever receives a hash of it.")));
     const note = notice();
     const row = line(box);
     seq += 1;
@@ -1240,7 +1662,7 @@ _SCRIPT = """
     input.placeholder = "\\u2022\\u2022\\u2022\\u2022";
     const tag = el("label", "name short", phrase("New PIN"));
     tag.htmlFor = input.id;
-    const set = el("button", null, phrase("Set the PIN"));
+    const set = el("button", "primary", phrase("Set the PIN"));
     set.type = "button";
     row.append(tag, input, set);
 
@@ -1252,8 +1674,7 @@ _SCRIPT = """
     const yes = el("button", "danger", phrase("Yes, remove it"));
     const no = el("button", null, phrase("Keep it"));
     const why = el("p", "hint",
-      phrase("Without a PIN a lock cannot be lifted at the television at all, only " +
-        "from Home Assistant."));
+      phrase("Without a PIN, a lock can only be lifted from Home Assistant."));
     [ask, yes, no].forEach((one) => { one.type = "button"; });
     // No label on this row: the buttons say what they do, and a word in front of them
     // would only repeat the heading of the card they are in.
@@ -1327,32 +1748,38 @@ _SCRIPT = """
   /** The day as it stands: three figures, then where the time actually went. */
   function todayPane(view) {
     const box = card(view, "today");
+    box.classList.add("today", "wide");
     const figures = el("div", "figures");
     const used = figure(figures, phrase("Watched"));
     const limit = figure(figures, phrase("Limit today"));
     const left = figure(figures, phrase("Left"));
+    const meter = gauge();
     const aside = el("p", "foot");
     const split = el("div", "split");
     // Two lists of the same shape, so each says which stretch of time it is: "By app"
     // over one of them and nothing over the other is a week a parent reads as a day.
     const seven = el("div", "split");
     const naming = el("p", "hint");
-    box.append(figures, aside, el("h3", null, phrase("Today, by app")), split,
-      el("h3", null, phrase("The last seven days, by app")), naming, seven);
+    const parts = el("div", "parts");
+    const day = el("section", "part");
+    const week = el("section", "part");
+    day.append(el("h3", null, phrase("Today, by app")), split);
+    week.append(el("h3", null, phrase("The last seven days, by app")), naming, seven);
+    parts.append(day, week);
+    box.append(figures, meter, aside, parts);
 
     view.updates.push((tv) => {
       used.value.textContent = length(tv.used_today);
       limit.value.textContent = length(tv.limit_today);
       spend(left, tv.remaining_today);
+      fill(meter, tv.used_today, tv.limit_today);
       aside.textContent = besides(tv);
       bars(split, tv.apps, phrase("Nothing watched yet today."));
-      bars(seven, tv.week_by_app, phrase("Nothing recorded yet. These seven days " +
-        "come from Home Assistant's own history rather than from the television, and " +
-        "it has nothing for this set so far \\u2014 which is not the same as a week " +
-        "with nothing watched in it."));
+      bars(seven, tv.week_by_app,
+        phrase("Home Assistant's history has nothing for this set yet."));
       naming.hidden = !unnamed(tv.week_by_app);
-      naming.textContent = phrase("Where Home Assistant has no name for an app any " +
-        "more, its package id stands in.");
+      naming.textContent =
+        phrase("An app with no name left shows its package id.");
     });
   }
 
@@ -1437,10 +1864,9 @@ _SCRIPT = """
       (tv) => tv.daily_limit);
     wipe(view, daily);
     number(view, box, phrase("Sleep timer"), "sleep_timer", (tv) => tv.sleep_timer,
-      phrase("How long from now until the television puts itself to bed."));
+      phrase("Turns the television off after this long."));
     number(view, box, phrase("Warn before the end"), "warn_before",
-      (tv) => tv.warn_before,
-      phrase("One warning, this long before the allowance runs out."));
+      (tv) => tv.warn_before);
     switched(view, box, phrase("Block the Settings app"), "block_settings",
       (tv) => tv.block_settings,
       phrase("So the rules cannot be turned off from the television itself."));
@@ -1476,14 +1902,13 @@ _SCRIPT = """
    * that disappears is a confirmation nobody reads.
    */
   function heldBack(view) {
-    const holder = el("div");
+    const holder = el("div", "holder wide");
     const box = el("div", "banner waiting");
     const said = el("p", "said");
     const forget = el("button", "danger", phrase("Throw the change away"));
     forget.type = "button";
     const aside = el("p", "aside",
-      phrase("For a television that is not coming back. What goes is only what has " +
-        "not reached it: the set keeps enforcing exactly what it is enforcing now."));
+      phrase("Only the waiting change goes; the set keeps the rules it has."));
     const note = notice();
     box.append(said, forget, aside);
     holder.append(box, note);
@@ -1498,9 +1923,8 @@ _SCRIPT = """
       const held = tv.pending_rules;
       box.hidden = !held;
       if (!held) return;
-      said.textContent = phrase("Waiting for {name} rather than in force: {what}. " +
-        "The set was asleep when it was changed, so everything below is what it is " +
-        "still enforcing until it is back.", {name: tv.name, what: listed(held)});
+      said.textContent = phrase("{name} is asleep; waiting until it is back: {what}.",
+        {name: tv.name, what: listed(held)});
     });
   }
 
@@ -1560,8 +1984,7 @@ _SCRIPT = """
     button.type = "button";
     field.row.insertBefore(button, field.note);
     field.row.insertBefore(el("p", "hint",
-      phrase("Removing it leaves the day uncapped. Zero is not the same thing: zero " +
-        "minutes means no viewing today, which is a real thing a parent may mean.")),
+      phrase("Remove leaves the day uncapped; zero means no viewing.")),
         field.note);
     button.addEventListener("click", () => {
       act({id: view.id, action: "clear_limit"}, field.note, phrase("Limit removed"));
@@ -1657,16 +2080,17 @@ _SCRIPT = """
    */
   function shared(daily) {
     const takes = unset(daily)
-      ? phrase("which is not set either")
+      ? phrase("not set")
       : length(daily);
-    return phrase("Minutes a day. A day left empty takes the daily limit, {takes}; " +
-      "a day set to zero is no viewing at all.", {takes: takes});
+    return phrase("Minutes; empty takes the daily limit ({takes}), zero means " +
+      "no viewing.", {takes: takes});
   }
 
   function appsPane(view) {
     const box = card(view, "apps");
+    box.classList.add("wide");
     const lead = el("p", "hint");
-    const list = el("div");
+    const list = el("div", "applist");
     box.append(lead, list);
     view.updates.push((tv) => {
       lead.textContent = restriction(tv.allowed_apps || []);
@@ -1676,15 +2100,12 @@ _SCRIPT = """
 
   function restriction(allowed) {
     if (allowed.length) {
-      return phrase("Only the ticked apps may be opened; every other one is refused. " +
-        "A budget of zero blocks an app whether or not it is ticked.");
+      return phrase("Only ticked apps open; a budget of zero blocks an app.");
     }
     // The way it fails matters more than the way it reads. Nothing enforced is
     // something a parent can undo; a television nobody can open is one that has locked
     // them out of the thing they would fix it with.
-    return phrase("The allow-list is empty, so every app is allowed. Untick one to " +
-      "start a list: everything left ticked stays allowed and the rest are refused. " +
-      "A budget of zero blocks an app on its own.");
+    return phrase("Every app is allowed; untick one to start an allow-list.");
   }
 
   /**
@@ -1761,8 +2182,7 @@ _SCRIPT = """
       act({id: view.id, action: "allowed_apps", packages: packages}, note,
         packages.length
           ? phrase("Saved")
-          : phrase("Saved. An empty list is no restriction: every app is allowed " +
-            "again."));
+          : phrase("Saved: with none ticked, every app is allowed."));
     });
 
     function fill(app) {
@@ -1810,32 +2230,27 @@ _SCRIPT = """
    */
   function hoursCard(view) {
     const box = card(view, "rules", phrase("The hours"));
+    box.classList.add("hourscard", "wide");
     // Three things and no more: which helper has them, what that means, and the way
     // out. It used to be the first two in three lines of warning colour above a grid
     // nobody could touch, which is the complaint the grid was built to answer.
     const warning = el("div", "banner offer");
     const sealedBy = el("p", "said");
-    const take = el("button", null, phrase("Keep these hours and edit here"));
+    const take = el("button", "primary", phrase("Keep these hours and edit here"));
     take.type = "button";
     const kept = el("p", "aside",
-      phrase("The hours stay exactly as they are; only the following stops, and the " +
-        "helper is left alone."));
+      phrase("The hours stay as they are, and the helper is left alone."));
     warning.append(sealedBy, take, kept);
     const lead = el("p", "hint",
-      phrase("A green box is half an hour the television may be watched in. Drag " +
-        "across the boxes to allow viewing in them, or out of a marked box to clear; " +
-        "the hours you are drawing are named above the pointer as you go. A day name " +
-        "takes the whole day. From the keyboard: arrows move, space marks, shift and " +
-        "an arrow paints."));
+      phrase("Drag across the boxes to allow those hours; start on a marked box " +
+        "to clear."));
     const frame = el("div", "hoursbox");
     const names = el("div", "names");
     const scroller = el("div", "hours");
     const ticks = el("div", "ticks");
     const week = el("div", "week");
     const open = el("p", "empty",
-      phrase("No half hour is marked, so the hours are not restricted at all: the " +
-        "television may be watched at any time of day, within whatever the limits " +
-        "above allow."));
+      phrase("No half hour is marked, so viewing is allowed at any time."));
     // What the gesture means, over the boxes it means it on. Out of the reading order:
     // every box already says its own day and half hour, and a screen reader following
     // a drag across ninety of them does not need a ninety-first voice.
@@ -1858,7 +2273,9 @@ _SCRIPT = """
     // The empty box above Monday, which is the strip of hours the days line up with.
     names.appendChild(el("div", "corner"));
     for (let slot = 0; slot < SLOTS; slot += TICK) {
-      ticks.appendChild(el("div", "tick", clock(slot)));
+      // Not "tick", which is the label round a tick box elsewhere on the page and took
+      // this strip's rules with it.
+      ticks.appendChild(el("div", "hour", clock(slot)));
     }
     /** Whether the line under a named hour is carried down through this box. */
     function ruled(slot) {
@@ -1888,6 +2305,8 @@ _SCRIPT = """
     // reads as the panel refusing something it had in fact taken (#136).
     let wanted = null;
     let wantedAt = 0;
+    // Whether the grid has been scrolled to the day's hours yet; see `aim`.
+    let aimed = false;
 
     WEEK.forEach((day, row) => {
       const label = el("button", "day", day[2]);
@@ -1980,8 +2399,7 @@ _SCRIPT = """
       if (!wanted) return true;
       if (agrees(tv)) wanted = null;
       else if (tv && tv.pending_rules) {
-        held.textContent = phrase("These hours are drawn here and waiting: the " +
-          "television is asleep, and they go to it the moment it is back.");
+        held.textContent = phrase("Waiting: the television is asleep.");
         held.hidden = false;
         return false;
       } else if (Date.now() - wantedAt < AGREE_MS) return false;
@@ -2171,7 +2589,7 @@ _SCRIPT = """
       // Every day every time, marked and unmarked alike: an unmarked half hour has no
       // other way of being said, so a day left out would be a day with no viewing.
       const answer = await act({id: view.id, action: "hours", days: days}, note, full
-        ? phrase("Saved. A week with nothing refused is no restriction, so it clears.")
+        ? phrase("Saved: a full week is no restriction.")
         : phrase("Hours saved"));
       // Refused, so what is on the grid is a rule nowhere at all. Letting go of it is
       // what snaps the week back to the television below.
@@ -2274,7 +2692,7 @@ _SCRIPT = """
      */
     take.addEventListener("click", async () => {
       await act({id: view.id, action: "stop_following"}, took,
-        phrase("The hours are yours to draw on, and not one of them has changed."));
+        phrase("Unchanged, and yours to draw on here."));
       if (sealed()) setTimeout(poll, SETTLE_MS);
       else keyed.focus();
     });
@@ -2295,13 +2713,36 @@ _SCRIPT = """
         quiet();
       }
       if (off) {
-        sealedBy.textContent = phrase("Read from {helper} whenever it changes, so " +
-          "the grid below is read-only.", {helper: followed});
+        sealedBy.textContent = phrase("Read-only: the hours come from {helper}.",
+          {helper: followed});
       }
       // Nothing under a finger is written over, and neither is a week that has been
       // decided here and not yet reached the television.
       if (!busy() && caught(tv)) draw(tv);
+      if (!aimed) aimed = aim();
     });
+
+    /**
+     * Open a grid narrower than the day where the day's hours are, once.
+     *
+     * A phone shows three hours of the forty-eight half hours, and the three it showed
+     * were the small hours of the morning — empty boxes on every row, which reads as a
+     * week with no viewing in it. So the first time there is something marked, the
+     * week is scrolled to the earliest of it, an hour early so it has a run-up. Only
+     * once: after that where the strip is, is where the parent put it.
+     */
+    function aim() {
+      if (!(scroller.scrollWidth > scroller.clientWidth)) return false;
+      let first = SLOTS;
+      ticked.forEach((line) => {
+        const at = line.indexOf(true);
+        if (at >= 0 && at < first) first = at;
+      });
+      if (first === SLOTS) return false;
+      const lead = cells[0][Math.max(0, first - 2)];
+      scroller.scrollLeft = lead.offsetLeft - cells[0][0].offsetLeft;
+      return true;
+    }
   }
 
   /**
@@ -2326,7 +2767,56 @@ _SCRIPT = """
   function beat() {
     // A panel in a pocket is a panel nobody is reading, and a phone's battery is worth
     // more than a figure that is five seconds fresher than the moment it is looked at.
-    if (!document.hidden) poll();
+    if (document.hidden) return;
+    borrow();
+    poll();
+  }
+
+  /**
+   * Wear Home Assistant's theme, which is the one the parent picked for the house.
+   *
+   * Ingress serves this page from Home Assistant's own origin, so the frame around it
+   * can be read; anywhere it cannot — opened on its own, or a browser that says no —
+   * the page keeps its own colours and follows the system's light or dark instead.
+   * Read again on every beat, because a theme is switched without reloading anything.
+   */
+  function borrow() {
+    const root = document.documentElement;
+    let theirs = null;
+    try {
+      const frame = window.parent;
+      if (!root || !frame || frame === window) return;
+      theirs = frame.getComputedStyle(frame.document.documentElement);
+    } catch (failure) {
+      return;
+    }
+    THEMED.forEach((name) => {
+      const value = theirs.getPropertyValue("--" + name).trim();
+      if (value) root.style.setProperty("--" + name, value);
+      else root.style.removeProperty("--" + name);
+    });
+    // Which of the two the theme is, for the controls the browser draws itself — a
+    // scrollbar or a picker's list in the wrong one is a white slab on a dark page.
+    const dark = darkness(theirs.getPropertyValue("--primary-background-color"));
+    if (dark !== null) root.setAttribute("data-theme", dark ? "dark" : "light");
+  }
+
+  /** Whether a colour is a dark one, or null for one this cannot read. */
+  function darkness(colour) {
+    const said = String(colour || "").trim();
+    let rgb = null;
+    const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(said);
+    if (hex) {
+      const full = hex[1].length === 3
+        ? hex[1].split("").map((one) => one + one).join("")
+        : hex[1];
+      rgb = [0, 2, 4].map((at) => parseInt(full.slice(at, at + 2), 16));
+    } else {
+      const parts = /^rgba?\\(([^)]+)\\)$/i.exec(said);
+      if (parts) rgb = parts[1].split(/[ ,/]+/).slice(0, 3).map(Number);
+    }
+    if (!rgb || rgb.some((one) => !isFinite(one))) return null;
+    return 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2] < 128;
   }
 
   /**
@@ -2340,8 +2830,7 @@ _SCRIPT = """
   function translate() {
     const lead = document.getElementById("lead");
     if (lead) {
-      lead.textContent = phrase("Everything here comes from Home Assistant, which " +
-        "is the only thing that talks to the televisions.");
+      lead.textContent = phrase("Everything here comes from Home Assistant.");
     }
     const which = document.getElementById("which");
     if (which) which.textContent = phrase("Television");
@@ -2370,6 +2859,7 @@ _SCRIPT = """
     // browser is still restoring where the page was left, and this would undo it.
     if (window.scrollTo) window.scrollTo(0, 0);
   });
+  borrow();
   translate();
   document.addEventListener("visibilitychange", beat);
   setInterval(beat, POLL_MS);

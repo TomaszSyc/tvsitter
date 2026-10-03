@@ -56,20 +56,14 @@ POLISH: dict[str, str] = {
     "The panel could not reach the add-on.": "Panel nie dosięgnął dodatku.",
     "Home Assistant refused it.": "Home Assistant to odrzucił.",
     "Saved": "Zapisano",
-    "{took} The television is asleep, so it is waiting rather than in force, and goes "
-    "the moment the set is back.": (
-        "{took} Telewizor śpi, więc zmiana czeka, zamiast obowiązywać, i pójdzie w "
-        "chwili, gdy odbiornik wróci."
+    "{took} It reaches the television when the set wakes up.": (
+        "{took} Trafi do telewizora, gdy ten się obudzi."
     ),
     "Home Assistant did not answer. This is what was last read.": (
         "Home Assistant nie odpowiedział. To jest ostatni odczyt."
     ),
-    "No televisions yet. The panel reads them from the TV Sitter integration, so add "
-    "that first — this page is a second way to see what it already knows, not a way "
-    "round it.": (
-        "Jeszcze żadnego telewizora. Panel odczytuje je z integracji TV Sitter, więc "
-        "najpierw dodaj integrację — ta strona to drugi sposób, żeby zobaczyć to, co "
-        "ona już wie, a nie sposób, żeby ją ominąć."
+    "No televisions yet: add the TV Sitter integration first.": (
+        "Jeszcze żadnego telewizora: najpierw dodaj integrację TV Sitter."
     ),
     # Now.
     "Playing": "Odtwarzane",
@@ -80,25 +74,23 @@ POLISH: dict[str, str] = {
     "Not reporting": "Nie zgłasza się",
     "PIN set": "PIN ustawiony",
     "No PIN": "Brak PIN-u",
+    # A state of the set, not the button that causes it: the television is locked.
+    "Locked": "Zablokowany",
     "Nothing": "Nic",
     "Lift the lock": "Zdejmij blokadę",
     "Lock the television": "Zablokuj telewizor",
     # The PIN.
     "The parent PIN": "PIN rodzica",
-    "Home Assistant hashes it and sends the hash, so the television is never told the "
-    "digits typed here.": (
-        "Home Assistant liczy z niego skrót i wysyła skrót, więc telewizor nigdy nie "
-        "pozna cyfr wpisanych tutaj."
+    "The television only ever receives a hash of it.": (
+        "Telewizor dostaje tylko jego skrót."
     ),
     "New PIN": "Nowy PIN",
     "Set the PIN": "Ustaw PIN",
     "Remove the PIN": "Usuń PIN",
     "Yes, remove it": "Tak, usuń",
     "Keep it": "Zostaw",
-    "Without a PIN a lock cannot be lifted at the television at all, only from Home "
-    "Assistant.": (
-        "Bez PIN-u blokady nie da się zdjąć na samym telewizorze — wyłącznie z Home "
-        "Assistanta."
+    "Without a PIN, a lock can only be lifted from Home Assistant.": (
+        "Bez PIN-u blokadę zdejmiesz tylko z Home Assistanta."
     ),
     "A PIN is four digits.": "PIN to cztery cyfry.",
     "PIN removed": "PIN usunięty",
@@ -114,16 +106,11 @@ POLISH: dict[str, str] = {
     "Today, by app": "Dziś, według aplikacji",
     "The last seven days, by app": "Ostatnie siedem dni, według aplikacji",
     "Nothing watched yet today.": "Dziś jeszcze nic nie oglądano.",
-    "Nothing recorded yet. These seven days come from Home Assistant's own history "
-    "rather than from the television, and it has nothing for this set so far — which "
-    "is not the same as a week with nothing watched in it.": (
-        "Jeszcze nic nie zapisano. Te siedem dni pochodzi z własnej historii Home "
-        "Assistanta, a nie z telewizora, i na razie nie ma w niej nic dla tego "
-        "odbiornika — co nie jest tym samym co tydzień bez oglądania."
+    "Home Assistant's history has nothing for this set yet.": (
+        "Historia Home Assistanta nie ma jeszcze nic dla tego telewizora."
     ),
-    "Where Home Assistant has no name for an app any more, its package id stands in.": (
-        "Tam, gdzie Home Assistant nie zna już nazwy aplikacji, stoi jej identyfikator "
-        "pakietu."
+    "An app with no name left shows its package id.": (
+        "Aplikacja bez nazwy pokazuje identyfikator pakietu."
     ),
     "Bonus today {much}.": "Bonus dziś: {much}.",
     "Yesterday {much}.": "Wczoraj: {much}.",
@@ -132,13 +119,8 @@ POLISH: dict[str, str] = {
     "Every day": "Codziennie",
     "Daily limit": "Limit dzienny",
     "Sleep timer": "Wyłącznik czasowy",
-    "How long from now until the television puts itself to bed.": (
-        "Za ile od teraz telewizor sam się położy spać."
-    ),
+    "Turns the television off after this long.": "Wyłącza telewizor po tym czasie.",
     "Warn before the end": "Ostrzeż przed końcem",
-    "One warning, this long before the allowance runs out.": (
-        "Jedno ostrzeżenie, tyle przed końcem przydziału."
-    ),
     "Block the Settings app": "Zablokuj aplikację Ustawienia",
     "So the rules cannot be turned off from the television itself.": (
         "Żeby reguł nie dało się wyłączyć z samego telewizora."
@@ -146,28 +128,22 @@ POLISH: dict[str, str] = {
     "The week": "Tydzień",
     # The change the television has not had yet.
     "Throw the change away": "Wyrzuć zmianę",
-    "For a television that is not coming back. What goes is only what has not reached "
-    "it: the set keeps enforcing exactly what it is enforcing now.": (
-        "Dla telewizora, który już nie wróci. Znika wyłącznie to, co do niego nie "
-        "dotarło: odbiornik dalej egzekwuje dokładnie to, co egzekwuje teraz."
+    "Only the waiting change goes; the set keeps the rules it has.": (
+        "Znika tylko oczekująca zmiana; telewizor zachowuje obecne reguły."
     ),
     "Thrown away. The television keeps the rules it already had.": (
         "Wyrzucone. Telewizor zachowuje reguły, które już miał."
     ),
-    "Waiting for {name} rather than in force: {what}. The set was asleep when it was "
-    "changed, so everything below is what it is still enforcing until it is back.": (
-        "Czeka na {name}, zamiast obowiązywać: {what}. Telewizor spał, gdy to "
-        "zmieniono, więc wszystko poniżej to, co nadal egzekwuje, dopóki nie wróci."
+    "{name} is asleep; waiting until it is back: {what}.": (
+        "{name} śpi; do jego powrotu czeka: {what}."
     ),
     "a change": "zmiana",
     "{most} and {last}": "{most} i {last}",
     # The numbers a parent types.
     "That wants a number of minutes.": "Tu trzeba podać liczbę minut.",
     "Remove": "Usuń",
-    "Removing it leaves the day uncapped. Zero is not the same thing: zero minutes "
-    "means no viewing today, which is a real thing a parent may mean.": (
-        "Usunięcie zostawia dzień bez limitu. Zero to nie to samo: zero minut znaczy "
-        "żadnego oglądania dzisiaj, a to bywa dokładnie tym, o co rodzicowi chodzi."
+    "Remove leaves the day uncapped; zero means no viewing.": (
+        "Usunięcie znosi limit; zero oznacza brak oglądania."
     ),
     "Limit removed": "Limit usunięty",
     "Minutes a day for {day}": "Minuty dziennie: {day}",
@@ -175,67 +151,42 @@ POLISH: dict[str, str] = {
         "{day}: podaj liczbę minut albo zostaw puste."
     ),
     "{day} saved": "Zapisano: {day}",
-    "which is not set either": "który też nie jest ustawiony",
-    "Minutes a day. A day left empty takes the daily limit, {takes}; a day set to zero "
-    "is no viewing at all.": (
-        "Minuty dziennie. Dzień zostawiony pusty bierze limit dzienny, {takes}; dzień "
-        "ustawiony na zero to żadnego oglądania."
+    "not set": "nieustawiony",
+    "Minutes; empty takes the daily limit ({takes}), zero means no viewing.": (
+        "Minuty; puste pole bierze limit dzienny ({takes}), zero to brak oglądania."
     ),
     # Apps.
-    "Only the ticked apps may be opened; every other one is refused. A budget of zero "
-    "blocks an app whether or not it is ticked.": (
-        "Otworzyć można wyłącznie zaznaczone aplikacje; każda inna zostanie odrzucona. "
-        "Budżet zero blokuje aplikację niezależnie od zaznaczenia."
+    "Only ticked apps open; a budget of zero blocks an app.": (
+        "Otwierają się tylko zaznaczone aplikacje; budżet zero blokuje aplikację."
     ),
-    "The allow-list is empty, so every app is allowed. Untick one to start a list: "
-    "everything left ticked stays allowed and the rest are refused. A budget of zero "
-    "blocks an app on its own.": (
-        "Lista dozwolonych jest pusta, więc każda aplikacja jest dozwolona. Odznacz "
-        "którąś, żeby zacząć listę: wszystko, co zostanie zaznaczone, pozostaje "
-        "dozwolone, a reszta jest odrzucana. Budżet zero blokuje aplikację sam z "
-        "siebie."
+    "Every app is allowed; untick one to start an allow-list.": (
+        "Każda aplikacja jest dozwolona; odznacz jedną, by zacząć listę dozwolonych."
     ),
     "Allowed": "Dozwolona",
     "That wants a number of minutes, or nothing.": (
         "Tu trzeba podać liczbę minut albo zostawić puste."
     ),
-    "Saved. An empty list is no restriction: every app is allowed again.": (
-        "Zapisano. Pusta lista to brak ograniczenia: każda aplikacja jest znowu "
-        "dozwolona."
+    "Saved: with none ticked, every app is allowed.": (
+        "Zapisano: bez zaznaczeń każda aplikacja jest dozwolona."
     ),
     "Minutes a day for {app}": "Minuty dziennie: {app}",
     # The hours.
     "The hours": "Godziny",
     "Keep these hours and edit here": "Zatrzymaj te godziny i edytuj tutaj",
-    "The hours stay exactly as they are; only the following stops, and the helper is "
-    "left alone.": (
-        "Godziny zostają dokładnie takie, jakie są; kończy się wyłącznie podążanie za "
-        "pomocnikiem, a sam pomocnik zostaje nietknięty."
+    "The hours stay as they are, and the helper is left alone.": (
+        "Godziny zostają bez zmian, a pomocnik nietknięty."
     ),
-    "A green box is half an hour the television may be watched in. Drag across the "
-    "boxes to allow viewing in them, or out of a marked box to clear; the hours you "
-    "are drawing are named above the pointer as you go. A day name takes the whole "
-    "day. From the keyboard: arrows move, space marks, shift and an arrow paints.": (
-        "Zielone pole to pół godziny, w których wolno oglądać telewizor. Przeciągnij "
-        "po polach, żeby zezwolić na oglądanie, albo z zaznaczonego pola, żeby "
-        "wyczyścić; rysowane godziny są nazywane nad wskaźnikiem na bieżąco. Nazwa "
-        "dnia bierze cały dzień. Z klawiatury: strzałki przesuwają, spacja zaznacza, "
-        "shift ze strzałką maluje."
+    "Drag across the boxes to allow those hours; start on a marked box to clear.": (
+        "Przeciągnij po polach, by zezwolić na te godziny; zacznij od zaznaczonego, "
+        "by je wyczyścić."
     ),
-    "No half hour is marked, so the hours are not restricted at all: the television "
-    "may be watched at any time of day, within whatever the limits above allow.": (
-        "Żadna półgodzina nie jest zaznaczona, więc godziny nie są w ogóle "
-        "ograniczone: telewizor można oglądać o dowolnej porze dnia, w granicach tego, "
-        "na co pozwalają limity powyżej."
+    "No half hour is marked, so viewing is allowed at any time.": (
+        "Żadna półgodzina nie jest zaznaczona, więc oglądać można o każdej porze."
     ),
     "The half hours viewing is allowed in": "Półgodziny, w których wolno oglądać",
     "Every half hour of {day}": "Cały dzień: {day}",
     "{day} {from} to {to}": "{day} {from} do {to}",
-    "These hours are drawn here and waiting: the television is asleep, and they go to "
-    "it the moment it is back.": (
-        "Te godziny są tu narysowane i czekają: telewizor śpi, a pójdą do niego w "
-        "chwili, gdy wróci."
-    ),
+    "Waiting: the television is asleep.": "Czeka: telewizor śpi.",
     "The television is enforcing hours other than the ones drawn here, so the grid has "
     "gone back to showing its own.": (
         "Telewizor egzekwuje inne godziny niż narysowane tutaj, więc siatka wróciła do "
@@ -243,45 +194,30 @@ POLISH: dict[str, str] = {
     ),
     "Allow": "Zezwól",
     "Clear": "Wyczyść",
-    "Saved. A week with nothing refused is no restriction, so it clears.": (
-        "Zapisano. Tydzień, w którym nic nie jest odrzucone, to brak ograniczenia, "
-        "więc znika."
+    "Saved: a full week is no restriction.": (
+        "Zapisano: pełny tydzień to brak ograniczeń."
     ),
     "Hours saved": "Godziny zapisane",
-    "The hours are yours to draw on, and not one of them has changed.": (
-        "Godziny są twoje do rysowania i żadna z nich się nie zmieniła."
-    ),
-    "Read from {helper} whenever it changes, so the grid below is read-only.": (
-        "Odczytywane z {helper} przy każdej zmianie, więc siatka poniżej jest tylko do "
-        "odczytu."
+    "Unchanged, and yours to draw on here.": "Bez zmian, i do rysowania tutaj.",
+    "Read-only: the hours come from {helper}.": (
+        "Tylko do odczytu: godziny pochodzą z {helper}."
     ),
     # Asking for more time.
     "Asking for more time": "Prośba o więcej czasu",
-    "When the child asks for more time, Home Assistant sends the question to a phone "
-    "with buttons to answer it.": (
-        "Gdy dziecko poprosi o więcej czasu, Home Assistant wyśle pytanie na telefon, "
-        "z przyciskami do odpowiedzi."
-    ),
     "Ask": "Zapytaj",
     "And also": "A także",
     "Save": "Zapisz",
     "Nobody": "Nikogo",
     "Nobody else": "Nikogo więcej",
-    "This television has no time request to answer. It was set up by an older version "
-    "of the integration, which had none.": (
-        "Ten telewizor nie ma prośby o czas, na którą można by odpowiedzieć. Został "
-        "dodany starszą wersją integracji, która jej nie miała."
+    "This television, added by an older integration, has no time request to answer.": (
+        "Ten telewizor, dodany starszą wersją integracji, nie ma prośby o czas."
     ),
-    "No phone with the Home Assistant app on it was found, and only a phone can carry "
-    "buttons to answer with.": (
-        "Nie znaleziono telefonu z aplikacją Home Assistant, a tylko telefon uniesie "
-        "przyciski do odpowiedzi."
+    "No phone with the Home Assistant app was found.": (
+        "Nie znaleziono telefonu z aplikacją Home Assistant."
     ),
     # The page itself.
-    "Everything here comes from Home Assistant, which is the only thing that talks to "
-    "the televisions.": (
-        "Wszystko tutaj pochodzi z Home Assistanta, który jako jedyny rozmawia z "
-        "telewizorami."
+    "Everything here comes from Home Assistant.": (
+        "Wszystko tutaj pochodzi z Home Assistanta."
     ),
     "Television": "Telewizor",
     "Sections": "Sekcje",
