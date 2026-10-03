@@ -10,8 +10,8 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import app.tvsitter.rules.ParentPin
-import app.tvsitter.rules.PinCheck
-import app.tvsitter.rules.PinGuard
+import app.tvsitter.rules.PinDesk
+import app.tvsitter.rules.PinEntry
 import app.tvsitter.rules.PinHash
 import app.tvsitter.rules.PinOutcome
 import app.tvsitter.rules.contract.Contract
@@ -31,6 +31,8 @@ import app.tvsitter.rules.contract.Contract
 class PinKeeper(context: Context) {
 
     private val store = PinStore(context)
+    private val desk = PinDesk(store, CHECKING, System::currentTimeMillis)
+    private val main = Handler(Looper.getMainLooper())
 
     val isSet: Boolean get() = store.hash != null
 
@@ -68,10 +70,9 @@ class PinKeeper(context: Context) {
     /**
      * A thread per entry, which sounds wasteful and is not: a PIN is typed a handful of times
      * a day, and the alternative is an executor kept alive for the life of the app to do
-     * nothing at all.
+     * nothing at all. The threads queue on [PinDesk], so entries are still checked one by one.
      */
     private fun answerOffThread(work: () -> PinOutcome, onResult: (PinOutcome) -> Unit) {
-        val main = Handler(Looper.getMainLooper())
         Thread({
             val outcome = work()
             main.post { onResult(outcome) }
@@ -81,22 +82,16 @@ class PinKeeper(context: Context) {
     /** Checks [pin] against the stored hash, spending an attempt if it is wrong. */
     private fun verify(pin: String): PinOutcome {
         val startedAtMs = System.currentTimeMillis()
-        val wasShut = store.lockout.lockedUntilMs > startedAtMs
-        val attempt = PinCheck.verify(pin, store.hash, store.lockout, startedAtMs)
-        store.lockout = attempt.lockout
-        // Once per lockout, not once per press: the alarm is that the keypad shut, and five
-        // messages for five guesses is how a parent learns to swipe them away.
-        if (!wasShut && attempt.lockout.lockedUntilMs > startedAtMs) {
-            onLockout?.invoke(attempt.lockout.failures, attempt.lockout.lockedUntilMs)
-        }
-        // The elapsed time is here because the hash is deliberately expensive and this runs on
-        // the main thread: if a television takes long enough over it to be felt, that shows up
-        // as a number rather than as a hunch.
+        val entry = desk.verify(pin)
+        reportLockout(entry)
+        // The elapsed time is here because the hash is deliberately expensive: if a television
+        // takes long enough over it to be felt, that shows up as a number rather than as a hunch.
+        // It includes any wait behind an entry typed before this one.
         Log.i(
             EnforcerService.TAG,
-            "pin: ${describe(attempt.outcome)} in ${System.currentTimeMillis() - startedAtMs}ms",
+            "pin: ${describe(entry.outcome)} in ${System.currentTimeMillis() - startedAtMs}ms",
         )
-        return attempt.outcome
+        return entry.outcome
     }
 
     /**
@@ -106,16 +101,21 @@ class PinKeeper(context: Context) {
      * see [PinCheck.change] for why not.
      */
     private fun change(current: String, new: String): PinOutcome {
-        val nowMs = System.currentTimeMillis()
-        val change = PinCheck.change(current, new, store.hash, store.lockout, nowMs)
-        store.lockout = change.lockout
-        change.hash?.let { hash ->
-            store.hash = hash
-            store.changedAtMs = nowMs
+        val entry = desk.change(current, new)
+        reportLockout(entry)
+        if (entry.outcome == PinOutcome.Accepted) {
+            store.changedAtMs = System.currentTimeMillis()
             store.changedBy = Contract.PIN_SOURCE_TV
         }
-        Log.i(EnforcerService.TAG, "pin: change ${describe(change.outcome)}")
-        return change.outcome
+        Log.i(EnforcerService.TAG, "pin: change ${describe(entry.outcome)}")
+        return entry.outcome
+    }
+
+    /** On the main thread, because the alarm goes out through the broker's queue, which lives there. */
+    private fun reportLockout(entry: PinEntry) {
+        if (!entry.shutTheKeypad) return
+        val lockout = entry.lockout
+        main.post { onLockout?.invoke(lockout.failures, lockout.lockedUntilMs) }
     }
 
     /**
@@ -132,12 +132,11 @@ class PinKeeper(context: Context) {
             Log.w(EnforcerService.TAG, "pin: refusing a malformed hash, leaving the PIN alone")
             return
         }
-        store.hash = hash
-        store.changedAtMs = System.currentTimeMillis()
-        store.changedBy = Contract.PIN_SOURCE_HA
         // A new PIN forgives a run of wrong guesses at the old one, which would otherwise keep
         // the keypad shut for five minutes after the parent had already fixed the problem.
-        store.lockout = PinGuard.afterSuccess()
+        desk.replace(hash)
+        store.changedAtMs = System.currentTimeMillis()
+        store.changedBy = Contract.PIN_SOURCE_HA
         Log.i(
             EnforcerService.TAG,
             if (hash == null) "pin: removed from Home Assistant" else "pin: set from Home Assistant",
@@ -151,5 +150,10 @@ class PinKeeper(context: Context) {
         is PinOutcome.LockedOut -> "refused, keypad shut for ${outcome.secondsRemaining}s"
         PinOutcome.NotSet -> "refused, no PIN on this television"
         PinOutcome.NewPinRejected -> "refused, the new PIN was not usable"
+    }
+
+    private companion object {
+        /** One for the process: the lock screen, the change screen and setup each have a keeper. */
+        val CHECKING = Any()
     }
 }

@@ -8,6 +8,7 @@ package app.tvsitter.tv
 import android.content.Context
 import android.util.Log
 import app.tvsitter.rules.PinHash
+import app.tvsitter.rules.PinLedger
 import app.tvsitter.rules.PinLockout
 import kotlinx.serialization.json.Json
 
@@ -25,14 +26,14 @@ import kotlinx.serialization.json.Json
  * The three parts of the hash are written as one value so a torn write cannot leave a salt
  * belonging to a different PIN than the digest.
  */
-class PinStore(context: Context) {
+class PinStore(context: Context) : PinLedger {
 
     private val preferences = context
         .createDeviceProtectedStorageContext()
         .getSharedPreferences(FILE, Context.MODE_PRIVATE)
 
     /** Null when this television has no PIN, which is different from an empty one. */
-    var hash: PinHash?
+    override var hash: PinHash?
         get() = preferences.getString(KEY_HASH, null)?.let { stored ->
             runCatching { Json.decodeFromString<PinHash>(stored) }.getOrElse {
                 // Treated as no PIN rather than as a locked television. A parent who cannot
@@ -48,7 +49,7 @@ class PinStore(context: Context) {
             }.apply()
         }
 
-    var lockout: PinLockout
+    override var lockout: PinLockout
         get() = PinLockout(
             failures = preferences.getInt(KEY_FAILURES, 0),
             lockedUntilMs = preferences.getLong(KEY_LOCKED_UNTIL, 0),
