@@ -35,19 +35,22 @@ def make_client(hass: HomeAssistant) -> TvSitterClient:
     return TvSitterClient(hass, name="TV Salon", topic_prefix=PREFIX)
 
 
+def payload(*, locked: bool, ts: int = 1) -> str:
+    """Encode a state payload of the shape the TV sends."""
+    return json.dumps(
+        {
+            "schema": 1,
+            "ts": ts,
+            "fw": "0.1.0-m0",
+            "screen_on": True,
+            "locked": locked,
+        }
+    )
+
+
 def snapshot(*, locked: bool) -> StateSnapshot:
     """Build a state payload of the shape the TV sends."""
-    return StateSnapshot.from_payload(
-        json.dumps(
-            {
-                "schema": 1,
-                "ts": 1,
-                "fw": "0.1.0-m0",
-                "screen_on": True,
-                "locked": locked,
-            }
-        )
-    )
+    return StateSnapshot.from_payload(payload(locked=locked))
 
 
 def listening(hass: HomeAssistant, *, locked: bool = False) -> TvSitterClient:
@@ -69,10 +72,12 @@ async def attached(hass: HomeAssistant, client: TvSitterClient) -> LockSwitch:
 
 
 def comes_back(client: TvSitterClient, *, locked: bool = False) -> None:
-    """Report in again as the TV, availability topic and all."""
-    client.snapshot = snapshot(locked=locked)
+    """Report in again as the TV does: online first, its fresh state after."""
     client._handle_availability(
         SimpleNamespace(topic=f"{PREFIX}/availability", payload="online")
+    )
+    client._handle_state(
+        SimpleNamespace(topic=f"{PREFIX}/state", payload=payload(locked=locked, ts=2))
     )
 
 
@@ -384,3 +389,29 @@ async def test_an_intention_survives_a_restart_of_home_assistant(
 
     assert switch.is_on is True
     assert switch.extra_state_attributes == {"pending": "on"}
+
+
+async def test_an_unlock_waits_for_the_state_the_set_wakes_up_in(
+    hass: HomeAssistant,
+) -> None:
+    """#89 as the set really does it: online first, and locked only in what follows.
+
+    Acting on the hello alone read the state it went to sleep in, unlocked, and threw
+    away the unlock the parent had pressed for exactly this.
+    """
+    client = make_client(hass)
+    client.snapshot = snapshot(locked=False)
+    switch = await attached(hass, client)
+    with patch.object(LockSwitch, "async_write_ha_state"):
+        await switch.async_turn_off()
+
+    with (
+        patch.object(LockSwitch, "async_write_ha_state"),
+        patch("homeassistant.components.mqtt.async_publish") as publish,
+    ):
+        comes_back(client, locked=True)
+        await hass.async_block_till_done()
+
+    assert [json.loads(call.args[2]) for call in publish.call_args_list] == [
+        {"op": "unlock"}
+    ]

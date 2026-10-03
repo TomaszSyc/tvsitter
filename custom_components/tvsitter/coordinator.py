@@ -133,6 +133,11 @@ class TvSitterClient:
         # restart picks it up before anything can fold a second change onto nothing.
         self._pending_rules: dict[str, Any] | None = self._restore_pending()
         self.available = False
+        # Back online and not yet reporting from after it came back. The set announces
+        # itself before it publishes its state, so in that gap the snapshot is the one
+        # it went to sleep with.
+        self._awaiting_state = False
+        self._stale_ts: int | None = None
         # The last request the TV made, so an answer can be addressed without the caller
         # having to carry the id around. A blueprint answering a notification does carry
         # it; a person pressing a button in the interface does not.
@@ -215,6 +220,18 @@ class TvSitterClient:
         )
         _LOGGER.debug("Subscribed to %s/#", self._prefix)
 
+    @property
+    def listening(self) -> bool:
+        """Online, and reporting from after it came back.
+
+        What anything waiting on the set should wait for, rather than `available`:
+        acting on the hello alone judged the set by the state it went to sleep in. A
+        waiting unlock was dropped because the set had slept unlocked and woke up locked
+        (#89); a waiting rule change took its revision from before the set had edited
+        its own rules, and was dropped on arrival.
+        """
+        return self.available and not self._awaiting_state
+
     async def async_send(self, command: dict[str, Any]) -> None:
         """Send one command to the TV.
 
@@ -260,7 +277,7 @@ class TvSitterClient:
         locking itself at breakfast for a reason nobody remembers. That is the line D30
         drew when it made the sleep timer a command rather than a rule.
         """
-        if not self.available:
+        if not self.listening:
             self._hold(rules)
             return
         await self._publish_rules(rules)
@@ -510,7 +527,7 @@ class TvSitterClient:
         windows = windows_from(grid)
         if self.rules is not None and self.rules.get(RULE_WINDOWS) == windows:
             return
-        if not self.available:
+        if not self.listening:
             # Left for the reconnect rather than held like a rule change, and the
             # difference matters: this is a copy of a grid that may be drawn on again
             # before the set wakes. Re-reading the helper then gives the hours as they
@@ -586,6 +603,13 @@ class TvSitterClient:
             _LOGGER.warning("Undecodable state payload on %s", message.topic)
             return
 
+        if (
+            self._awaiting_state
+            and self.available
+            and self.snapshot.ts != self._stale_ts
+        ):
+            self._awaiting_state = False
+            self._caught_up()
         self._notify()
 
     @callback
@@ -716,19 +740,36 @@ class TvSitterClient:
         was = self.available
         self.available = message.payload.strip() == PAYLOAD_ONLINE
         _LOGGER.debug("%s is %s", self.name, "online" if self.available else "offline")
-        # Everything that was waiting on the set goes now. Without this the rules and
-        # the television drift apart in silence, which is the failure the whole
-        # arrangement exists to avoid.
-        followed = self.followed_schedule
         if self.available and not was:
-            # The held change first, because it is what somebody actually asked for and
-            # nothing else remembers it. The helper second, so a grid edited since has
-            # the last word on the hours — which is what following one means.
-            if self._pending_rules is not None:
-                self._hass.async_create_task(self.async_send_pending_rules())
-            if followed:
-                self._hass.async_create_task(self.async_import_schedule(followed))
+            # A live hello comes before the set's fresh state, so the snapshot in hand
+            # is the one it went to sleep with. A retained one is Home Assistant
+            # subscribing to a set already up, and the retained state beside it is
+            # current.
+            live = not getattr(message, "retain", False)
+            if live or self.snapshot is None:
+                self._awaiting_state = True
+                self._stale_ts = self.snapshot.ts if live and self.snapshot else None
+            else:
+                self._caught_up()
+        elif not self.available:
+            self._awaiting_state = False
         self._notify()
+
+    @callback
+    def _caught_up(self) -> None:
+        """Send what was waiting on the set, now that its state is known.
+
+        Without this the rules and the television drift apart in silence, which is the
+        failure the whole arrangement exists to avoid. The held change first, because it
+        is what somebody actually asked for and nothing else remembers it. The helper
+        second, so a grid edited since has the last word on the hours — which is what
+        following one means.
+        """
+        if self._pending_rules is not None:
+            self._hass.async_create_task(self.async_send_pending_rules())
+        followed = self.followed_schedule
+        if followed:
+            self._hass.async_create_task(self.async_import_schedule(followed))
 
     @callback
     def _notify(self) -> None:

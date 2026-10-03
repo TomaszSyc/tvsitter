@@ -521,8 +521,13 @@ async def test_a_television_waking_up_does_not_take_the_hours_again(
     client, sensor = forgettable(hass, "schedule.viewing_hours")
     hello = SimpleNamespace(topic=f"{PREFIX}/availability", payload="online")
 
+    def state(ts: int) -> SimpleNamespace:
+        payload = json.dumps({"schema": 1, "ts": ts, "screen_on": True})
+        return SimpleNamespace(topic=f"{PREFIX}/state", payload=payload)
+
     with patch.object(client, "async_import_schedule") as imported:
         client._handle_availability(hello)
+        client._handle_state(state(1))
         await hass.async_block_till_done()
         assert imported.called, "a waking set takes the hours; that is the other way in"
 
@@ -530,6 +535,7 @@ async def test_a_television_waking_up_does_not_take_the_hours_again(
         imported.reset_mock()
         client.available = False
         client._handle_availability(hello)
+        client._handle_state(state(2))
         await hass.async_block_till_done()
 
     imported.assert_not_called()

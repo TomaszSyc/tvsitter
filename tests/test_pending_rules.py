@@ -66,10 +66,26 @@ def sleeping(hass: HomeAssistant, **options: object) -> TvSitterClient:
     return client
 
 
-async def wakes(hass: HomeAssistant, client: TvSitterClient) -> None:
-    """Let the television say hello, and let what that starts finish."""
+async def wakes(hass: HomeAssistant, client: TvSitterClient, **state: object) -> None:
+    """Let the television say hello as it does, and let what that starts finish.
+
+    Online first and its fresh state after, the order the set publishes them in.
+    """
     client._handle_availability(
         SimpleNamespace(topic=f"{PREFIX}/availability", payload="online")
+    )
+    await hass.async_block_till_done()
+    fresh: dict[str, object] = {
+        "schema": 1,
+        "ts": (client.snapshot.ts if client.snapshot else 0) + 1,
+        "fw": "0.5.0",
+        "screen_on": True,
+        "locked": False,
+        "rules_rev": client.snapshot.rules_rev if client.snapshot else 0,
+    }
+    fresh.update(state)
+    client._handle_state(
+        SimpleNamespace(topic=f"{PREFIX}/state", payload=json.dumps(fresh))
     )
     await hass.async_block_till_done()
 
@@ -225,13 +241,84 @@ async def test_the_revision_is_the_one_at_send_time(hass: HomeAssistant) -> None
     client = sleeping(hass)
     await DailyLimitNumber(client).async_set_native_value(45)
 
-    # What the set had been up to on its own while nobody was listening.
-    client.snapshot = snapshot(rules_rev=20)
+    with patch("homeassistant.components.mqtt.async_publish") as publish:
+        # What the set had been up to on its own while nobody was listening, which it
+        # only says after it has said it is back.
+        await wakes(hass, client, rules_rev=20)
+
+    assert sent(publish) == [
+        {"op": "set_rules", "rev": 21, "rules": {"daily_limit_s": 2700}}
+    ]
+
+
+async def test_nothing_goes_out_on_the_hello_alone(hass: HomeAssistant) -> None:
+    """The set says it is online before it says what it is enforcing.
+
+    Sent on the hello, a waiting change took its revision from the state the set went to
+    sleep with, and a set that had edited its own rules since dropped it on arrival.
+    """
+    client = sleeping(hass)
+    await DailyLimitNumber(client).async_set_native_value(45)
 
     with patch("homeassistant.components.mqtt.async_publish") as publish:
-        await wakes(hass, client)
+        client._handle_availability(
+            SimpleNamespace(topic=f"{PREFIX}/availability", payload="online")
+        )
+        await hass.async_block_till_done()
 
-    assert sent(publish)[0]["rev"] == 21
+    publish.assert_not_called()
+    assert client.pending_rules == {"daily_limit_s": 2700}
+
+
+async def test_a_change_made_between_the_hello_and_the_state_waits_too(
+    hass: HomeAssistant,
+) -> None:
+    """In that gap the revision to beat is not known yet either."""
+    client = sleeping(hass)
+    client._handle_availability(
+        SimpleNamespace(topic=f"{PREFIX}/availability", payload="online")
+    )
+
+    with patch("homeassistant.components.mqtt.async_publish") as publish:
+        await DailyLimitNumber(client).async_set_native_value(45)
+        publish.assert_not_called()
+        client._handle_state(
+            SimpleNamespace(
+                topic=f"{PREFIX}/state",
+                payload=json.dumps(
+                    {"schema": 1, "ts": 2, "screen_on": True, "rules_rev": 9}
+                ),
+            )
+        )
+        await hass.async_block_till_done()
+
+    assert sent(publish) == [
+        {"op": "set_rules", "rev": 10, "rules": {"daily_limit_s": 2700}}
+    ]
+
+
+async def test_retained_messages_at_startup_are_already_current(
+    hass: HomeAssistant,
+) -> None:
+    """Home Assistant starting finds the set already up, and need not wait a heartbeat.
+
+    The broker hands a fresh subscriber the retained state and availability in no
+    particular order. Both describe the television as it is, so a held change can go.
+    """
+    client = sleeping(hass)
+    await DailyLimitNumber(client).async_set_native_value(45)
+
+    with patch("homeassistant.components.mqtt.async_publish") as publish:
+        client._handle_availability(
+            SimpleNamespace(
+                topic=f"{PREFIX}/availability", payload="online", retain=True
+            )
+        )
+        await hass.async_block_till_done()
+
+    assert sent(publish) == [
+        {"op": "set_rules", "rev": 5, "rules": {"daily_limit_s": 2700}}
+    ]
 
 
 async def test_nothing_is_sent_twice_when_the_television_flaps(

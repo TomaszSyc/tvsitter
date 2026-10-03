@@ -177,7 +177,7 @@ class LockSwitch(TvSitterEntity, SwitchEntity, RestoreEntity):
         await self._ask_for(False)
 
     async def _ask_for(self, locked: bool) -> None:
-        if self._client.available and self._client.snapshot is not None:
+        if self._client.listening and self._client.snapshot is not None:
             self._pending = None
             self._pending_until = None
             await self._client.async_send(OP_LOCK if locked else OP_UNLOCK)
@@ -223,7 +223,7 @@ class LockSwitch(TvSitterEntity, SwitchEntity, RestoreEntity):
         if locked is None:
             return
         snapshot = self._client.snapshot
-        if not self._client.available or snapshot is None:
+        if not self._client.listening or snapshot is None:
             return
 
         if not locked and not snapshot.locked:

@@ -95,7 +95,8 @@ def described(
     television: Television, by_app: list[dict[str, Any]] | None = None
 ) -> dict[str, Any]:
     """Say everything about one television, in the words the contract uses."""
-    allowed = strings(television.rules.get(RULE_APPS_ALLOWED))
+    asked = asked_for(television)
+    allowed = strings(asked.get(RULE_APPS_ALLOWED))
     exempt = exempt_apps(television)
     return {
         "id": television.device_id,
@@ -123,9 +124,9 @@ def described(
         "apps": apps(television, allowed, exempt, installed(television)),
         "allowed_apps": allowed,
         "exempt_apps": exempt,
-        "windows": windows(television.rules.get(RULE_WINDOWS)),
+        "windows": windows(asked.get(RULE_WINDOWS)),
         "following_schedule": following(television),
-        "hours": hours(television.rules.get(RULE_WINDOWS)),
+        "hours": hours(asked.get(RULE_WINDOWS)),
         "pending_rules": pending(television),
         "trouble": trouble(television),
     }
@@ -301,6 +302,17 @@ def following(television: Television) -> str | None:
     """
     said = television.rules.get(RULE_FOLLOWING)
     return said if isinstance(said, str) and said else None
+
+
+def asked_for(television: Television) -> dict[str, Any]:
+    """Lay the change waiting for the set over the rules in force.
+
+    What the lists a parent edits are drawn from. A held change replaces a list whole,
+    so a page drawing the list in force had the next edit send the old list back over
+    the waiting one: untick one app, then another, and the first came back. Top-level
+    keys are enough for the two lists, and a null in the change is a removal.
+    """
+    return {**television.rules, **(pending(television) or {})}
 
 
 def pending(television: Television) -> dict[str, Any] | None:

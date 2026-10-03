@@ -552,8 +552,42 @@ def test_waiting_and_following_are_two_different_questions() -> None:
 
     assert written["pending_rules"] == HELD
     assert written["following_schedule"] == "schedule.viewing_hours"
-    # And what is drawn is still what the television is enforcing, not what is coming.
-    assert written["hours"]["mon"] == SCHOOL_SLOTS
+
+
+def test_the_grid_starts_from_the_hours_that_are_waiting() -> None:
+    """Held changes replace a list whole, so the next drawing has to start from them.
+
+    Drawn from the hours in force, a page reloaded while the set slept showed the old
+    week, and the next box ticked sent the old week back over the waiting one.
+    """
+    written = only(with_rules(windows=[SCHOOL], pending_rules=HELD))
+
+    assert written["hours"]["tue"] == SCHOOL_SLOTS
+    assert written["windows"][0]["days"] == []
+
+
+def test_the_allow_list_starts_from_the_one_that_is_waiting() -> None:
+    """Untick one app, then another, while the set sleeps: both stay unticked."""
+    written = only(
+        with_rules(
+            apps_allowed=["tv.example.games", "tv.example.films"],
+            pending_rules={"apps_allowed": ["tv.example.films"]},
+        )
+    )
+
+    assert written["allowed_apps"] == ["tv.example.films"]
+
+
+def test_a_list_waiting_to_be_removed_is_drawn_as_no_list() -> None:
+    """A null in a held change is a removal, and an empty list is no restriction."""
+    written = only(
+        with_rules(
+            apps_allowed=["tv.example.games"],
+            pending_rules={"apps_allowed": None},
+        )
+    )
+
+    assert written["allowed_apps"] == []
 
 
 async def test_a_waiting_change_can_be_thrown_away_from_the_panel() -> None:
