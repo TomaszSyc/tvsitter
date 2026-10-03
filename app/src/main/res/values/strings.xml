@@ -28,6 +28,8 @@
     <string name="pin_step_confirm">Type the new PIN again</string>
     <string name="pin_mismatch">Those two did not match. Type the new PIN again.</string>
     <string name="pin_changed">The PIN has been changed.</string>
+    <!-- The label on the remote's centre key, which is the same word in every language here. -->
+    <string name="pin_key_ok" translatable="false">OK</string>
 
     <plurals name="pin_wrong">
         <item quantity="one">Wrong PIN. %d attempt left.</item>
@@ -108,14 +110,13 @@
     <string name="stats_nothing">Nothing has been watched yet today.</string>
     <string name="stats_no_yesterday">No day has finished yet.</string>
     <string name="stats_yesterday_line">%1$s watched of %2$s · %3$s granted · locked %4$d times</string>
-    <string name="pick_current">%1$s   ✓</string>
+    <string name="pick_current_mark" translatable="false">✓</string>
     <string name="set_section_rules">Rules</string>
     <string name="set_section_tv">This television</string>
     <string name="set_section_diag">Diagnostics</string>
     <string name="set_daily_limit">Daily limit</string>
     <string name="set_sleep_timer">Sleep timer</string>
     <string name="set_block_settings">Keep the television\'s settings shut</string>
-    <string name="set_row">%1$s:  %2$s</string>
     <string name="set_no_limit">No limit</string>
     <string name="set_sleep_off">Off</string>
     <string name="set_on">yes</string>

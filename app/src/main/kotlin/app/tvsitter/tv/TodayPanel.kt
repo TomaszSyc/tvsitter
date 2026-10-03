@@ -6,6 +6,7 @@
 package app.tvsitter.tv
 
 import android.content.Context
+import android.view.Gravity
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -21,50 +22,46 @@ import java.time.format.DateTimeFormatter
  */
 class TodayPanel(private val context: Context) {
 
-    private val heading = text(TvStyle.HEADING_SP, TvStyle.TEXT)
-    private val used = text(TvStyle.NUMBER_SP, TvStyle.TEXT)
-    private val limit = text(TvStyle.NUMBER_SP, TvStyle.TEXT)
+    private val pip = View(context)
+    private val heading = context.tvText(TextRole.HEADLINE)
+    private val used = context.tvText(TextRole.NUMBER)
+    private val limit = context.tvText(TextRole.NUMBER)
 
     // Not `left`: inside a View's apply block that is View.left, an Int, and the shadowing
     // is silent until the types happen to disagree.
-    private val remaining = text(TvStyle.NUMBER_SP, TvStyle.ACCENT)
-    private val inForce = text(TvStyle.BODY_SP, TvStyle.MUTED)
-    private val hours = text(TvStyle.BODY_SP, TvStyle.MUTED)
-    private val bedtime = text(TvStyle.BODY_SP, TvStyle.MUTED)
-    private val watching = text(TvStyle.BODY_SP, TvStyle.MUTED)
-    private val locked = text(TvStyle.HEADING_SP, TvStyle.WARN)
-    private val attention = text(TvStyle.BODY_SP, TvStyle.WARN)
+    private val remaining = context.tvText(TextRole.NUMBER, Palette.ACCENT)
+    private val meter = TvMeter(context, METER_DP)
+    private val inForce = fact()
+    private val hours = fact()
+    private val bedtime = fact()
+    private val watching = fact()
+
+    // The lock and the trouble are the only warm colour on the screen, so they are found first.
+    private val locked = context.tvText(TextRole.STRONG, Palette.WARN).apply {
+        background = context.plate(Palette.WARN_DIM, Radius.M)
+        setPadding(context.dp(Spacing.XL), context.dp(Spacing.M), context.dp(Spacing.XL), context.dp(Spacing.M))
+    }
+    private val attention = context.tvText(TextRole.BODY, Palette.WARN).apply {
+        background = context.plate(Palette.WARN_DIM, Radius.L)
+        setPadding(context.dp(Spacing.XL), context.dp(Spacing.L), context.dp(Spacing.XL), context.dp(Spacing.L))
+    }
 
     val view: View = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
-        setPadding(TvStyle.OVERSCAN_PX, TvStyle.OVERSCAN_PX, TvStyle.OVERSCAN_PX, TvStyle.OVERSCAN_PX)
-        addView(heading)
-        addView(
-            LinearLayout(context).apply {
-                orientation = LinearLayout.HORIZONTAL
-                setPadding(0, TvStyle.GAP_PX, 0, TvStyle.GAP_PX)
-                // Equal thirds, because the numbers are not the same width and the labels
-                // under them have to stay lined up. Left to wrap their content, "4 h 17 min"
-                // pushed Limit and Left into the corner and the row read as one number with
-                // two dashes after it.
-                listOf(
-                    column(used, R.string.setup_used),
-                    column(limit, R.string.setup_limit),
-                    column(remaining, R.string.setup_left),
-                ).forEach {
-                    addView(
-                        it,
-                        LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f),
-                    )
-                }
-            },
+        setPadding(
+            context.dp(Spacing.SAFE_X),
+            context.dp(Spacing.SAFE_Y),
+            context.dp(Spacing.SAFE_X),
+            context.dp(Spacing.SAFE_Y),
         )
-        addView(inForce)
-        addView(hours)
-        addView(bedtime)
-        addView(watching)
-        addView(locked.apply { setPadding(0, TvStyle.GAP_PX, 0, 0) })
-        addView(attention.apply { setPadding(0, TvStyle.GAP_PX, 0, 0) })
+        addView(status())
+        addView(figures(), stacked(Spacing.XL))
+        addView(meter, stacked(Spacing.L))
+        listOf(inForce, hours, bedtime, watching).forEachIndexed { index, line ->
+            addView(line, stacked(if (index == 0) Spacing.XL else Spacing.M))
+        }
+        addView(locked, stacked(Spacing.XL).apply { width = LinearLayout.LayoutParams.WRAP_CONTENT })
+        addView(attention, stacked(Spacing.L))
     }
 
     fun refresh() {
@@ -74,15 +71,10 @@ class TodayPanel(private val context: Context) {
         heading.text = context.getString(
             if (trouble.isEmpty()) R.string.setup_all_well else R.string.setup_attention,
         )
-        heading.setTextColor(if (trouble.isEmpty()) TvStyle.TEXT else TvStyle.WARN)
+        heading.setTextColor(if (trouble.isEmpty()) Palette.TEXT else Palette.WARN)
+        pip.background = context.dot(if (trouble.isEmpty()) Palette.ACCENT else Palette.WARN, PIP_DP)
 
-        used.text = TvStyle.length(context, service?.usedTodaySeconds)
-        val aside = service?.limitSetAside == true
-        limit.text = service?.limitTodaySeconds?.let { TvStyle.length(context, it) }
-            ?: context.getString(if (aside) R.string.setup_set_aside else R.string.setup_no_limit)
-        remaining.text = service?.remainingTodaySeconds?.let { TvStyle.length(context, it) }
-            ?: context.getString(R.string.setup_no_limit)
-
+        showFigures(service)
         showWhatIsInForce(service)
 
         // The lock in the words the child is reading at that moment, rather than a second
@@ -92,6 +84,21 @@ class TodayPanel(private val context: Context) {
 
         attention.text = trouble.joinToString(separator = "\n\n")
         attention.visibility = if (trouble.isEmpty()) View.GONE else View.VISIBLE
+    }
+
+    private fun showFigures(service: EnforcerService?) {
+        used.text = TvStyle.length(context, service?.usedTodaySeconds)
+        val aside = service?.limitSetAside == true
+        limit.text = service?.limitTodaySeconds?.let { TvStyle.length(context, it) }
+            ?: context.getString(if (aside) R.string.setup_set_aside else R.string.setup_no_limit)
+        remaining.text = service?.remainingTodaySeconds?.let { TvStyle.length(context, it) }
+            ?: context.getString(R.string.setup_no_limit)
+
+        // The same two numbers as the figures above it, drawn: how much of the day is gone is
+        // read at a glance from across the room before either number is.
+        val cap = service?.limitTodaySeconds
+        meter.visibility = if (cap == null) View.GONE else View.VISIBLE
+        if (cap != null) meter.show((service?.usedTodaySeconds ?: 0).toLong(), cap.toLong())
     }
 
     /**
@@ -145,24 +152,68 @@ class TodayPanel(private val context: Context) {
 
     /** `16:00–19:30`, with an en dash because it is a range rather than a subtraction. */
     private fun span(window: Window): String =
-        "${window.from.format(HOUR_AND_MINUTE)}\u2013${window.to.format(HOUR_AND_MINUTE)}"
+        "${window.from.format(HOUR_AND_MINUTE)}–${window.to.format(HOUR_AND_MINUTE)}"
 
-    private fun column(value: TextView, labelRes: Int) = LinearLayout(context).apply {
-        TvStyle.fitNumber(value)
-        orientation = LinearLayout.VERTICAL
-        setPadding(0, 0, TvStyle.OVERSCAN_PX, 0)
-        addView(value)
-        addView(text(TvStyle.SMALL_SP, TvStyle.MUTED).apply { setText(labelRes) })
+    /** A dot that is mint when all is well and amber when not, so the answer is a colour first. */
+    private fun status() = LinearLayout(context).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        addView(pip, LinearLayout.LayoutParams(context.dp(PIP_DP), context.dp(PIP_DP)))
+        addView(
+            heading,
+            LinearLayout.LayoutParams(WRAP, WRAP).apply { marginStart = context.dp(Spacing.M) },
+        )
     }
 
-    private fun text(sizeSp: Float, colour: Int) = TextView(context).apply {
-        setTextColor(colour)
-        setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, sizeSp)
+    /**
+     * Equal thirds, because the numbers are not the same width and the labels over them have to
+     * stay lined up. Left to wrap their content, "4 h 17 min" pushed Limit and Left into the
+     * corner and the row read as one number with two dashes after it.
+     */
+    private fun figures() = LinearLayout(context).apply {
+        orientation = LinearLayout.HORIZONTAL
+        listOf(
+            figure(used, R.string.setup_used),
+            figure(limit, R.string.setup_limit),
+            figure(remaining, R.string.setup_left),
+        ).forEachIndexed { index, card ->
+            addView(
+                card,
+                LinearLayout.LayoutParams(0, WRAP, 1f).apply {
+                    if (index > 0) marginStart = context.dp(Spacing.L)
+                },
+            )
+        }
+    }
+
+    private fun figure(value: TextView, labelRes: Int) = LinearLayout(context).apply {
+        TvStyle.fitNumber(value)
+        orientation = LinearLayout.VERTICAL
+        background = context.plate(Palette.SURFACE, Radius.L)
+        setPadding(context.dp(Spacing.XL), context.dp(FIGURE_PAD_DP), context.dp(Spacing.XL), context.dp(FIGURE_PAD_DP))
+        addView(context.tvText(TextRole.LABEL).apply { setText(labelRes) })
+        addView(value, stacked(Spacing.XS))
+    }
+
+    /** A sentence with a small dot before it, so four facts read as a list and not a paragraph. */
+    private fun fact() = context.tvText(TextRole.BODY).apply {
+        setCompoundDrawablesRelativeWithIntrinsicBounds(context.dot(Palette.TERTIARY, BULLET_DP), null, null, null)
+        compoundDrawablePadding = context.dp(Spacing.L)
+        gravity = Gravity.CENTER_VERTICAL
+    }
+
+    private fun stacked(gapDp: Int) = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, WRAP).apply {
+        topMargin = context.dp(gapDp)
     }
 
     private companion object {
         val HOUR_AND_MINUTE: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
         const val SECONDS_PER_MINUTE = 60
+        const val WRAP = LinearLayout.LayoutParams.WRAP_CONTENT
+        const val PIP_DP = 14
+        const val BULLET_DP = 8
+        const val METER_DP = 8
+        const val FIGURE_PAD_DP = 20
     }
 }
 

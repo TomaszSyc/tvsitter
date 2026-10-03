@@ -6,13 +6,102 @@
 package app.tvsitter.tv
 
 import android.content.Context
-import android.graphics.Color
-import android.graphics.drawable.GradientDrawable
 import android.util.TypedValue
-import android.view.ViewGroup
-import android.widget.Button
 import android.widget.TextView
 import androidx.core.widget.TextViewCompat
+
+/**
+ * The colours every screen is painted with.
+ *
+ * A room at night rather than a void: the backdrop is a blue-black, the surfaces step up from it
+ * in small, even increments, and there is one accent — the mint from the app's own mark — so that
+ * anything mint means either "this is the cursor" or "this is the number that matters".
+ *
+ * Every text colour clears WCAG AA on every surface it is used on, and the quietest of them,
+ * [TERTIARY] on [RAISED], still clears 5:1. A television is read from three metres on a panel
+ * that may be washing everything out, so AA is the floor here rather than the goal.
+ */
+object Palette {
+    const val INK = 0xFF0B1117.toInt()
+
+    /** The faint glow at the top of a full screen. Never behind text that has to be read. */
+    const val DUSK = 0xFF11272D.toInt()
+    const val SURFACE = 0xFF141D26.toInt()
+    const val RAISED = 0xFF1C2732.toInt()
+
+    /** Hairlines that separate without being read as a control. */
+    const val LINE = 0xFF2C3A47.toInt()
+
+    /** The outline of a control with no fill, which has to clear 3:1 to be seen as one. */
+    const val EDGE = 0xFF5A6B7A.toInt()
+
+    const val TEXT = 0xFFEEF3F6.toInt()
+    const val SECONDARY = 0xFFB4C1CC.toInt()
+    const val TERTIARY = 0xFF8798A7.toInt()
+
+    const val ACCENT = 0xFF5BE1BE.toInt()
+    const val ACCENT_DIM = 0xFF173A35.toInt()
+    const val WARN = 0xFFF6C467.toInt()
+    const val WARN_DIM = 0xFF2E2715.toInt()
+
+    /** Rose rather than red: a wrong PIN is a fact to read, not an alarm. */
+    const val ERROR = 0xFFF4A9A3.toInt()
+
+    /** The focused control. Near white, so it is the brightest thing on any screen. */
+    const val LIT = 0xFFF2F6F9.toInt()
+    const val ON_LIT = INK
+
+    const val CLEAR = 0x00000000
+}
+
+/**
+ * Text sizes for three metres, in sp.
+ *
+ * Measured against a 1080p panel at xhdpi, where one sp is two pixels: the smallest size here is
+ * thirty pixels tall, which is about where a word stops being read and starts being decoded from a
+ * sofa. Nothing on any screen goes below [LABEL].
+ */
+object TypeScale {
+    const val DISPLAY = 44f
+    const val HEADLINE = 28f
+    const val LEAD = 24f
+    const val TITLE = 22f
+    const val BUTTON = 20f
+    const val BODY = 18f
+    const val LABEL = 15f
+    const val NUMBER = 44f
+    const val CODE = 64f
+}
+
+/** One spacing scale in dp, so gaps line up across screens rather than across one screen. */
+object Spacing {
+    const val XS = 4
+    const val S = 8
+    const val M = 12
+    const val L = 16
+    const val XL = 24
+    const val XXL = 32
+    const val XXXL = 48
+
+    /**
+     * The platform's own overscan margins for a ten-foot screen. Some sets still crop the edges,
+     * and the one thing that must not be cropped is the cursor.
+     */
+    const val SAFE_X = 48
+    const val SAFE_Y = 32
+}
+
+/** Corner radii in dp. One per size of thing, rather than one per screen. */
+object Radius {
+    const val S = 12
+    const val M = 16
+    const val L = 24
+    const val XL = 28
+}
+
+fun Context.dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+fun Context.dp(value: Float): Float = value * resources.displayMetrics.density
 
 /**
  * What every screen here looks like, in one place.
@@ -24,49 +113,12 @@ import androidx.core.widget.TextViewCompat
  * A television is read from three metres, navigated with four arrows, usually at night.
  */
 object TvStyle {
-    const val BACKDROP = 0xFF0B1017.toInt()
-    const val SURFACE = 0xFF141F2B.toInt()
-    const val ACCENT = 0xFF5BE1BE.toInt()
-    const val TEXT = 0xFFF2F6F9.toInt()
-    const val MUTED = 0xFF8FA3B3.toInt()
-    const val WARN = 0xFFFFC46B.toInt()
-
-    /** The rail's current destination when the rail does not have the focus. */
-    const val ACTIVE = 0xFF20303F.toInt()
-
-    const val TITLE_SP = 44f
-    const val HEADING_SP = 30f
-    const val BODY_SP = 20f
-    const val SMALL_SP = 15f
-    const val NUMBER_SP = 40f
-
-    const val OVERSCAN_PX = 64
-    const val GAP_PX = 20
-
     private const val SECONDS_PER_MINUTE = 60
     private const val MINUTES_PER_HOUR = 60
 
     /** Below this it stops being the headline number on the screen. */
-    private const val SMALLEST_NUMBER_SP = 22f
+    private const val SMALLEST_NUMBER_SP = 22
     private const val AUTOSIZE_STEP_SP = 1
-
-    private const val BUTTON_SP = 20f
-    private const val BUTTON_PADDING_PX = 56
-    private const val BUTTON_COLOR = 0xFF1C2733.toInt()
-    private const val BUTTON_FOCUS_COLOR = 0xFFE8EEF4.toInt()
-
-    /**
-     * A pill at rest, squarer when focused, which is shape-as-state the way the platform's own
-     * components do it now.
-     *
-     * It first looked wrong for a different reason: the scale-up was being clipped by the
-     * container's padding, so the focused button lost its left corner and read as cut off rather
-     * than as selected. That was the bug — see [letFocusOverflow] — and the shape change is not.
-     */
-    private const val RESTING_RADIUS_PX = 48f
-    private const val FOCUS_RADIUS_PX = 20f
-    private const val FOCUS_SCALE = 1.06f
-    private const val FOCUS_MS = 120L
 
     /**
      * A length somebody can read without decoding it.
@@ -89,65 +141,17 @@ object TvStyle {
      *
      * The three figures on Today share the width equally and none of them has a fixed length:
      * "4 h 17 min" is nearly twice "45 min" and half again on a set showing hours in Polish.
-     * At a fixed size the longest one wraps onto a second line and the labels under the three
+     * At a fixed size the longest one wraps onto a second line and the labels beside the three
      * stop lining up, which is worse than a slightly smaller number.
      */
     fun fitNumber(view: TextView) {
         view.maxLines = 1
         TextViewCompat.setAutoSizeTextTypeUniformWithConfiguration(
             view,
-            SMALLEST_NUMBER_SP.toInt(),
-            NUMBER_SP.toInt(),
+            SMALLEST_NUMBER_SP,
+            TypeScale.NUMBER.toInt(),
             AUTOSIZE_STEP_SP,
             TypedValue.COMPLEX_UNIT_SP,
         )
-    }
-
-    /**
-     * Makes a button readable and, more importantly, obviously selected from a sofa.
-     *
-     * With a D-pad the focused element is the cursor: if you cannot tell which one it is from
-     * across the room, the screen is broken however pretty it is. Three things change at once —
-     * fill, corner radius and size — because one signal does not survive a washed-out panel in a
-     * bright room, and shape-as-state is what the platform's own components do now.
-     *
-     * Shouting is off. A child reading block capitals is being told off by a machine.
-     */
-    fun dress(button: Button) {
-        button.isAllCaps = false
-        button.setTextSize(TypedValue.COMPLEX_UNIT_SP, BUTTON_SP)
-        button.setPadding(
-            BUTTON_PADDING_PX,
-            BUTTON_PADDING_PX / 2,
-            BUTTON_PADDING_PX,
-            BUTTON_PADDING_PX / 2,
-        )
-        paint(button, focused = false)
-        button.setOnFocusChangeListener { view, focused -> paint(view as Button, focused) }
-    }
-
-    /**
-     * Lets a focused child grow past its parent's edges.
-     *
-     * Without this the scale-up is clipped by the container's padding, and a button at the left
-     * margin loses the very corner that shows it is a button — measured on the setup screen,
-     * where the focused one looked cut off down its left side.
-     */
-    fun letFocusOverflow(group: ViewGroup) {
-        group.clipChildren = false
-        group.clipToPadding = false
-    }
-
-    private fun paint(button: Button, focused: Boolean) {
-        button.background = GradientDrawable().apply {
-            cornerRadius = if (focused) FOCUS_RADIUS_PX else RESTING_RADIUS_PX
-            setColor(if (focused) BUTTON_FOCUS_COLOR else BUTTON_COLOR)
-        }
-        button.setTextColor(if (focused) BACKDROP else Color.WHITE)
-        button.animate()
-            .scaleX(if (focused) FOCUS_SCALE else 1f)
-            .scaleY(if (focused) FOCUS_SCALE else 1f)
-            .setDuration(FOCUS_MS)
-            .start()
     }
 }

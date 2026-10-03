@@ -79,7 +79,7 @@ class SetupActivity : ComponentActivity() {
         setContentView(
             LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
-                setBackgroundColor(TvStyle.BACKDROP)
+                setBackgroundColor(Palette.INK)
                 addView(
                     rail,
                     LinearLayout.LayoutParams(

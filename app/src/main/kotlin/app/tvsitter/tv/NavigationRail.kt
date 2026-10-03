@@ -6,7 +6,7 @@
 package app.tvsitter.tv
 
 import android.content.Context
-import android.graphics.drawable.GradientDrawable
+import android.content.res.ColorStateList
 import android.view.Gravity
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -36,15 +36,26 @@ enum class Destination(val labelRes: Int, val iconRes: Int) {
  */
 class NavigationRail(context: Context, private val onChosen: (Destination) -> Unit) : LinearLayout(context) {
 
+    /** The app's mark, and its name while the rail is open. Not focusable: it goes nowhere. */
+    private val brand = context.tvText(TextRole.STRONG, Palette.TEXT).apply {
+        setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_mark, 0, 0, 0)
+        compoundDrawablePadding = context.dp(Spacing.M)
+        gravity = Gravity.CENTER_VERTICAL
+        textSize = TypeScale.BUTTON
+        val inset = context.dp(TvFocus.HALO_SPACE_DP + BRAND_INSET_DP)
+        setPadding(inset, 0, inset, context.dp(Spacing.XL))
+    }
+
     private val items = Destination.entries.associateWith { item(it) }
 
     private var current = Destination.TODAY
 
     init {
         orientation = VERTICAL
-        setBackgroundColor(TvStyle.SURFACE)
-        setPadding(RAIL_PADDING_PX, TvStyle.OVERSCAN_PX, RAIL_PADDING_PX, TvStyle.OVERSCAN_PX)
-        TvStyle.letFocusOverflow(this)
+        setBackgroundColor(Palette.SURFACE)
+        setPadding(context.dp(RAIL_PADDING_DP), context.dp(Spacing.SAFE_Y), context.dp(RAIL_PADDING_DP), 0)
+        TvFocus.letFocusOverflow(this)
+        addView(brand)
         items.values.forEach { addView(it) }
         select(Destination.TODAY)
     }
@@ -59,14 +70,20 @@ class NavigationRail(context: Context, private val onChosen: (Destination) -> Un
         items[current]?.requestFocus()
     }
 
-    private fun item(destination: Destination): TextView = TextView(context).apply {
+    private fun item(destination: Destination): TextView = context.tvText(TextRole.STRONG).apply {
         setCompoundDrawablesRelativeWithIntrinsicBounds(destination.iconRes, 0, 0, 0)
-        compoundDrawablePadding = ICON_GAP_PX
+        compoundDrawablePadding = context.dp(Spacing.L)
         gravity = Gravity.CENTER_VERTICAL
         isFocusable = true
         isFocusableInTouchMode = true
-        setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, TvStyle.SMALL_SP)
-        setPadding(ITEM_PADDING_PX, ITEM_PADDING_PX, ITEM_PADDING_PX, ITEM_PADDING_PX)
+        maxLines = 1
+        val halo = context.dp(TvFocus.HALO_SPACE_DP)
+        setPadding(
+            halo + context.dp(ITEM_PADDING_X_DP),
+            halo + context.dp(ITEM_PADDING_Y_DP),
+            halo + context.dp(ITEM_PADDING_X_DP),
+            halo + context.dp(ITEM_PADDING_Y_DP),
+        )
         setOnFocusChangeListener { _, _ -> repaint() }
         setOnClickListener { onChosen(destination) }
     }
@@ -81,36 +98,39 @@ class NavigationRail(context: Context, private val onChosen: (Destination) -> Un
      */
     private fun repaint() {
         val expanded = items.values.any { it.isFocused }
+        brand.text = if (expanded) context.getString(R.string.app_name) else ""
         items.forEach { (destination, view) ->
             val chosen = destination == current
             view.text = if (expanded) context.getString(destination.labelRes) else ""
-            view.width = if (expanded) EXPANDED_PX else COLLAPSED_PX
-            view.setTextColor(
-                when {
-                    view.isFocused -> TvStyle.BACKDROP
-                    chosen -> TvStyle.TEXT
-                    else -> TvStyle.MUTED
-                },
-            )
-            view.background = GradientDrawable().apply {
-                cornerRadius = ITEM_RADIUS_PX
-                setColor(
-                    when {
-                        view.isFocused -> TvStyle.ACCENT
-                        chosen -> TvStyle.ACTIVE
-                        else -> TvStyle.SURFACE
-                    },
-                )
+            view.width = context.dp(if (expanded) EXPANDED_DP else COLLAPSED_DP)
+            val ink = when {
+                view.isFocused -> Palette.ON_LIT
+                chosen -> Palette.TEXT
+                else -> Palette.TERTIARY
             }
+            view.setTextColor(ink)
+            view.compoundDrawableTintList = ColorStateList.valueOf(
+                if (chosen && !view.isFocused) Palette.ACCENT else ink,
+            )
+            view.background = TvFocus.plate(
+                context,
+                view.isFocused,
+                if (chosen) Rest.CURRENT else Rest.BARE,
+            )
+            TvFocus.grow(view, view.isFocused)
         }
     }
 
     private companion object {
-        const val RAIL_PADDING_PX = 16
-        const val ITEM_PADDING_PX = 24
-        const val ICON_GAP_PX = 24
-        const val ITEM_RADIUS_PX = 28f
-        const val COLLAPSED_PX = 120
-        const val EXPANDED_PX = 380
+        const val RAIL_PADDING_DP = 10
+
+        /** Puts the mark's centre on the icons' centre line below it. */
+        const val BRAND_INSET_DP = 8
+        const val ITEM_PADDING_X_DP = 14
+        const val ITEM_PADDING_Y_DP = 14
+
+        /** The icon and its padding, with the halo's room on both sides. */
+        const val COLLAPSED_DP = 64
+        const val EXPANDED_DP = 216
     }
 }

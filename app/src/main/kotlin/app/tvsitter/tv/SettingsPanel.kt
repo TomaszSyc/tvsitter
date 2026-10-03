@@ -8,10 +8,8 @@ package app.tvsitter.tv
 import android.app.Activity
 import android.content.Intent
 import android.view.View
-import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
-import android.widget.TextView
 import app.tvsitter.rules.Rules
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.buildJsonObject
@@ -35,19 +33,24 @@ class SettingsPanel(private val activity: Activity, private val parentPin: PinKe
 
     private var proved = false
 
-    private val heading = text(TvStyle.HEADING_SP, TvStyle.TEXT)
-    private val code = text(PAIRING_CODE_SP, TvStyle.ACCENT)
-    private val note = text(TvStyle.SMALL_SP, TvStyle.MUTED)
-    private val trouble = text(TvStyle.BODY_SP, TvStyle.WARN)
-    private val footer = text(TvStyle.SMALL_SP, TvStyle.MUTED)
-    private val lockedNote = text(TvStyle.BODY_SP, TvStyle.MUTED)
+    private val heading = activity.tvText(TextRole.TITLE).apply { typeface = Fonts.MEDIUM }
+    private val code = activity.tvText(TextRole.CODE)
+    private val note = activity.tvText(TextRole.BODY)
+    private val trouble = activity.tvText(TextRole.BODY, Palette.WARN).apply {
+        background = activity.plate(Palette.WARN_DIM, Radius.L)
+        setPadding(activity.dp(Spacing.XL), activity.dp(Spacing.L), activity.dp(Spacing.XL), activity.dp(Spacing.L))
+    }
+    private val footer = activity.tvText(TextRole.LABEL).apply { setPadding(0, activity.dp(Spacing.L), 0, 0) }
+    private val lockedNote = activity.tvText(TextRole.BODY).apply {
+        setPadding(0, 0, 0, activity.dp(Spacing.S))
+    }
 
-    private val unlockButton = button { prove() }
-    private val limitButton = button { chooseDailyLimit() }
-    private val sleepButton = button { chooseSleepTimer() }
-    private val blockButton = button { toggleSettingsBlock() }
+    private val unlockRow = TvRow(activity) { prove() }
+    private val limitRow = TvRow(activity) { chooseDailyLimit() }
+    private val sleepRow = TvRow(activity) { chooseSleepTimer() }
+    private val blockRow = TvRow(activity) { toggleSettingsBlock() }
 
-    private val pairButton = button {
+    private val pairRow = TvRow(activity) {
         // Through the PIN screen, which opens the window itself once the PIN is right, or
         // straight away when there is no PIN to ask for. A pairing code is on a fifty-inch screen
         // in front of the person the PIN exists to keep out, and after pairing the television
@@ -57,31 +60,34 @@ class SettingsPanel(private val activity: Activity, private val parentPin: PinKe
         )
     }
 
-    private val pinButton = button {
+    private val pinRow = TvRow(activity) {
         activity.startActivity(Intent(activity, PinActivity::class.java))
-    }.apply { setText(R.string.pin_change) }
+    }.apply { show(activity.getString(R.string.pin_change)) }
 
-    private val rules = column(limitButton, sleepButton, blockButton)
+    private val rules = column(limitRow, sleepRow, blockRow)
 
     val view: View = ScrollView(activity).apply {
         isFillViewport = true
-        TvStyle.letFocusOverflow(this)
+        TvFocus.letFocusOverflow(this)
         addView(
             LinearLayout(activity).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(TvStyle.OVERSCAN_PX, TvStyle.OVERSCAN_PX, TvStyle.OVERSCAN_PX, TvStyle.OVERSCAN_PX)
-                TvStyle.letFocusOverflow(this)
-                addView(section(R.string.set_section_rules))
+                setPadding(
+                    activity.dp(Spacing.SAFE_X),
+                    activity.dp(Spacing.SAFE_Y),
+                    activity.dp(Spacing.SAFE_X),
+                    activity.dp(Spacing.SAFE_Y),
+                )
+                TvFocus.letFocusOverflow(this)
+                addView(section(R.string.set_section_rules, first = true))
                 addView(lockedNote)
-                addView(column(unlockButton))
+                addView(column(unlockRow))
                 addView(rules)
-                addView(section(R.string.set_section_tv))
-                addView(heading)
-                addView(code)
-                addView(note)
-                addView(column(pairButton, pinButton))
-                addView(section(R.string.set_section_diag))
-                addView(trouble)
+                addView(section(R.string.set_section_tv, first = false))
+                addView(pairingCard())
+                addView(column(pairRow, pinRow))
+                addView(section(R.string.set_section_diag, first = false))
+                addView(trouble, LinearLayout.LayoutParams(activity.dp(ROW_WIDTH_DP), WRAP))
                 addView(footer)
             },
         )
@@ -91,11 +97,11 @@ class SettingsPanel(private val activity: Activity, private val parentPin: PinKe
     fun unlock() {
         proved = true
         refresh()
-        // Posted rather than called: the rules have only just been made visible, and the button
+        // Posted rather than called: the rules have only just been made visible, and the row
         // that replaces the one the parent was standing on has not been laid out yet. Without
         // this the focus is left on a view that is no longer there, which reads as a remote
         // that has stopped working.
-        limitButton.post { limitButton.requestFocus() }
+        limitRow.post { limitRow.requestFocus() }
     }
 
     fun refresh() {
@@ -124,25 +130,25 @@ class SettingsPanel(private val activity: Activity, private val parentPin: PinKe
     private fun showRules(service: EnforcerService?) {
         val open = proved || !parentPin.isSet
         rules.visibility = if (open && service != null) View.VISIBLE else View.GONE
-        unlockButton.visibility = if (open || service == null) View.GONE else View.VISIBLE
-        unlockButton.setText(R.string.set_unlock)
+        unlockRow.visibility = if (open || service == null) View.GONE else View.VISIBLE
+        unlockRow.show(activity.getString(R.string.set_unlock))
 
         lockedNote.setText(if (service == null) R.string.set_no_service else R.string.set_locked_note)
         lockedNote.visibility = if (open && service != null) View.GONE else View.VISIBLE
         if (service != null) showValues(service)
     }
 
-    /** What each rule currently says, on the button that changes it. */
+    /** What each rule currently says, on the row that changes it. */
     private fun showValues(service: EnforcerService) {
-        limitButton.text = row(R.string.set_daily_limit, lengthOrNone(service.rules.dailyLimitSeconds))
-        sleepButton.text = row(
-            R.string.set_sleep_timer,
+        limitRow.show(activity.getString(R.string.set_daily_limit), lengthOrNone(service.rules.dailyLimitSeconds))
+        sleepRow.show(
+            activity.getString(R.string.set_sleep_timer),
             service.sleepInMinutes.takeIf { it > 0 }
                 ?.let { TvStyle.length(activity, it * SECONDS_PER_MINUTE) }
                 ?: activity.getString(R.string.set_sleep_off),
         )
-        blockButton.text = row(
-            R.string.set_block_settings,
+        blockRow.show(
+            activity.getString(R.string.set_block_settings),
             activity.getString(if (service.rules.settingsBlocked) R.string.set_on else R.string.set_off),
         )
     }
@@ -153,11 +159,11 @@ class SettingsPanel(private val activity: Activity, private val parentPin: PinKe
         note.text = copy.note
         code.text = copy.code.orEmpty()
         code.visibility = if (copy.code != null) View.VISIBLE else View.GONE
-        pairButton.text = copy.buttonLabel.orEmpty()
-        pairButton.visibility = if (copy.buttonLabel != null) View.VISIBLE else View.GONE
+        pairRow.show(copy.buttonLabel.orEmpty())
+        pairRow.visibility = if (copy.buttonLabel != null) View.VISIBLE else View.GONE
         // Only ever offered when a PIN already exists: the change screen asks for the current
         // one, and there is no first PIN to be had at the television.
-        pinButton.visibility = if (parentPin.isSet) View.VISIBLE else View.GONE
+        pinRow.visibility = if (parentPin.isSet) View.VISIBLE else View.GONE
     }
 
     /**
@@ -217,53 +223,60 @@ class SettingsPanel(private val activity: Activity, private val parentPin: PinKe
         ?.let { TvStyle.length(activity, it.toInt()) }
         ?: activity.getString(R.string.set_no_limit)
 
-    private fun row(labelRes: Int, value: String) =
-        activity.getString(R.string.set_row, activity.getString(labelRes), value)
-
-    private fun button(onPress: () -> Unit) = Button(activity).apply {
-        setOnClickListener { onPress() }
-        TvStyle.dress(this)
+    /**
+     * What pairing is doing, on a card of its own.
+     *
+     * The code is the largest thing on the screen when there is one, because it is read from a
+     * sofa several metres away and typed somewhere else.
+     */
+    private fun pairingCard() = LinearLayout(activity).apply {
+        orientation = LinearLayout.VERTICAL
+        background = activity.plate(Palette.SURFACE, Radius.L)
+        setPadding(
+            activity.dp(CARD_PAD_X_DP),
+            activity.dp(Spacing.XL),
+            activity.dp(CARD_PAD_X_DP),
+            activity.dp(Spacing.XL),
+        )
+        addView(heading)
+        addView(code.apply { setPadding(0, activity.dp(Spacing.S), 0, activity.dp(Spacing.S)) })
+        addView(note.apply { setPadding(0, activity.dp(Spacing.XS), 0, 0) })
+        layoutParams = LinearLayout.LayoutParams(activity.dp(ROW_WIDTH_DP), WRAP).apply {
+            topMargin = activity.dp(Spacing.XS)
+            bottomMargin = activity.dp(Spacing.S)
+        }
     }
 
     /**
-     * A stack of buttons, each as wide as the panel.
+     * A stack of rows, each as wide as the panel.
      *
      * Down the screen rather than across, because these are categories of thing rather than items
      * within one — the axis the platform's guidance asks for, and the axis a list of settings is
-     * read in anywhere else.
+     * read in anywhere else. Each row keeps its own room for the focus ring, which is also the gap
+     * between two of them, and is pulled left by that room so its plate lines up with the text.
      */
-    private fun column(vararg buttons: Button) = LinearLayout(activity).apply {
+    private fun column(vararg rows: TvRow) = LinearLayout(activity).apply {
         orientation = LinearLayout.VERTICAL
-        TvStyle.letFocusOverflow(this)
-        buttons.forEach { button ->
-            button.gravity = android.view.Gravity.CENTER_VERTICAL or android.view.Gravity.START
+        TvFocus.letFocusOverflow(this)
+        val halo = activity.dp(TvFocus.HALO_SPACE_DP)
+        rows.forEach { row ->
             addView(
-                button,
-                LinearLayout.LayoutParams(ROW_WIDTH_PX, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-                    setMargins(TvStyle.GAP_PX, TvStyle.GAP_PX / 2, TvStyle.GAP_PX, TvStyle.GAP_PX / 2)
-                },
+                row,
+                LinearLayout.LayoutParams(activity.dp(ROW_WIDTH_DP) + 2 * halo, WRAP).apply { marginStart = -halo },
             )
         }
     }
 
-    private fun section(labelRes: Int) = text(TvStyle.SMALL_SP, TvStyle.ACCENT).apply {
+    private fun section(labelRes: Int, first: Boolean) = activity.tvText(TextRole.OVERLINE).apply {
         setText(labelRes)
-        setPadding(0, TvStyle.OVERSCAN_PX / 2, 0, TvStyle.GAP_PX / 2)
-        isAllCaps = true
-        letterSpacing = SECTION_TRACKING
-    }
-
-    private fun text(sizeSp: Float, colour: Int) = TextView(activity).apply {
-        setTextColor(colour)
-        setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, sizeSp)
+        setPadding(0, if (first) 0 else activity.dp(Spacing.XXL), 0, activity.dp(Spacing.S))
     }
 
     private companion object {
-        /** Read from a sofa several metres away, so the code is the largest thing on screen. */
-        const val PAIRING_CODE_SP = 72f
         const val SECONDS_PER_MINUTE = 60
-        const val ROW_WIDTH_PX = 900
-        const val SECTION_TRACKING = 0.12f
+        const val WRAP = LinearLayout.LayoutParams.WRAP_CONTENT
+        const val ROW_WIDTH_DP = 600
+        const val CARD_PAD_X_DP = 28
 
         /**
          * Round numbers a parent would say out loud, not every multiple of five.

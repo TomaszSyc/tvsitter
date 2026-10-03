@@ -7,15 +7,12 @@ package app.tvsitter.tv
 
 import android.app.Activity
 import android.content.Intent
-import android.graphics.Color
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.util.TypedValue
 import android.view.Gravity
 import android.view.WindowManager
 import android.widget.FrameLayout
-import android.widget.TextView
 import app.tvsitter.rules.ParentPin
 import app.tvsitter.rules.PinOutcome
 
@@ -92,7 +89,7 @@ class PinActivity : Activity() {
         keypad = pad
         setContentView(
             FrameLayout(this).apply {
-                setBackgroundColor(BACKDROP)
+                background = dusk()
                 descendantFocusability = FrameLayout.FOCUS_AFTER_DESCENDANTS
                 addView(
                     pad,
@@ -230,13 +227,12 @@ class PinActivity : Activity() {
     private fun showNote(text: String) {
         keypad = null
         setContentView(
-            TextView(this).apply {
+            tvText(TextRole.LEAD, Palette.TEXT).apply {
                 this.text = text
-                setTextColor(Color.WHITE)
-                setBackgroundColor(BACKDROP)
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, NOTE_SP)
+                background = dusk()
                 gravity = Gravity.CENTER
-                setPadding(PADDING, PADDING, PADDING, PADDING)
+                val inset = dp(Spacing.XXXL)
+                setPadding(inset, inset, inset, inset)
             },
         )
     }
@@ -248,9 +244,6 @@ class PinActivity : Activity() {
         /** Ask for the PIN and answer with a result, changing nothing at all. */
         const val EXTRA_TO_PROVE: String = "to_prove"
 
-        private const val BACKDROP = 0xFF0B1017.toInt()
-        private const val NOTE_SP = 24f
-        private const val PADDING = 48
         private const val DONE_MS = 2500L
     }
 }

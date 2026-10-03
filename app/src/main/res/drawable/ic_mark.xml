@@ -1,0 +1,13 @@
+<!-- The app's mark from brand/mark.svg without its plate: a screen with the evening's time still
+     in it. Cropped to the drawing so it lines up with the rail's icons. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="36dp" android:height="36dp"
+    android:viewportWidth="140" android:viewportHeight="140">
+    <group android:translateX="-26" android:translateY="-26">
+        <path android:strokeColor="#FF5BE1BE" android:strokeWidth="12"
+            android:pathData="M50,44H142A18,18 0,0 1,160 62V114A18,18 0,0 1,142 132H50A18,18 0,0 1,32 114V62A18,18 0,0 1,50 44Z" />
+        <path android:fillColor="#FF5BE1BE" android:pathData="M96,88L96,66A22,22 0,1 1,74 88Z" />
+        <path android:fillColor="#FF5BE1BE"
+            android:pathData="M80,142H112A6,6 0,0 1,112 154H80A6,6 0,0 1,80 142Z" />
+    </group>
+</vector>

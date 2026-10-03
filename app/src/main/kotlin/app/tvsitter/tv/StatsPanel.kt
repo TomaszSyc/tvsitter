@@ -6,12 +6,11 @@
 package app.tvsitter.tv
 
 import android.content.Context
-import android.graphics.drawable.GradientDrawable
+import android.text.TextUtils
 import android.view.Gravity
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.ScrollView
-import android.widget.TextView
 
 /**
  * What was actually watched, at the set.
@@ -28,13 +27,13 @@ import android.widget.TextView
 class StatsPanel(private val context: Context) {
 
     private val todayList = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
-    private val yesterdayLine = text(TvStyle.BODY_SP, TvStyle.TEXT)
+    private val yesterdayLine = context.tvText(TextRole.BODY)
 
     // Hidden until there is a day behind it. A label over nothing is the empty frame #111
     // asked for instead of, and it read as a list that had failed to load.
-    private val yesterdayLabel = text(TvStyle.SMALL_SP, TvStyle.MUTED).apply {
+    private val yesterdayLabel = context.tvText(TextRole.LABEL).apply {
         setText(R.string.stats_yesterday_apps)
-        setPadding(0, TvStyle.GAP_PX, 0, 0)
+        setPadding(0, context.dp(Spacing.L), 0, context.dp(Spacing.XS))
     }
     private val yesterdayList = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
 
@@ -43,17 +42,22 @@ class StatsPanel(private val context: Context) {
         addView(
             LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(TvStyle.OVERSCAN_PX, TvStyle.OVERSCAN_PX, TvStyle.OVERSCAN_PX, TvStyle.OVERSCAN_PX)
-                addView(heading(R.string.stats_today))
+                setPadding(
+                    context.dp(Spacing.SAFE_X),
+                    context.dp(Spacing.SAFE_Y),
+                    context.dp(Spacing.SAFE_X),
+                    context.dp(Spacing.SAFE_Y),
+                )
+                addView(heading(R.string.stats_today, first = true))
                 addView(todayList)
-                addView(heading(R.string.stats_yesterday))
+                addView(heading(R.string.stats_yesterday, first = false))
                 addView(yesterdayLine)
                 addView(yesterdayLabel)
                 addView(yesterdayList)
                 addView(
-                    text(TvStyle.SMALL_SP, TvStyle.MUTED).apply {
+                    context.tvText(TextRole.LABEL).apply {
                         setText(R.string.stats_week_note)
-                        setPadding(0, TvStyle.OVERSCAN_PX / 2, 0, 0)
+                        setPadding(0, context.dp(Spacing.XXL), 0, 0)
                     },
                 )
             },
@@ -94,7 +98,7 @@ class StatsPanel(private val context: Context) {
         // The launcher and the system are the set idling, not something anybody watched.
         val shown = perApp - service?.exemptApps.orEmpty()
         if (shown.isEmpty()) {
-            emptyRes?.let { into.addView(text(TvStyle.BODY_SP, TvStyle.MUTED).apply { setText(it) }) }
+            emptyRes?.let { into.addView(context.tvText(TextRole.BODY).apply { setText(it) }) }
             return
         }
         // Longest first: the question is what he is watching, and the answer is at the top.
@@ -109,54 +113,41 @@ class StatsPanel(private val context: Context) {
     private fun row(name: String, seconds: Int, longest: Int) = LinearLayout(context).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
-        setPadding(0, TvStyle.GAP_PX / 2, 0, TvStyle.GAP_PX / 2)
+        minimumHeight = context.dp(ROW_DP)
         addView(
-            text(TvStyle.BODY_SP, TvStyle.TEXT).apply {
+            context.tvText(TextRole.BODY, Palette.TEXT).apply {
                 text = name
-                width = NAME_WIDTH_PX
                 maxLines = 1
-                ellipsize = android.text.TextUtils.TruncateAt.END
+                ellipsize = TextUtils.TruncateAt.END
             },
+            LinearLayout.LayoutParams(context.dp(NAME_WIDTH_DP), WRAP),
         )
         addView(
-            View(context).apply {
-                background = GradientDrawable().apply {
-                    cornerRadius = BAR_CORNER_PX
-                    setColor(TvStyle.ACCENT)
-                }
-            },
-            LinearLayout.LayoutParams(
-                (BAR_WIDTH_PX.toLong() * seconds / longest).toInt().coerceAtLeast(BAR_MINIMUM_PX),
-                BAR_HEIGHT_PX,
-            ),
+            TvMeter(context, BAR_DP).apply { show(seconds.toLong(), longest.toLong()) },
+            LinearLayout.LayoutParams(0, context.dp(BAR_DP), 1f),
         )
         addView(
-            text(TvStyle.BODY_SP, TvStyle.MUTED).apply {
+            context.tvText(TextRole.BODY).apply {
                 text = TvStyle.length(context, seconds)
-                setPadding(TvStyle.GAP_PX, 0, 0, 0)
+                gravity = Gravity.END
+                maxLines = 1
             },
+            LinearLayout.LayoutParams(context.dp(TIME_WIDTH_DP), WRAP),
         )
     }
 
-    private fun heading(labelRes: Int) = text(TvStyle.HEADING_SP, TvStyle.TEXT).apply {
+    private fun heading(labelRes: Int, first: Boolean) = context.tvText(TextRole.HEADLINE).apply {
         setText(labelRes)
-        setPadding(0, TvStyle.OVERSCAN_PX / 2, 0, TvStyle.GAP_PX / 2)
-    }
-
-    private fun text(sizeSp: Float, colour: Int) = TextView(context).apply {
-        setTextColor(colour)
-        setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, sizeSp)
+        setPadding(0, if (first) 0 else context.dp(Spacing.XXL), 0, context.dp(Spacing.M))
     }
 
     private companion object {
         /** Enough to answer the question. A television with thirty apps does not need thirty rows. */
         const val MOST = 6
-        const val NAME_WIDTH_PX = 460
-        const val BAR_WIDTH_PX = 520
-        const val BAR_HEIGHT_PX = 22
-
-        /** So the shortest thing watched is still a bar rather than nothing at all. */
-        const val BAR_MINIMUM_PX = 12
-        const val BAR_CORNER_PX = 11f
+        const val WRAP = LinearLayout.LayoutParams.WRAP_CONTENT
+        const val ROW_DP = 40
+        const val NAME_WIDTH_DP = 200
+        const val TIME_WIDTH_DP = 120
+        const val BAR_DP = 12
     }
 }

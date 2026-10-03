@@ -8,15 +8,12 @@ package app.tvsitter.tv
 import android.app.Activity
 import android.app.Dialog
 import android.graphics.drawable.ColorDrawable
-import android.graphics.drawable.GradientDrawable
-import android.util.TypedValue
 import android.view.Gravity
 import android.view.ViewGroup
 import android.view.Window
-import android.widget.Button
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
-import android.widget.TextView
 
 /** One thing a parent can pick, and what it means on the wire. */
 data class Choice<T>(val label: String, val value: T)
@@ -37,55 +34,37 @@ object ChoiceDialog {
     fun <T> show(activity: Activity, title: String, choices: List<Choice<T>>, current: T?, onPick: (T) -> Unit) {
         val dialog = Dialog(activity)
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
-        dialog.window?.setBackgroundDrawable(ColorDrawable(SCRIM))
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Palette.CLEAR))
+        // The scrim is the window's dimming rather than a colour of our own, so it covers the
+        // whole screen behind the card and not just the card's window.
+        dialog.window?.setDimAmount(SCRIM)
 
-        val list = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
-        var focusOn: Button? = null
+        val list = LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+            TvFocus.letFocusOverflow(this)
+        }
+        var focusOn: TvRow? = null
         choices.forEach { choice ->
             val marked = choice.value == current
-            val button = Button(activity).apply {
-                text = if (marked) activity.getString(R.string.pick_current, choice.label) else choice.label
-                setOnClickListener {
-                    dialog.dismiss()
-                    onPick(choice.value)
-                }
+            val row = TvRow(activity) {
+                dialog.dismiss()
+                onPick(choice.value)
             }
-            TvStyle.dress(button)
-            if (marked) focusOn = button
-            list.addView(
-                button,
-                LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT,
-                ).apply { setMargins(TvStyle.GAP_PX, TvStyle.GAP_PX / 2, TvStyle.GAP_PX, TvStyle.GAP_PX / 2) },
+            row.show(
+                choice.label,
+                if (marked) activity.getString(R.string.pick_current_mark) else null,
+                Palette.ACCENT,
             )
+            if (marked) focusOn = row
+            list.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, WRAP))
         }
 
+        // Wrapped, because the platform gives a dialog window a minimum width of most of the
+        // screen, and the card would be stretched to it. The window itself is clear.
         dialog.setContentView(
-            LinearLayout(activity).apply {
-                orientation = LinearLayout.VERTICAL
-                background = GradientDrawable().apply {
-                    cornerRadius = CORNER_PX
-                    setColor(TvStyle.SURFACE)
-                }
-                setPadding(TvStyle.OVERSCAN_PX, TvStyle.GAP_PX * 2, TvStyle.OVERSCAN_PX, TvStyle.GAP_PX * 2)
-                TvStyle.letFocusOverflow(this)
-                addView(
-                    TextView(activity).apply {
-                        text = title
-                        setTextColor(TvStyle.TEXT)
-                        setTextSize(TypedValue.COMPLEX_UNIT_SP, TvStyle.HEADING_SP)
-                        setPadding(TvStyle.GAP_PX, 0, 0, TvStyle.GAP_PX)
-                    },
-                )
-                addView(
-                    ScrollView(activity).apply {
-                        isFocusable = false
-                        TvStyle.letFocusOverflow(this)
-                        addView(list)
-                    },
-                    LinearLayout.LayoutParams(WIDTH_PX, ViewGroup.LayoutParams.WRAP_CONTENT),
-                )
+            FrameLayout(activity).apply {
+                TvFocus.letFocusOverflow(this)
+                addView(card(activity, title, list), FrameLayout.LayoutParams(WRAP, WRAP, Gravity.CENTER))
             },
         )
         dialog.window?.setGravity(Gravity.CENTER)
@@ -94,7 +73,32 @@ object ChoiceDialog {
         focusOn?.requestFocus()
     }
 
-    private const val SCRIM = 0xCC05080C.toInt()
-    private const val CORNER_PX = 32f
-    private const val WIDTH_PX = 760
+    private fun card(activity: Activity, title: String, list: LinearLayout) = LinearLayout(activity).apply {
+        orientation = LinearLayout.VERTICAL
+        background = activity.plate(Palette.SURFACE, Radius.XL, Palette.LINE)
+        // The rows carry their own room for the focus ring, so the card's inset is that much
+        // less at the sides and the plates still line up with the title.
+        val halo = activity.dp(TvFocus.HALO_SPACE_DP)
+        val side = activity.dp(Spacing.XXL) - halo
+        setPadding(side, activity.dp(Spacing.XXL), side, activity.dp(Spacing.XL))
+        TvFocus.letFocusOverflow(this)
+        addView(
+            activity.tvText(TextRole.HEADLINE).apply {
+                text = title
+                setPadding(halo, 0, halo, activity.dp(Spacing.L))
+            },
+        )
+        addView(
+            ScrollView(activity).apply {
+                isFocusable = false
+                TvFocus.letFocusOverflow(this)
+                addView(list)
+            },
+            LinearLayout.LayoutParams(activity.dp(WIDTH_DP), WRAP),
+        )
+    }
+
+    private const val SCRIM = 0.86f
+    private const val WIDTH_DP = 440
+    private const val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
 }

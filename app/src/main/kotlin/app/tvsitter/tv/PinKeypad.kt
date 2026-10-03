@@ -6,21 +6,17 @@
 package app.tvsitter.tv
 
 import android.content.Context
-import android.graphics.Color
-import android.graphics.drawable.GradientDrawable
-import android.util.TypedValue
 import android.view.Gravity
 import android.view.KeyEvent
 import android.widget.LinearLayout
-import android.widget.TextView
 import app.tvsitter.rules.ParentPin
 
 /**
  * Typing a PIN with a remote control, in the shape Google TV uses for its own PIN.
  *
  * Up and down move between rows of three digits; left, centre and right pick one of the three
- * in the row showing. A map of the rows sits underneath so the layout can be learned rather
- * than hunted for. Two presses per digit, usually.
+ * in the row showing. The rows either side sit faded above and below it so the layout can be
+ * learned rather than hunted for. Two presses per digit, usually.
  *
  * There is no confirm button and no delete button, for the same reason the platform has
  * neither: the fourth digit submits, and back deletes. That only works because a PIN is
@@ -44,31 +40,15 @@ import app.tvsitter.rules.ParentPin
 class PinKeypad(context: Context, private val onSubmit: (String) -> Unit, private val onCancel: () -> Unit) :
     LinearLayout(context) {
 
-    /** Three tokens, laid out as left, centre and right, matching the D-pad's own geometry. */
-    private data class Row(val left: String, val centre: String, val right: String)
-
     private val rows = listOf(
-        Row("1", "2", "3"),
-        Row("4", "5", "6"),
-        Row("7", "8", "9"),
+        KeypadRow("1", "2", "3"),
+        KeypadRow("4", "5", "6"),
+        KeypadRow("7", "8", "9"),
         // Zero on its own, as the platform draws it. Left and right on this row do nothing.
-        Row("", "0", ""),
+        KeypadRow("", "0", ""),
     )
 
-    private val promptView = context.pinLine(PROMPT_SP, Color.WHITE)
-    private val progressView = context.pinLine(PROGRESS_SP, ACCENT).apply {
-        letterSpacing = PROGRESS_SPACING
-    }
-    private val messageView = context.pinLine(MESSAGE_SP, WARNING).apply { minLines = 2 }
-
-    private val leftView = context.pinLine(WHEEL_SIDE_SP, MUTED, WHEEL_PADDING_DP)
-    private val centreView = context.pinLine(WHEEL_CENTRE_SP, Color.WHITE, WHEEL_PADDING_DP).apply {
-        background = outline(oval = true, radiusDp = 0, context = context)
-        width = context.px(RING_DP)
-        height = context.px(RING_DP)
-    }
-    private val rightView = context.pinLine(WHEEL_SIDE_SP, MUTED, WHEEL_PADDING_DP)
-    private val mapViews = rows.map { context.pinLine(MAP_SP, MUTED) }
+    private val face = PinKeypadFace(context, rows)
 
     /** Starts on the middle row, as the platform's own screen does. */
     private var row = 1
@@ -82,19 +62,22 @@ class PinKeypad(context: Context, private val onSubmit: (String) -> Unit, privat
         // wandering over the digits for somebody to read.
         isFocusable = true
         isFocusableInTouchMode = true
-
-        addView(promptView)
-        addView(progressView)
-        addView(buildWheel())
-        addView(buildMap())
-        addView(messageView)
+        // No box of its own: it is drawn on the same backdrop as the lock screen it replaces,
+        // inside the same overscan margins.
+        setPadding(
+            context.dp(Spacing.SAFE_X),
+            context.dp(Spacing.SAFE_Y),
+            context.dp(Spacing.SAFE_X),
+            context.dp(Spacing.SAFE_Y),
+        )
+        face.addTo(this)
         render()
     }
 
     /** Starts a step: a new question, nothing typed, nothing said about the last attempt. */
     fun prompt(text: String) {
-        promptView.text = text
-        messageView.text = ""
+        face.prompt.text = text
+        face.say("", calm = true)
         row = 1
         clearEntry()
     }
@@ -106,7 +89,7 @@ class PinKeypad(context: Context, private val onSubmit: (String) -> Unit, privat
      * again, which spends another attempt on the same wrong answer.
      */
     fun message(text: String) {
-        messageView.text = text
+        face.say(text, calm = text == context.getString(R.string.pin_checking))
         clearEntry()
     }
 
@@ -187,92 +170,10 @@ class PinKeypad(context: Context, private val onSubmit: (String) -> Unit, privat
     }
 
     private fun render() {
-        val filled = MASK.repeat(typed.length)
-        val remaining = EMPTY.repeat((ParentPin.LENGTH - typed.length).coerceAtLeast(0))
-        progressView.text = filled + remaining
-
-        val showing = rows[row]
-        leftView.text = showing.left
-        centreView.text = showing.centre
-        rightView.text = showing.right
-
-        mapViews.forEachIndexed { index, view ->
-            val line = rows[index]
-            view.text = listOf(line.left, line.centre, line.right)
-                .filter { it.isNotEmpty() }
-                .joinToString(separator = "   ")
-            view.setTextColor(if (index == row) Color.WHITE else MUTED)
-            view.background =
-                if (index == row) outline(oval = false, radiusDp = PILL_RADIUS_DP, context = context) else null
-        }
-    }
-
-    private fun buildWheel() = LinearLayout(context).apply {
-        orientation = VERTICAL
-        gravity = Gravity.CENTER_HORIZONTAL
-        addView(context.pinLine(ARROW_SP, MUTED).apply { text = "▲" })
-        addView(
-            LinearLayout(context).apply {
-                orientation = HORIZONTAL
-                // Both axes. A vertical LinearLayout hands its children the full width, so
-                // CENTER_VERTICAL alone left the three digits packed against the left edge
-                // while the dots, arrows and map above and below them sat centred.
-                gravity = Gravity.CENTER
-                addView(leftView)
-                addView(centreView)
-                addView(rightView)
-            },
-        )
-        addView(context.pinLine(ARROW_SP, MUTED).apply { text = "▼" })
-    }
-
-    private fun buildMap() = LinearLayout(context).apply {
-        orientation = VERTICAL
-        gravity = Gravity.CENTER_HORIZONTAL
-        setPadding(0, context.px(GAP_DP), 0, 0)
-        mapViews.forEach { addView(it) }
+        face.render(typed.length, row)
     }
 
     private companion object {
         const val LAST_DIGIT = 9
-        const val MASK = "●"
-        const val EMPTY = "○"
-
-        const val PROMPT_SP = 26f
-        const val PROGRESS_SP = 30f
-        const val MESSAGE_SP = 17f
-        const val MAP_SP = 18f
-        const val ARROW_SP = 20f
-        const val WHEEL_SIDE_SP = 30f
-        const val WHEEL_CENTRE_SP = 34f
-        const val PROGRESS_SPACING = 0.4f
-
-        const val RING_DP = 68
-        const val PILL_RADIUS_DP = 14
-        const val WHEEL_PADDING_DP = 18
-        const val GAP_DP = 12
-
-        const val ACCENT = 0xFF4CC2A5.toInt()
-        const val WARNING = 0xFFF2B8B5.toInt()
-        const val MUTED = 0xFFB9C6D2.toInt()
     }
 }
-
-private fun Context.px(dp: Int): Int = (dp * resources.displayMetrics.density).toInt()
-
-private fun Context.pinLine(sizeSp: Float, color: Int, padSidesDp: Int = LINE_PADDING_DP) = TextView(this).apply {
-    setTextColor(color)
-    setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp)
-    gravity = Gravity.CENTER
-    setPadding(px(padSidesDp), px(LINE_PADDING_DP), px(padSidesDp), px(LINE_PADDING_DP))
-}
-
-private fun outline(oval: Boolean, radiusDp: Int, context: Context) = GradientDrawable().apply {
-    shape = if (oval) GradientDrawable.OVAL else GradientDrawable.RECTANGLE
-    if (!oval) cornerRadius = context.px(radiusDp).toFloat()
-    setStroke(context.px(STROKE_DP), OUTLINE_COLOR)
-}
-
-private const val LINE_PADDING_DP = 4
-private const val STROKE_DP = 2
-private const val OUTLINE_COLOR = 0xFFB9C6D2.toInt()

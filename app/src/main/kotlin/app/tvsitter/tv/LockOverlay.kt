@@ -6,13 +6,10 @@
 package app.tvsitter.tv
 
 import android.content.Context
-import android.graphics.Color
 import android.graphics.PixelFormat
-import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
@@ -99,7 +96,9 @@ class LockOverlay(private val context: Context) {
 
         val column = buildFace(title, subtitle, onAskForTime, onEnterPin != null)
         val container = FrameLayout(context).apply {
-            setBackgroundColor(BACKDROP_COLOR)
+            // Fully opaque, deliberately. An earlier 95% alpha looked nicer and let a bright
+            // picture show through on a large panel, which defeats the point of a lock.
+            background = context.dusk()
             // The container must not be focusable itself. Made focusable, it wins focus and
             // then swallows every D-pad and ENTER event instead of letting them reach the
             // button — which on a TV means the lock screen's own controls are dead.
@@ -186,40 +185,64 @@ class LockOverlay(private val context: Context) {
             isFocusable = true
             isFocusableInTouchMode = true
             setOnClickListener { onAskForTime() }
+            TvFocus.dress(this)
         }
+        // Quieter than asking, on purpose: the child is the one reading this screen, and the PIN
+        // is the parent's door rather than the child's next step.
         pinButton = Button(context).apply {
             text = context.getString(R.string.pin_unlock)
             isFocusable = true
             setOnClickListener { this@LockOverlay.onEnterPin?.invoke() }
             visibility = if (withPin) View.VISIBLE else View.GONE
+            TvFocus.dress(this, Rest.QUIET)
         }
 
-        listOfNotNull(askButton, pinButton).forEach { button ->
-            TvStyle.dress(button)
-            // Room to grow into: a focused button gets larger, and without this the two of them
-            // overlap at exactly the moment one of them is being pointed at.
-            button.layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ).apply { setMargins(0, BUTTON_GAP_PX, 0, BUTTON_GAP_PX) }
+        // Side by side, so left and right move between the two and the first is where the focus
+        // already is. Stacked, the second one sat below the fold of attention on a wide screen.
+        val actions = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            TvFocus.letFocusOverflow(this)
+            setPadding(0, context.dp(ACTIONS_GAP_DP), 0, 0)
+            addView(askButton)
+            addView(
+                pinButton,
+                LinearLayout.LayoutParams(WRAP, WRAP).apply { marginStart = context.dp(Spacing.M) },
+            )
         }
 
         return LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            TvStyle.letFocusOverflow(this)
+            TvFocus.letFocusOverflow(this)
             // Overscan: some sets still crop the edges, and a centred column is not enough on
-            // its own once a button is as wide as this one.
-            setPadding(OVERSCAN_PX, OVERSCAN_PX, OVERSCAN_PX, OVERSCAN_PX)
-            addView(textView(title, sizeSp = TITLE_SP, color = Color.WHITE))
+            // its own once a title is as long as the Polish ones.
+            setPadding(
+                context.dp(Spacing.SAFE_X),
+                context.dp(Spacing.SAFE_Y),
+                context.dp(Spacing.SAFE_X),
+                context.dp(Spacing.SAFE_Y),
+            )
             addView(
-                textView(subtitle.orEmpty(), sizeSp = SUBTITLE_SP, color = SUBTITLE_COLOR).also {
-                    subtitleView = it
-                    it.applySubtitle(subtitle)
+                context.dialBadge(BADGE_DP, BADGE_ICON_DP),
+                LinearLayout.LayoutParams(context.dp(BADGE_DP), context.dp(BADGE_DP)),
+            )
+            addView(
+                context.tvText(TextRole.DISPLAY).apply {
+                    text = title
+                    gravity = Gravity.CENTER
+                    setPadding(0, context.dp(BADGE_GAP_DP), 0, 0)
                 },
             )
-            addView(askButton)
-            addView(pinButton)
+            addView(
+                context.tvText(TextRole.LEAD).apply {
+                    gravity = Gravity.CENTER
+                    setPadding(0, context.dp(Spacing.M), 0, 0)
+                    subtitleView = this
+                    applySubtitle(subtitle)
+                },
+            )
+            addView(actions)
         }
     }
 
@@ -258,44 +281,13 @@ class LockOverlay(private val context: Context) {
         visibility = if (subtitle.isNullOrBlank()) View.GONE else View.VISIBLE
     }
 
-    private fun textView(value: String, sizeSp: Float, color: Int) = TextView(context).apply {
-        text = value
-        setTextColor(color)
-        setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp)
-        gravity = Gravity.CENTER
-        setPadding(0, 0, 0, PADDING_PX)
-    }
-
     private companion object {
-        // Fully opaque, deliberately. An earlier 95% alpha looked nicer and let a bright
-        // picture show through on a large panel, which defeats the point of a lock.
-        const val BACKDROP_COLOR = 0xFF0B1017.toInt()
-        const val SUBTITLE_COLOR = 0xFFB9C6D2.toInt()
-        const val PADDING_PX = 24
+        const val WRAP = LinearLayout.LayoutParams.WRAP_CONTENT
 
-        /**
-         * A type scale for three metres rather than phone sizes scaled up. A television is read
-         * from a sofa, and the title is the one thing that has to land before anything else.
-         */
-        const val TITLE_SP = 44f
-        const val SUBTITLE_SP = 22f
-        const val BUTTON_SP = 20f
-        const val BUTTON_PADDING_PX = 56
-        const val OVERSCAN_PX = 64
-        const val BUTTON_GAP_PX = 20
-
-        /** Focus: filled and a little larger, because one signal is not enough across a room. */
-        const val BUTTON_COLOR = 0xFF1C2733.toInt()
-        const val BUTTON_FOCUS_COLOR = 0xFFE8EEF4.toInt()
-        const val FOCUS_SCALE = 1.06f
-        const val FOCUS_MS = 120L
-
-        /**
-         * A pill at rest, squarer when focused. Shape as a state rather than decoration is what
-         * the platform's own components do now, and it survives a panel that washes colour out.
-         */
-        const val RESTING_RADIUS_PX = 48f
-        const val FOCUS_RADIUS_PX = 20f
+        const val BADGE_DP = 88
+        const val BADGE_ICON_DP = 44
+        const val BADGE_GAP_DP = 28
+        const val ACTIONS_GAP_DP = 40
 
         /**
          * How far and how often the words wander.

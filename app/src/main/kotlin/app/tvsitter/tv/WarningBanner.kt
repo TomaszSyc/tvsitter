@@ -7,15 +7,14 @@ package app.tvsitter.tv
 
 import android.content.Context
 import android.graphics.PixelFormat
-import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
 import android.view.animation.DecelerateInterpolator
+import android.widget.LinearLayout
 import android.widget.TextView
 
 /**
@@ -47,14 +46,17 @@ class WarningBanner(private val context: Context) {
     private val windowManager = context.getSystemService(WindowManager::class.java)
     private val handler = Handler(Looper.getMainLooper())
     private var root: View? = null
+
+    /** The words inside [root], held so a replacement message can change them in place. */
+    private var text: TextView? = null
     private val dismiss = Runnable { hide() }
 
     val isShowing: Boolean get() = root != null
 
     /** Shows [message] for [VISIBLE_MS], replacing anything already up. */
     fun show(message: String) {
-        val existing = root
-        if (existing is TextView) {
+        val existing = text
+        if (root != null && existing != null) {
             // Logged as loudly as a new banner. Without this the replacement was silent, and a
             // refusal arriving while a "waiting for an answer" banner was still up looked from
             // the log exactly like a refusal that did nothing (#76).
@@ -64,16 +66,28 @@ class WarningBanner(private val context: Context) {
             return
         }
 
-        val banner = TextView(context).apply {
+        val words = context.tvText(TextRole.STRONG).apply {
             text = message
-            setTextColor(TvStyle.TEXT)
-            background = GradientDrawable().apply {
-                cornerRadius = CORNER_PX
-                setColor(SURFACE_COLOR)
-            }
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, TvStyle.BODY_SP)
-            gravity = Gravity.CENTER
-            setPadding(PADDING_PX, PADDING_PX / 2, PADDING_PX, PADDING_PX / 2)
+            textSize = TypeScale.BUTTON
+        }
+        val banner = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            background = context.plate(SURFACE_COLOR, BANNER_RADIUS_DP, Palette.LINE)
+            setPadding(
+                context.dp(Spacing.M),
+                context.dp(Spacing.M),
+                context.dp(Spacing.XXL),
+                context.dp(Spacing.M),
+            )
+            addView(
+                context.dialBadge(BADGE_DP, BADGE_ICON_DP),
+                LinearLayout.LayoutParams(context.dp(BADGE_DP), context.dp(BADGE_DP)),
+            )
+            addView(
+                words,
+                LinearLayout.LayoutParams(WRAP, WRAP).apply { marginStart = context.dp(Spacing.L) },
+            )
         }
 
         val added = runCatching { windowManager.addView(banner, layoutParams()) }
@@ -82,6 +96,7 @@ class WarningBanner(private val context: Context) {
             return
         }
         root = banner
+        text = words
         enter(banner)
         restartTimer()
         Log.i(EnforcerService.TAG, "warning shown: $message")
@@ -118,6 +133,7 @@ class WarningBanner(private val context: Context) {
         handler.removeCallbacks(dismiss)
         val view = root ?: return
         root = null
+        text = null
         view.animate()
             .alpha(0f)
             .translationY(-view.height.toFloat())
@@ -150,14 +166,16 @@ class WarningBanner(private val context: Context) {
     ).apply {
         gravity = Gravity.TOP or Gravity.END
         // Overscan is real on some sets, so it does not sit against the very edge.
-        y = TvStyle.OVERSCAN_PX
-        x = TvStyle.OVERSCAN_PX
+        y = context.dp(Spacing.SAFE_Y)
+        x = context.dp(Spacing.SAFE_X)
     }
 
     private companion object {
         const val VISIBLE_MS = 12_000L
-        const val PADDING_PX = 44
-        const val CORNER_PX = 28f
+        const val WRAP = LinearLayout.LayoutParams.WRAP_CONTENT
+        const val BANNER_RADIUS_DP = 22
+        const val BADGE_DP = 44
+        const val BADGE_ICON_DP = 26
 
         /** Long enough to be seen arriving, short enough not to be a thing that happens to you. */
         const val ENTER_MS = 320L
@@ -166,6 +184,6 @@ class WarningBanner(private val context: Context) {
         // The app's own surface colour, nearly opaque rather than fully: this sits over whatever
         // is playing, and the picture showing faintly through is what keeps it a message on top
         // of a programme rather than a hole cut in one.
-        const val SURFACE_COLOR = 0xF2141F2B.toInt()
+        const val SURFACE_COLOR = 0xF2141D26.toInt()
     }
 }
