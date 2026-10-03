@@ -77,7 +77,14 @@ async def async_setup_entry(
         snapshot = client.snapshot
         if snapshot is None:
             return
-        fresh = [package for package in snapshot.per_app if package not in known]
+        # Not the exempt ones: the launcher, this app and the screen saver are packages
+        # no rule can reach, and a control for one would be ignored (#130). They also
+        # took places from real apps and wrote statistics nobody reads (#140).
+        fresh = [
+            package
+            for package in snapshot.per_app
+            if package not in known and package not in snapshot.exempt_apps
+        ]
         if not fresh:
             return
         room = MAX_APP_LIMITS - len(known)

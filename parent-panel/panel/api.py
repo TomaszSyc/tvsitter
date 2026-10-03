@@ -28,6 +28,9 @@ from .home_assistant import DOMAIN, WEEK, HomeAssistant, Television
 # the screen saver among them. This one is knowable here because the panel, the
 # integration and the television are one product with one name.
 OURS = "app.tvsitter.tv"
+# The operating system, which the set charges the odd second to between one app and the
+# next. No rule reaches it, so it is exempt whatever an older television says (#140).
+SYSTEM = ("android", "com.android.systemui")
 
 # Where the television's own answer lands. It travels in the state payload rather than
 # in the rules, so it hangs off whichever of the entities the integration hung the rest
@@ -120,7 +123,7 @@ def described(
         # Two weeks, and the names keep them apart: `week` is a rule — what each day of
         # the week allows — and `week_by_app` is what happened over the last seven days.
         "week": {day: television.number(f"limit_{day}") for day in WEEK},
-        "week_by_app": weekly(by_app, exempt, installed(television)),
+        "week_by_app": weekly(by_app, exempt),
         "apps": apps(television, allowed, exempt, installed(television)),
         "allowed_apps": allowed,
         "exempt_apps": exempt,
@@ -133,28 +136,20 @@ def described(
 
 
 def weekly(
-    by_app: list[dict[str, Any]] | None,
-    exempt: list[str],
-    on_it: dict[str, str] | None = None,
+    by_app: list[dict[str, Any]] | None, exempt: list[str]
 ) -> list[dict[str, Any]]:
     """Hand on the seven days as they were read, without what nobody watched.
 
-    Two things are dropped, and both would otherwise be a figure that is not about
-    anything. The packages no rule reaches, which are the launcher and this app's own
-    lock screen: the set idling rather than something somebody sat down to watch, and
-    the same ones the daily list drops — a parent reading the two side by side would
-    take an app missing from one and present in the other for a fault.
+    The packages no rule reaches are dropped: the launcher, this app's own lock screen
+    and the operating system, which the set charges the odd second to between apps
+    (#140). They are the set idling rather than something somebody sat down to watch,
+    and the same ones the daily list drops — a parent reading the two side by side
+    would take an app missing from one and present in the other for a fault.
 
-    And anything the set does not list as installed. The television charges the odd
-    second to `android` and `com.android.systemui` between one app and the next, and
-    the recorder keeps that like any other figure, so a week ends up with three rows
-    naming the operating system (#140). A set that cannot enumerate says nothing, and
-    then this drops nothing: a chart with the system in it beats no chart at all.
+    Nothing else is. An app uninstalled on Thursday was still watched on Monday, and
+    the time charged to an HDMI input is viewing that no launcher lists.
     """
-    listed = [app for app in by_app or [] if app.get("package") not in exempt]
-    if not on_it:
-        return listed
-    return [app for app in listed if app.get("package") in on_it]
+    return [app for app in by_app or [] if app.get("package") not in exempt]
 
 
 def exempt_apps(television: Television) -> list[str]:
@@ -166,11 +161,15 @@ def exempt_apps(television: Television) -> list[str]:
     given one yet — an empty list means none are known, not that none exist, and a
     budget drawn for one in the meantime would be a control the engine ignores.
     """
-    for key in EXEMPT_FROM:
-        said = strings(television.attribute(key, EXEMPT))
-        if said:
-            return said
-    return [OURS]
+    said = next(
+        (
+            listed
+            for key in EXEMPT_FROM
+            if (listed := strings(television.attribute(key, EXEMPT)))
+        ),
+        [OURS],
+    )
+    return said + [package for package in SYSTEM if package not in said]
 
 
 def installed(television: Television) -> dict[str, str]:

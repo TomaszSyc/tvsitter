@@ -103,6 +103,9 @@ class EnforcerService : Service() {
     /** Time per package today, for the screen that shows it at the set. */
     val perAppToday: Map<String, Int> get() = screenTime?.perAppSeconds.orEmpty()
 
+    /** Packages no rule reaches, which that screen leaves out as Home Assistant does. */
+    val exemptApps: Set<String> get() = locks?.exemptPackages.orEmpty()
+
     /** The name resolver itself, so a screen can ask without this class growing a method. */
     val labels: AppLabels? get() = appLabels
 

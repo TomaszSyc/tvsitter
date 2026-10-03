@@ -191,12 +191,17 @@ class LockController(
      * nobody — and a screen saver, which is the television idling rather than a child getting
      * round anything (#95). The engine already exempts them (D35); this is only the list said
      * out loud, so nothing draws a control that would be ignored (#130).
+     *
+     * And the operating system, which comes forward for a second between apps: sending a
+     * dialog or the volume panel home is not a rule being enforced, and the seconds charged to
+     * it showed up as an app somebody watched (#140).
      */
     val exemptPackages: Set<String>
         get() = buildSet {
             add(context.packageName)
             displacer.homePackage?.let { add(it) }
             addAll(screenSavers.all)
+            addAll(SYSTEM_PACKAGES)
         }
 
     /**
@@ -400,8 +405,7 @@ class LockController(
      * child getting round anything (#95).
      */
     private fun sendHome(app: String) {
-        if (app == context.packageName || app == displacer.homePackage) return
-        if (screenSavers.contains(app)) return
+        if (app in exemptPackages) return
 
         val notAllowed = state.lastDecision?.reason == LockReason.APP_NOT_ALLOWED
         Log.i(
@@ -450,6 +454,7 @@ class LockController(
     private companion object {
         /** How often the lock asks what is in front of it. */
         const val SWEEP_INTERVAL_MS = 2_000L
+        val SYSTEM_PACKAGES = setOf("android", "com.android.systemui")
         const val MILLIS_PER_MINUTE = 60_000L
     }
 }

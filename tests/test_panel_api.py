@@ -168,6 +168,7 @@ def with_noise() -> Television:
         ("android", "android", "0"),
         ("com.android.systemui", "com.android.systemui", "0"),
         ("app.tvsitter.tv", "TV Sitter", "28.3"),
+        ("tv.example.quiet", "Quiet", "0"),
     ):
         one.apps[package] = {
             "sensor": f"sensor.{package}",
@@ -198,9 +199,23 @@ def test_a_package_nobody_watched_is_not_an_app() -> None:
 def test_an_app_a_parent_has_decided_about_stays_however_little_it_ran() -> None:
     """A budget of zero is a blocked app, and a blocked app has to remain visible."""
     one = with_noise()
-    one.states["number.android"] = {"state": "0", "attributes": {}}
+    one.states["number.tv.example.quiet"] = {"state": "0", "attributes": {}}
 
-    assert "android" in [app["package"] for app in only(one)["apps"]]
+    assert "tv.example.quiet" in [app["package"] for app in only(one)["apps"]]
+
+
+def test_the_system_is_never_an_app_however_long_it_was_charged() -> None:
+    """A second charged to `android` made it a row of its own today (#140).
+
+    No rule reaches the system, so it is exempt like the launcher whatever the set
+    says, and today and the week drop it alike.
+    """
+    one = with_noise()
+    one.states["sensor.android"]["state"] = "0.05"
+
+    written = only(one)
+
+    assert "android" not in [app["package"] for app in written["apps"]]
 
 
 def test_an_allow_listed_app_stays_even_with_nothing_watched() -> None:
@@ -209,10 +224,10 @@ def test_an_allow_listed_app_stays_even_with_nothing_watched() -> None:
     one.entities["rules"] = "sensor.r"
     one.states["sensor.r"] = {
         "state": "52",
-        "attributes": {"apps_allowed": ["com.android.systemui"]},
+        "attributes": {"apps_allowed": ["tv.example.quiet"]},
     }
 
-    assert "com.android.systemui" in [app["package"] for app in only(one)["apps"]]
+    assert "tv.example.quiet" in [app["package"] for app in only(one)["apps"]]
 
 
 def with_rules(**attributes: Any) -> Television:
@@ -681,7 +696,12 @@ def test_the_apps_the_television_exempts_are_dropped_from_the_list() -> None:
     written = only(one)
 
     assert written["apps"] == []
-    assert written["exempt_apps"] == ["app.tvsitter.tv", "com.netflix"]
+    assert written["exempt_apps"] == [
+        "app.tvsitter.tv",
+        "com.netflix",
+        "android",
+        "com.android.systemui",
+    ]
 
 
 def test_a_television_that_names_none_still_has_this_app_dropped() -> None:
@@ -689,14 +709,18 @@ def test_a_television_that_names_none_still_has_this_app_dropped() -> None:
     written = only(with_noise())
 
     assert [app["package"] for app in written["apps"]] == ["com.netflix"]
-    assert written["exempt_apps"] == ["app.tvsitter.tv"]
+    assert written["exempt_apps"] == [
+        "app.tvsitter.tv",
+        "android",
+        "com.android.systemui",
+    ]
 
 
 def test_an_exempt_app_is_named_so_the_page_can_say_why_it_is_missing() -> None:
     """An app that vanishes without a word reads as a panel that lost it."""
     written = only(exempting(with_noise(), "com.android.systemui"))
 
-    assert written["exempt_apps"] == ["com.android.systemui"]
+    assert written["exempt_apps"] == ["com.android.systemui", "android"]
     assert "com.android.systemui" not in [app["package"] for app in written["apps"]]
 
 
@@ -934,16 +958,24 @@ def test_the_week_drops_the_seconds_the_system_was_charged() -> None:
     assert [app["package"] for app in written["week_by_app"]] == ["com.netflix.ninja"]
 
 
-def test_a_set_that_cannot_enumerate_keeps_the_week_it_had() -> None:
-    """A chart with the system in it beats no chart at all."""
+def test_an_app_taken_off_the_set_keeps_the_week_it_was_watched() -> None:
+    """Uninstalled on Thursday, it was still four evenings of viewing.
+
+    Filtering the week by what is installed today dropped it, and with it the time the
+    set charges to an HDMI input, which no launcher lists.
+    """
+    one = with_rules(launchable_apps={"com.netflix.ninja": "Netflix"})
     week = [
         {"package": "com.netflix.ninja", "name": "Netflix", "minutes": 185},
-        {"package": "android", "name": "android", "minutes": 0.1},
+        {"package": "tv.example.gone", "name": "Gone", "minutes": 40},
     ]
 
-    written = only(with_rules(), by_app=week)
+    written = only(one, by_app=week)
 
-    assert len(written["week_by_app"]) == 2
+    assert [app["package"] for app in written["week_by_app"]] == [
+        "com.netflix.ninja",
+        "tv.example.gone",
+    ]
 
 
 def test_the_week_still_drops_what_no_rule_can_reach() -> None:

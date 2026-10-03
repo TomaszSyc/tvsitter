@@ -77,7 +77,8 @@ Three rules the correctness of the whole thing rests on:
   leave a consumer unable to tell an app with no time against it from an app with none today.
 - `active_window` — identifier of the rule window in force, so that "why did it block me
   right now" is answerable.
-- `exempt_apps` — packages no rule can reach: this app, the home screen and any screen saver.
+- `exempt_apps` — packages no rule can reach: this app, the home screen, any screen saver,
+  and `android` and `com.android.systemui`, which come forward for a second between apps.
   Resolved on the television from the platform, which is the only place they are known, and
   published so that nothing offers a control for them. The engine exempts them from an
   allow-list on purpose (D35) — the answer to "the launcher is not allowed" would be to send the

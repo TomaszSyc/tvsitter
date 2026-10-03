@@ -91,12 +91,14 @@ class StatsPanel(private val context: Context) {
         names: Map<String, String> = emptyMap(),
     ) {
         into.removeAllViews()
-        if (perApp.isEmpty()) {
+        // The launcher and the system are the set idling, not something anybody watched.
+        val shown = perApp - service?.exemptApps.orEmpty()
+        if (shown.isEmpty()) {
             emptyRes?.let { into.addView(text(TvStyle.BODY_SP, TvStyle.MUTED).apply { setText(it) }) }
             return
         }
         // Longest first: the question is what he is watching, and the answer is at the top.
-        val ordered = perApp.entries.sortedByDescending { it.value }.take(MOST)
+        val ordered = shown.entries.sortedByDescending { it.value }.take(MOST)
         val longest = ordered.first().value.coerceAtLeast(1)
         ordered.forEach { (pkg, seconds) ->
             val name = names[pkg] ?: service?.labels?.labelOf(pkg) ?: pkg
