@@ -32,24 +32,18 @@ import java.time.ZoneId
  */
 class ScreenTimeTracker(
     private val context: Context,
+    /** The one the lock reads too, so a deadline means the same instant to both. */
+    private val trusted: TrustedClock,
     private val rules: () -> Rules = { Rules.NONE },
     /** Tonight's deadline, epoch millis, or zero for none. Asked for on every sample. */
     private val sleepAtMs: () -> Long = { 0 },
     /** Given the day that just closed, before the counter forgets it. */
     private val onDayRolled: (BudgetState) -> Unit = {},
     private val onJudgement: (Judgement) -> Unit = {},
-    private val clock: BudgetClock = BudgetClock(ZoneId.systemDefault()),
 ) {
+    private val clock = BudgetClock(ZoneId.systemDefault())
     private val counter = ScreenTimeCounter(clock)
     private val engine = RuleEngine(clock)
-
-    /**
-     * Told when the wall clock moves on its own. Set after construction: this class already
-     * takes as many collaborators as it should, and a jump is somebody else's alarm to raise.
-     */
-    var onClockJump: ((Long) -> Unit)? = null
-
-    private val trusted = TrustedClock { jump -> onClockJump?.invoke(jump) }
 
     /**
      * The last answer the rules gave, kept so that the state payload and the lock agree.
@@ -87,7 +81,7 @@ class ScreenTimeTracker(
      * "somebody pressed a button" on this television — it emits no user-interaction events at
      * all — so this is the closest thing to one.
      */
-    private var lastActivityAtMs = System.currentTimeMillis()
+    private var lastActivityAtMs = trusted.now()
 
     /** Logged when it changes rather than every ten seconds, which would say nothing. */
     private var wasWatching: Boolean? = null
@@ -99,10 +93,10 @@ class ScreenTimeTracker(
      * yesterday — and a screen working that out for itself would be right about the limit and
      * wrong about the hours, or the other way round.
      */
-    val budgetDayOfWeek: java.time.DayOfWeek get() = clock.budgetDay(Instant.now()).dayOfWeek
+    val budgetDayOfWeek: java.time.DayOfWeek get() = state.day.dayOfWeek
 
     @Volatile
-    var state: BudgetState = BudgetState(day = clock.budgetDay(Instant.now()))
+    var state: BudgetState = BudgetState(day = clock.budgetDay(Instant.ofEpochMilli(trusted.now())))
         private set
 
     val usedSeconds: Int get() = state.usedSeconds.toInt()
@@ -122,7 +116,7 @@ class ScreenTimeTracker(
     /** What is left of it, ignoring windows and per-app budgets: that is what [judgement] is for. */
     fun remainingTodaySeconds(): Int? = counter.remainingSeconds(state, limitToday())?.toInt()
 
-    private fun limitToday(): Long? = rules().limitFor(clock.budgetDay(Instant.now()).dayOfWeek)
+    private fun limitToday(): Long? = rules().limitFor(state.day.dayOfWeek)
 
     /**
      * Adds granted time to the day.
@@ -200,7 +194,7 @@ class ScreenTimeTracker(
     }
 
     /** What the rule in `:rules` sees, so the same picture can be logged and tested. */
-    fun attention(nowMs: Long = System.currentTimeMillis()): Attention = Attention(
+    fun attention(nowMs: Long = trusted.now()): Attention = Attention(
         screenOn = screenOnDuringInterval,
         screenSaver = screenSavers.contains(appDuringInterval),
         playing = playingDuringInterval,
@@ -273,7 +267,7 @@ class ScreenTimeTracker(
     }
 
     private fun announceVerdict() {
-        val nowMs = System.currentTimeMillis()
+        val nowMs = trusted.now()
         judgement = engine.judge(
             rules(),
             state,
@@ -285,7 +279,7 @@ class ScreenTimeTracker(
     }
 
     private fun persistNow() {
-        lastSavedAtMs = System.currentTimeMillis()
+        lastSavedAtMs = trusted.now()
         val snapshot = state
         scope?.launch {
             runCatching { Settings(context).saveBudget(snapshot) }

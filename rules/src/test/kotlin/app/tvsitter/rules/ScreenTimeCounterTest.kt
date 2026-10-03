@@ -124,6 +124,29 @@ class ScreenTimeCounterTest {
     }
 
     @Test
+    fun `the clock set back a day does not hand out a fresh one`() {
+        val spent = fresh("2026-08-22").copy(
+            usedMillis = 7_200_000,
+            lastSampleAtMs = at("2026-08-22T20:00:00"),
+        )
+
+        val result = counter.sample(spent, at("2026-08-21T20:00:10"), watching = true)
+
+        assertEquals(day("2026-08-22"), result.state.day)
+        assertEquals(7_200_000, result.state.usedMillis)
+    }
+
+    @Test
+    fun `an anchor planted on a clock set back keeps the day it already had`() {
+        val spent = fresh("2026-08-22").copy(usedMillis = 7_200_000)
+
+        val result = counter.sample(spent, at("2026-08-21T20:00:00"), watching = true)
+
+        assertEquals(day("2026-08-22"), result.state.day)
+        assertEquals(7_200_000, result.state.usedMillis)
+    }
+
+    @Test
     fun `an interval spanning the reset gives the new day only its own part`() {
         val anchored = fresh("2026-08-22").copy(
             usedMillis = 3_600_000,

@@ -57,14 +57,15 @@ class EnforcementTest {
         val suspended = today.copy(
             limitSuspended = true,
             usedMillis = 3_600_000,
-            lastSampleAtMs = 1_787_000_000_000,
+            // The evening of the day above.
+            lastSampleAtMs = 1_787_421_600_000,
         )
         val clock = BudgetClock(ZoneId.of("Europe/Warsaw"))
         val counter = ScreenTimeCounter(clock, maxIntervalMillis = Long.MAX_VALUE)
 
         // Two days later: the rollover builds a fresh day, and "not tonight" was about a night
         // that is over.
-        val next = counter.sample(suspended, 1_787_000_000_000 + 2 * 86_400_000, watching = false)
+        val next = counter.sample(suspended, 1_787_421_600_000 + 2 * 86_400_000, watching = false)
 
         assertEquals(false, next.state.limitSuspended)
     }

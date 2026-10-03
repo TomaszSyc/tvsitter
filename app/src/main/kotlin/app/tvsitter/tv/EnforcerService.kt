@@ -68,6 +68,9 @@ class EnforcerService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
+    /** One reading of "now" for every deadline, so a clock set back cannot extend any of them. */
+    private val clock = TrustedClock { jump -> telemetry?.publish(clockJumpAlert(jump)) }
+
     val foregroundPackage: String? get() = foregroundApps?.current
 
     val isLocked: Boolean get() = locks?.isLocked == true
@@ -115,7 +118,7 @@ class EnforcerService : Service() {
      */
     var sleepInMinutes: Int
         get() = locks?.sleepAtMs?.takeIf { it > 0 }
-            ?.let { ceil((it - System.currentTimeMillis()) / MILLIS_PER_MINUTE).toInt().coerceAtLeast(0) }
+            ?.let { ceil((it - clock.now()) / MILLIS_PER_MINUTE).toInt().coerceAtLeast(0) }
             ?: 0
         set(minutes) {
             locks?.sleepIn(minutes)
@@ -191,7 +194,7 @@ class EnforcerService : Service() {
             onAskForTime = { requests?.ask() },
             onLimitStandDown = { screenTime?.setLimitAside(true) },
             onChanged = { telemetry?.publishSoon() },
-        )
+        ).also { it.now = clock::now }
         val labels = AppLabels(this).also { appLabels = it }
         // What is installed, which is a different question from what has been watched: an
         // allow-list built out of usage can only refuse apps already run (#102).
@@ -217,6 +220,7 @@ class EnforcerService : Service() {
         )
         screenTime = ScreenTimeTracker(
             this,
+            trusted = clock,
             rules = { activeRules?.rules ?: Rules.NONE },
             sleepAtMs = { locks?.sleepAtMs ?: 0 },
             // The day that just closed, before the counter forgets it. Published retained, so
@@ -250,11 +254,7 @@ class EnforcerService : Service() {
             screenTime?.sampleAtTransition(on, foregroundApps?.current)
             telemetry?.publishSoon()
         }.also { it.start() }
-        Log.i(
-            TAG,
-            "onCreate(): version=${BuildConfig.VERSION_NAME} api=${Build.VERSION.SDK_INT} " +
-                "model=${Build.MODEL} manufacturer=${Build.MANUFACTURER}",
-        )
+        logStart()
 
         wireAfterConstruction()
 
@@ -427,7 +427,6 @@ class EnforcerService : Service() {
         parentPin?.onLockout = { tries, until -> telemetry?.publish(pinLockoutAlert(tries, until)) }
         requests?.tally = dayTally
         locks?.tally = dayTally
-        screenTime?.onClockJump = { jump -> telemetry?.publish(clockJumpAlert(jump)) }
         locks?.onFight = { telemetry?.publish(alertOf(AlertKind.SOURCE_FIGHT)) }
         locks?.settingsBlocked = { activeRules?.rules?.settingsBlocked == true }
         locks?.appName = { pkg -> appLabels?.labelOf(pkg) ?: pkg }
@@ -638,3 +637,10 @@ private suspend fun lastClosedDay(context: Context): DaySummary? {
     val payload = Settings(context).lastDay() ?: return null
     return runCatching { ContractCodec.decodeDay(payload) }.getOrNull()
 }
+
+/** What is running, said once at start so a log from the set can be matched to a build. */
+private fun logStart() = Log.i(
+    EnforcerService.TAG,
+    "onCreate(): version=${BuildConfig.VERSION_NAME} api=${Build.VERSION.SDK_INT} " +
+        "model=${Build.MODEL} manufacturer=${Build.MANUFACTURER}",
+)

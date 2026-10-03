@@ -37,6 +37,8 @@ class TrustedClock(private val onJump: (Long) -> Unit = {}) {
     private var lastWallMs = 0L
     private var lastElapsedMs = 0L
 
+    /** Synchronised because the counter and the lock both read it, and a jump is noticed once. */
+    @Synchronized
     fun now(): Long {
         val wallMs = System.currentTimeMillis()
         val elapsedMs = SystemClock.elapsedRealtime()

@@ -90,10 +90,18 @@ class LockController(
     /** Turns a package into something a child would recognise. Set after construction. */
     var appName: (String) -> String = { it }
 
+    /**
+     * Trusted time, so a clock set back cannot stretch a pause or push back a bedtime.
+     *
+     * Set straight after construction rather than wired later with the others: the first
+     * judgement can arrive before the wiring does.
+     */
+    var now: () -> Long = System::currentTimeMillis
+
     private val handler = Handler(Looper.getMainLooper())
 
     private val resumeManual = Runnable {
-        act(LockTransitions.resumeAfterStandDown(state, System.currentTimeMillis()))
+        act(LockTransitions.resumeAfterStandDown(state, now()))
     }
 
     /**
@@ -156,7 +164,7 @@ class LockController(
     /** Arms tonight's deadline, or cancels one already set. Zero and less both cancel. */
     fun sleepIn(minutes: Int) {
         if (minutes > 0) {
-            sleepAtMs = System.currentTimeMillis() + minutes * MILLIS_PER_MINUTE
+            sleepAtMs = now() + minutes * MILLIS_PER_MINUTE
             Log.i(EnforcerService.TAG, "sleep timer: locking in ${minutes}m")
         } else {
             sleepAtMs = 0
@@ -235,7 +243,7 @@ class LockController(
     /** A parent granted time, so a lock they put up stands down and comes back on its own. */
     fun standDownFor(seconds: Long) {
         Log.i(EnforcerService.TAG, "lock: standing down for ${seconds}s of granted time")
-        act(LockTransitions.standDownFor(state, seconds, System.currentTimeMillis()))
+        act(LockTransitions.standDownFor(state, seconds, now()))
     }
 
     /**
@@ -249,7 +257,7 @@ class LockController(
         if (remembered != LockCause.NONE) {
             Log.i(EnforcerService.TAG, "lock restored from before the reboot: $remembered")
         }
-        act(LockTransitions.restore(remembered, memory.pausedUntilMs, System.currentTimeMillis()))
+        act(LockTransitions.restore(remembered, memory.pausedUntilMs, now()))
     }
 
     /** Lifts a lock a parent asked for, and not one the rules put up. */
@@ -258,7 +266,7 @@ class LockController(
         if (state.budget) {
             Log.i(EnforcerService.TAG, "unlock ignored: the budget is spent, grant time instead")
         }
-        act(LockTransitions.unlockManually(state, System.currentTimeMillis()))
+        act(LockTransitions.unlockManually(state, now()))
     }
 
     /**
@@ -272,13 +280,13 @@ class LockController(
         // A deadline already past keeps saying zero, so a lock lifted without clearing it would
         // return on the next sample. Whoever lifts it has answered the bedtime too.
         if (memory.sleepAtMs > 0) sleepIn(0)
-        act(LockTransitions.unlockUntilReset(state, System.currentTimeMillis()))
+        act(LockTransitions.unlockUntilReset(state, now()))
     }
 
     /** Acts on what the rules say. The deciding, including when to say nothing, is in `:rules`. */
     fun applyJudgement(judgement: Judgement) {
         opensAt = judgement.opensAt
-        act(LockTransitions.applyDecision(state, judgement, System.currentTimeMillis()))
+        act(LockTransitions.applyDecision(state, judgement, now()))
     }
 
     /**
@@ -333,7 +341,7 @@ class LockController(
      * restored a lock that lifted by itself.
      */
     private fun act(change: LockChange, reason: String? = null) {
-        val nowMs = System.currentTimeMillis()
+        val nowMs = now()
         val wasCovered = state.covered(nowMs)
         state = change.state
         memory.cause = state.cause

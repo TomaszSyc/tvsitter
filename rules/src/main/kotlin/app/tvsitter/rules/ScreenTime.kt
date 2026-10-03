@@ -107,7 +107,9 @@ class ScreenTimeCounter(
      * watched can only be counted correctly if it is cut where the state changed.
      */
     fun sample(state: BudgetState, nowMs: Long, watching: Boolean, appId: String? = null): SampleResult {
-        val today = clock.budgetDay(Instant.ofEpochMilli(nowMs))
+        // Never backwards. A clock set back across the reset, after a reboot has cost the
+        // trusted clock its offset, would otherwise read as a new day with a fresh allowance.
+        val today = maxOf(clock.budgetDay(Instant.ofEpochMilli(nowMs)), state.day)
         val previous = state.lastSampleAtMs
             ?: // Nothing to measure from yet; this sample only plants the anchor.
             return SampleResult(state.copy(day = today, lastSampleAtMs = nowMs))
