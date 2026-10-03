@@ -213,6 +213,9 @@ class ScreenTimeTracker(
     )
 
     private fun sample(screenOnNow: Boolean, appIdNow: String?) {
+        // Before the day is read back there is nothing to add to, and a sample that saved
+        // the empty day it had would race the restore and could win.
+        if (!restored) return
         val nowMs = trusted.now()
         val playingNow = audioManager?.isMusicActive == true
         if (somethingHappened(playingNow, screenOnNow, appIdNow)) lastActivityAtMs = nowMs

@@ -266,7 +266,10 @@ class EnforcerService : Service() {
         val gate = UnlockGate(this).also { unlockGate = it }
         gate.whenOpen {
             scope.launch {
-                activeRules?.load()
+                // Caught, because the counter starts below: rules that cannot be read are no
+                // rules, and a counter that never started would never lock anything.
+                runCatching { activeRules?.load() }
+                    .onFailure { Log.e(TAG, "rules: could not load, judging without them", it) }
                 // After the rules, because the counter judges against them, and a judgement
                 // against no rules at all says there is time.
                 screenTime?.start(
@@ -533,6 +536,8 @@ class EnforcerService : Service() {
         requests = null
         locks?.stop()
         locks = null
+        // Shared by every keeper in the process, so it would outlive this service otherwise.
+        parentPin?.onLockout = null
         parentPin = null
         appLabels = null
         launchable = null

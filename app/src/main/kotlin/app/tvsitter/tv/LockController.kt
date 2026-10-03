@@ -298,11 +298,16 @@ class LockController(
      */
     fun applyJudgement(judgement: Judgement) {
         opensAt = judgement.opensAt
-        act(LockTransitions.applyDecision(state, judgement, now()))
+        val change = LockTransitions.applyDecision(state, judgement, now())
+        act(change)
 
         val front = foregroundApp()
         onForegroundApp(front)
-        LockTransitions.stillToSendAway(state, front, now())?.let { sendHome(it) }
+        // Not straight after act() sent it: it is still in front for a moment, and a second
+        // request inside the cooldown is deferred rather than dropped, so it went home twice.
+        if (change.effects?.displace == null) {
+            LockTransitions.stillToSendAway(state, front, now())?.let { sendHome(it) }
+        }
         if (state.covered(now()) && !overlay.isShowing) {
             Log.w(EnforcerService.TAG, "lock: should be covered and is not, trying again")
             show(null)

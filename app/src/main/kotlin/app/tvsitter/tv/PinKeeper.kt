@@ -47,8 +47,15 @@ class PinKeeper(context: Context) {
      * Set after construction: this class is the one thing that must keep working with no
      * broker, no network and no Home Assistant, and it is not going to start depending on
      * one to check a PIN.
+     *
+     * One for the process, like the counter. The change screen and setup build keepers of
+     * their own, and guesses spent there shut the same keypad, so they raise the same alarm.
      */
-    var onLockout: ((failures: Int, untilMs: Long) -> Unit)? = null
+    var onLockout: ((failures: Int, untilMs: Long) -> Unit)?
+        get() = lockoutSink
+        set(value) {
+            lockoutSink = value
+        }
 
     /**
      * Checks [pin] and answers on the main thread.
@@ -155,5 +162,8 @@ class PinKeeper(context: Context) {
     private companion object {
         /** One for the process: the lock screen, the change screen and setup each have a keeper. */
         val CHECKING = Any()
+
+        @Volatile
+        var lockoutSink: ((failures: Int, untilMs: Long) -> Unit)? = null
     }
 }
