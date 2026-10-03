@@ -142,6 +142,17 @@ class MqttBridge(
      * is the state worth noticing.
      */
     private fun onConnectionDown(context: MqttClientDisconnectedContext) {
+        // Left to itself the reconnector sends a default CONNECT, without our credentials or
+        // will. Handing it the same message the first attempt used is the whole fix.
+        //
+        // resubscribeIfSessionExpired is off because the connected listener subscribes on
+        // every connection. With both, the filter was subscribed twice and every command
+        // arrived twice — which for a `grant` would have handed out double the minutes. Every
+        // attempt gets a fresh reconnector, so this goes before the logging below returns early.
+        (context as? Mqtt5ClientDisconnectedContext)?.reconnector
+            ?.connect(connectMessage)
+            ?.resubscribeIfSessionExpired(false)
+
         // The stack goes in the log once per outage, not once per attempt. A television off
         // overnight retries every minute, and each retry used to print a full netty stack —
         // several hundred of them, which rotated everything else out of logcat. The app was
@@ -158,15 +169,6 @@ class MqttBridge(
                 "reconnect=${context.reconnector.isReconnect}",
             context.cause.takeIf { loudly },
         )
-        // Left to itself the reconnector sends a default CONNECT, without our credentials or
-        // will. Handing it the same message the first attempt used is the whole fix.
-        //
-        // resubscribeIfSessionExpired is off because the connected listener subscribes on
-        // every connection. With both, the filter was subscribed twice and every command
-        // arrived twice — which for a `grant` would have handed out double the minutes.
-        (context as? Mqtt5ClientDisconnectedContext)?.reconnector
-            ?.connect(connectMessage)
-            ?.resubscribeIfSessionExpired(false)
     }
 
     fun publish(snapshot: StateSnapshot) {

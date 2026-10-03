@@ -228,7 +228,7 @@ class EnforcerService : Service() {
             onDayRolled = { closing ->
                 dayTally?.close(
                     closing,
-                    screenTime?.limitTodaySeconds()?.toLong(),
+                    closing.limitUnder(activeRules?.rules ?: Rules.NONE),
                     closing.perAppSeconds.keys.associateWith { appLabels?.labelOf(it) ?: it },
                 )?.let { telemetry?.publish(it) }
                 telemetry?.publishSoon()
@@ -264,15 +264,17 @@ class EnforcerService : Service() {
         gate.whenOpen {
             scope.launch {
                 activeRules?.load()
+                // After the rules, because the counter judges against them, and a judgement
+                // against no rules at all says there is time.
+                screenTime?.start(
+                    scope,
+                    screenOn = { screenState?.isScreenOn == true },
+                    appId = { foregroundApps?.current },
+                )
                 dayTally?.load()
                 lastClosedDay = lastClosedDay(this@EnforcerService)
                 startTelemetryOrOfferPairing()
             }
-            screenTime?.start(
-                scope,
-                screenOn = { screenState?.isScreenOn == true },
-                appId = { foregroundApps?.current },
-            )
             requests?.start(scope)
         }
     }

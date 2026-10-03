@@ -124,6 +124,18 @@ object LockTransitions {
     }
 
     /**
+     * The app the rules already sent away, if it is back in front.
+     *
+     * [applyDecision] acts on a change of decision, and going straight back into the app changes
+     * nothing: the decision is the one already acted on. Asked on every sample, so a child who
+     * reopens it inside one poll of the foreground is sent away again rather than left there.
+     */
+    fun stillToSendAway(state: LockState, foreground: String?, nowMs: Long): String? {
+        val app = state.lastDecision?.displaceApp ?: return null
+        return app.takeIf { it == foreground && !state.covered(nowMs) }
+    }
+
+    /**
      * A parent locked the television.
      *
      * A fresh lock overrides time granted earlier: locking now means now, not once the last

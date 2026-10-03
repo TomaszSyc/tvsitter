@@ -30,6 +30,40 @@ class LockStateTest {
     )
 
     @Test
+    fun `an app sent away and opened again is sent away again`() {
+        val sent = LockTransitions.applyDecision(
+            nothing,
+            verdict(BudgetVerdict.WITHIN, reason = LockReason.APP_NOT_ALLOWED, displaceApp = "tv.example.games"),
+            now,
+        ).state
+
+        // The same decision a second time changes nothing, so this is the only thing that
+        // notices the child went straight back in.
+        assertEquals("tv.example.games", LockTransitions.stillToSendAway(sent, "tv.example.games", now))
+    }
+
+    @Test
+    fun `an app the rules have nothing against is left alone`() {
+        val sent = LockTransitions.applyDecision(
+            nothing,
+            verdict(BudgetVerdict.WITHIN, reason = LockReason.APP_NOT_ALLOWED, displaceApp = "tv.example.games"),
+            now,
+        ).state
+
+        assertNull(LockTransitions.stillToSendAway(sent, "tv.example.films", now))
+    }
+
+    @Test
+    fun `behind a covered screen nothing is sent away again`() {
+        val covered = nothing.copy(
+            manual = true,
+            lastDecision = Decision(BudgetVerdict.WITHIN, LockReason.APP_NOT_ALLOWED, displaceApp = "tv.example.games"),
+        )
+
+        assertNull(LockTransitions.stillToSendAway(covered, "tv.example.games", now))
+    }
+
+    @Test
     fun `nothing locked is nothing covered`() {
         assertFalse(nothing.covered(now))
         assertEquals(LockCause.NONE, nothing.cause)

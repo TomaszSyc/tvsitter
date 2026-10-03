@@ -53,6 +53,14 @@ data class BudgetState(
      */
     fun effectiveLimitSeconds(limitSeconds: Long?): Long? = if (limitSuspended) null else limitSeconds
 
+    /**
+     * The limit this day was held to, from its own weekday.
+     *
+     * For a day being closed, which is the one moment "today" is the wrong question: the clock has
+     * already moved to the next day, with its own weekday and nothing set aside yet.
+     */
+    fun limitUnder(rules: Rules): Long? = effectiveLimitSeconds(rules.limitFor(day.dayOfWeek))
+
     fun remainingSeconds(limitSeconds: Long?): Long? {
         val limit = effectiveLimitSeconds(limitSeconds) ?: return null
         return maxOf(0, limit + bonusSeconds - usedSeconds)

@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -220,6 +221,22 @@ class ScreenTimeCounterTest {
         val result = counter.sample(restored, at("2026-08-22T20:00:20"), watching = true)
 
         assertEquals(20, result.state.usedSeconds)
+    }
+
+    @Test
+    fun `a closing day is measured against its own limit, not the next day's`() {
+        val rules = Rules(dailyLimitSeconds = 3_600, dayLimitSeconds = mapOf(DayOfWeek.SATURDAY to 7_200))
+        val friday = fresh("2026-08-21")
+
+        assertEquals(3_600, friday.limitUnder(rules))
+    }
+
+    @Test
+    fun `a closing day whose limit was set aside had none`() {
+        val rules = Rules(dailyLimitSeconds = 3_600)
+        val setAside = fresh("2026-08-21").copy(limitSuspended = true)
+
+        assertNull(setAside.limitUnder(rules))
     }
 
     @Test

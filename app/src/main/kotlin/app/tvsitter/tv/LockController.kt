@@ -283,10 +283,27 @@ class LockController(
         act(LockTransitions.unlockUntilReset(state, now()))
     }
 
-    /** Acts on what the rules say. The deciding, including when to say nothing, is in `:rules`. */
+    /**
+     * Acts on what the rules say. The deciding, including when to say nothing, is in `:rules`.
+     *
+     * Then puts right what acting only on a change would leave wrong, since this runs on every
+     * sample: an app sent away and reopened inside one poll of the foreground (the same decision,
+     * so nothing happened), Settings reopened the same way, and an overlay the window manager
+     * refused, which left the state saying covered over a television that was not.
+     */
     fun applyJudgement(judgement: Judgement) {
         opensAt = judgement.opensAt
         act(LockTransitions.applyDecision(state, judgement, now()))
+
+        val front = foregroundApp()
+        onForegroundApp(front)
+        LockTransitions.stillToSendAway(state, front, now())?.let { sendHome(it) }
+        if (state.covered(now()) && !overlay.isShowing) {
+            Log.w(EnforcerService.TAG, "lock: should be covered and is not, trying again")
+            show(null)
+            // Still nothing on screen, so the launcher is the closest thing to a lock left.
+            if (!overlay.isShowing) displacer.sendHome()
+        }
     }
 
     /**

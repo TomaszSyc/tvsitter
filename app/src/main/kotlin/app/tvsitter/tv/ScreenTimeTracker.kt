@@ -61,6 +61,15 @@ class ScreenTimeTracker(
     private var lastSavedAtMs = 0L
 
     /**
+     * Whether the day has been read back from storage.
+     *
+     * Nothing is judged before it is. A judgement on an empty day says there is time, and acting
+     * on it lifted a lock restored from before a reboot until the next sample.
+     */
+    @Volatile
+    private var restored = false
+
+    /**
      * What was true *during* the interval now being closed, which is not what is true now.
      *
      * Both `ScreenState` and `ForegroundAppMonitor` announce a change after applying it, so at
@@ -160,6 +169,7 @@ class ScreenTimeTracker(
         this.scope = scope
         scope.launch {
             state = Settings(context).budget()
+            restored = true
             Log.i(
                 EnforcerService.TAG,
                 "counter restored: day=${state.day} used=${state.usedSeconds}s " +
@@ -267,6 +277,7 @@ class ScreenTimeTracker(
     }
 
     private fun announceVerdict() {
+        if (!restored) return
         val nowMs = trusted.now()
         judgement = engine.judge(
             rules(),
