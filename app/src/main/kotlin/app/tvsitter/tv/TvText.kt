@@ -14,6 +14,7 @@ import android.view.Gravity
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
+import app.tvsitter.rules.Dusk
 
 /**
  * The system's own Roboto, in the two weights the scale uses.
@@ -69,12 +70,8 @@ fun Context.plate(colour: Int, radiusDp: Int, edge: Int = Palette.CLEAR): Gradie
  * completely as a flat colour does. The glow's centre sits above the top edge, so only its lower
  * rim reaches the screen and nothing is ever drawn on the bright part.
  */
-fun Context.dusk(): GradientDrawable = GradientDrawable().apply {
-    gradientType = GradientDrawable.RADIAL_GRADIENT
-    colors = intArrayOf(Palette.DUSK, Palette.INK)
-    setGradientCenter(DUSK_CENTRE_X, DUSK_CENTRE_Y)
-    gradientRadius = dp(DUSK_RADIUS_DP.toFloat())
-}
+fun Context.dusk(): DuskDrawable =
+    DuskDrawable(Dusk(Palette.DUSK, Palette.INK, DUSK_CENTRE_X, DUSK_CENTRE_Y, dp(DUSK_RADIUS_DP.toFloat())))
 
 private const val DUSK_CENTRE_X = 0.5f
 private const val DUSK_CENTRE_Y = -0.1f
