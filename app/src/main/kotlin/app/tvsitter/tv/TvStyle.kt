@@ -25,11 +25,11 @@ object Palette {
     const val INK = 0xFF0B1117.toInt()
 
     /**
-     * The glow at the top of a full screen. About two and a half times the backdrop's light, because
+     * The glow at the top of a full screen. About three times the backdrop's light, because
      * anything fainter vanished on an OLED panel in daylight; it fades out before the buttons, which
      * keep the plain backdrop their contrast was measured on.
      */
-    const val DUSK = 0xFF286474.toInt()
+    const val DUSK = 0xFF2E7184.toInt()
     const val SURFACE = 0xFF141D26.toInt()
     const val RAISED = 0xFF1C2732.toInt()
 
