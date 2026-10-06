@@ -64,7 +64,7 @@ fun Context.plate(colour: Int, radiusDp: Int, edge: Int = Palette.CLEAR): Gradie
 }
 
 /**
- * The backdrop of a whole screen: ink, lit faintly from above.
+ * The backdrop of a whole screen: ink, lit from above.
  *
  * Opaque from edge to edge — both ends of the gradient are — so it hides whatever is behind it as
  * completely as a flat colour does. The glow's centre sits above the top edge, so only its lower
@@ -75,7 +75,7 @@ fun Context.dusk(): DuskDrawable =
 
 private const val DUSK_CENTRE_X = 0.5f
 private const val DUSK_CENTRE_Y = -0.1f
-private const val DUSK_RADIUS_DP = 720
+private const val DUSK_RADIUS_DP = 450
 
 /**
  * The dial from the app's own mark, a day with part of it spent, on a mint-tinted disc.
@@ -85,7 +85,7 @@ private const val DUSK_RADIUS_DP = 720
  * moon would be the television having an opinion about it.
  */
 fun Context.dialBadge(sizeDp: Int, iconDp: Int): FrameLayout = FrameLayout(this).apply {
-    background = dot(Palette.ACCENT_DIM, sizeDp)
+    background = dot(Palette.ACCENT_VEIL, sizeDp)
     addView(
         ImageView(context).apply {
             setImageResource(R.drawable.ic_today)

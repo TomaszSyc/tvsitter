@@ -24,8 +24,12 @@ import androidx.core.widget.TextViewCompat
 object Palette {
     const val INK = 0xFF0B1117.toInt()
 
-    /** The faint glow at the top of a full screen. Never behind text that has to be read. */
-    const val DUSK = 0xFF11272D.toInt()
+    /**
+     * The glow at the top of a full screen. About two and a half times the backdrop's light, because
+     * anything fainter vanished on an OLED panel in daylight; it fades out before the buttons, which
+     * keep the plain backdrop their contrast was measured on.
+     */
+    const val DUSK = 0xFF286474.toInt()
     const val SURFACE = 0xFF141D26.toInt()
     const val RAISED = 0xFF1C2732.toInt()
 
@@ -41,6 +45,9 @@ object Palette {
 
     const val ACCENT = 0xFF5BE1BE.toInt()
     const val ACCENT_DIM = 0xFF173A35.toInt()
+
+    /** Mint at 18%, for a disc over the glow: always a shade lighter than whatever is under it. */
+    const val ACCENT_VEIL = 0x2E5BE1BE
     const val WARN = 0xFFF6C467.toInt()
     const val WARN_DIM = 0xFF2E2715.toInt()
 
