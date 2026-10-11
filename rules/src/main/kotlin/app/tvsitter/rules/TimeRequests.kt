@@ -9,7 +9,13 @@ import kotlinx.serialization.Serializable
 
 /** A request the child has made and the television is still waiting on an answer to. */
 @Serializable
-data class PendingRequest(val id: String, val askedMinutes: Int, val askedAtMs: Long)
+data class PendingRequest(
+    val id: String,
+    val askedMinutes: Int,
+    val askedAtMs: Long,
+    /** The app the child asked about, when there was one. Absent in histories stored before it existed. */
+    val appName: String? = null,
+)
 
 /**
  * What the television remembers about asking for time.
@@ -106,7 +112,7 @@ object RequestPolicy {
 
     private const val MILLIS_PER_SECOND = 1000L
 
-    fun ask(history: RequestHistory, id: String, askedMinutes: Int, nowMs: Long): AskResult {
+    fun ask(history: RequestHistory, id: String, askedMinutes: Int, nowMs: Long, appName: String? = null): AskResult {
         val waiting = history.pending
         if (waiting != null) {
             val remaining = waiting.askedAtMs + EXPIRY_MS - nowMs
@@ -142,7 +148,7 @@ object RequestPolicy {
             )
         }
 
-        val request = PendingRequest(id, askedMinutes, nowMs)
+        val request = PendingRequest(id, askedMinutes, nowMs, appName)
         return AskResult(
             AskVerdict.Allowed(request),
             withinWindow.copy(pending = request, askedAtMs = recent + nowMs),
@@ -175,6 +181,15 @@ object RequestPolicy {
         id in history.settled -> AnswerResult(Answer.AlreadySettled, history)
         else -> AnswerResult(Answer.Unknown, history)
     }
+
+    /**
+     * The request still waiting on an answer, or null when there is none.
+     *
+     * Reads the clock instead of trusting [RequestHistory.pending], which is only cleared on
+     * the next sample: a question past its expiry must not be shown to a parent as open.
+     */
+    fun pendingAt(history: RequestHistory, nowMs: Long): PendingRequest? =
+        history.pending?.takeIf { nowMs - it.askedAtMs < EXPIRY_MS }
 
     /**
      * Gives up on a question nobody answered, so the screen can stop saying "waiting".

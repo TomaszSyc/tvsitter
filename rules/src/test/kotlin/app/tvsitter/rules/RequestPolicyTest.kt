@@ -5,6 +5,7 @@
  */
 package app.tvsitter.rules
 
+import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -193,5 +194,35 @@ class RequestPolicyTest {
         assertEquals(RequestPolicy.REMEMBERED_IDS, history.settled.size)
         // Most recent first, so the ones a parent might still tap are the ones kept.
         assertEquals("req${RequestPolicy.REMEMBERED_IDS * 2 - 1}", history.settled.first())
+    }
+
+    @Test
+    fun `a waiting request is pending until it expires`() {
+        val asked = RequestPolicy.ask(RequestHistory(), "abc", 15, now, "Lounge Player")
+
+        val early = RequestPolicy.pendingAt(asked.history, now + RequestPolicy.EXPIRY_MS - 1)
+        assertEquals(PendingRequest("abc", 15, now, "Lounge Player"), early)
+        assertNull(RequestPolicy.pendingAt(asked.history, now + RequestPolicy.EXPIRY_MS))
+    }
+
+    @Test
+    fun `an answered request is not pending`() {
+        val asked = RequestPolicy.ask(RequestHistory(), "abc", 15, now).history
+
+        val granted = RequestPolicy.grant(asked, "abc", 15).history
+        assertNull(RequestPolicy.pendingAt(granted, now + minute))
+
+        val refused = RequestPolicy.refuse(asked, "abc", now + minute).history
+        assertNull(RequestPolicy.pendingAt(refused, now + minute))
+    }
+
+    @Test
+    fun `a stored request without an app name still reads`() {
+        val stored = """{"pending":{"id":"abc","askedMinutes":15,"askedAtMs":$now}}"""
+
+        val history = Json.decodeFromString<RequestHistory>(stored)
+
+        assertEquals("abc", history.pending?.id)
+        assertNull(history.pending?.appName)
     }
 }
