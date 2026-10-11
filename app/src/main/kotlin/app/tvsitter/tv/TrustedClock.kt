@@ -5,58 +5,38 @@
  */
 package app.tvsitter.tv
 
+import android.content.Context
 import android.os.SystemClock
+import android.provider.Settings
 import android.util.Log
-import app.tvsitter.rules.ClockWatch
+import app.tvsitter.rules.TrustedTime
 
 /**
- * What the time is, after taking off however far somebody has moved it.
+ * What the time is, after taking off however far somebody has moved it by hand.
  *
  * The budget day is wall-clock throughout, and date and time are a few D-pad presses away for as
- * long as Settings is reachable — so a spent day could be turned into a fresh one, and the
- * counter would not even notice: it measures differences between readings of the same clock, and
- * a clock that jumps takes the differences with it.
+ * long as Settings is reachable — so a spent day could be turned into a fresh one. `elapsedRealtime`
+ * is the second opinion: it counts since boot and nobody can set it. The deciding is in
+ * [TrustedTime]; this class reads the two clocks, and whether the system is setting the time from
+ * the network, which is what tells a correction from tampering (see there).
  *
- * `elapsedRealtime` is the second opinion. It counts since boot, keeps counting in sleep, and
- * nobody can set it, so the two deltas between a pair of readings should agree. When they do
- * not, the difference is the jump, and it is subtracted from everything downstream: the day
- * stands and the anchor moves by the time that actually passed.
+ * Both clocks are read here and nowhere else, so there is one definition of "now" for everything
+ * that depends on it. The offset is in memory, so a reboot drops it; with network time on there is
+ * none to drop.
  *
- * Both clocks are read here and nowhere else, so there is one place where a jump can be noticed
- * and one definition of "now" for everything that depends on it.
- *
- * The offset is in memory and not on disk, deliberately: `elapsedRealtime` restarts with the
- * device, so after a reboot there is no second opinion left and the wall clock has to be believed
- * again. That leaves rebooting as the way round this, which is worth writing down rather than
- * pretending otherwise.
+ * The context is only read inside [now], so a service can build this in a field initializer.
  */
-class TrustedClock(private val onJump: (Long) -> Unit = {}) {
+class TrustedClock(private val context: Context, onJump: (Long) -> Unit = {}) {
 
-    @Volatile
-    private var offsetMs = 0L
-    private var lastWallMs = 0L
-    private var lastElapsedMs = 0L
-
-    /** Synchronised because the counter and the lock both read it, and a jump is noticed once. */
-    @Synchronized
-    fun now(): Long {
-        val wallMs = System.currentTimeMillis()
-        val elapsedMs = SystemClock.elapsedRealtime()
-        if (lastWallMs != 0L) {
-            val jump = ClockWatch.jumpBetween(wallMs - lastWallMs, elapsedMs - lastElapsedMs)
-            if (jump != 0L) {
-                offsetMs += jump
-                Log.w(
-                    EnforcerService.TAG,
-                    "clock: moved by ${jump / MILLIS_PER_SECOND}s, ignoring it for the budget",
-                )
-                onJump(jump)
-            }
-        }
-        lastWallMs = wallMs
-        lastElapsedMs = elapsedMs
-        return ClockWatch.trusted(wallMs, offsetMs)
+    private val time = TrustedTime { jump ->
+        Log.w(EnforcerService.TAG, "clock: moved by ${jump / MILLIS_PER_SECOND}s, ignoring it for the budget")
+        onJump(jump)
     }
+
+    fun now(): Long = time.now(System.currentTimeMillis(), SystemClock.elapsedRealtime(), networkTime())
+
+    private fun networkTime(): Boolean =
+        Settings.Global.getInt(context.contentResolver, Settings.Global.AUTO_TIME, 1) == 1
 
     private companion object {
         const val MILLIS_PER_SECOND = 1_000L

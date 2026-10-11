@@ -71,7 +71,7 @@ class EnforcerService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     /** One reading of "now" for every deadline, so a clock set back cannot extend any of them. */
-    private val clock = TrustedClock { jump -> telemetry?.publish(clockJumpAlert(jump)) }
+    private val clock = TrustedClock(this) { jump -> telemetry?.publish(clockJumpAlert(jump)) }
 
     val foregroundPackage: String? get() = foregroundApps?.current
 
