@@ -109,7 +109,7 @@ cmd_doctor() {
     fi
 
     say "Permissions"
-    for op in SYSTEM_ALERT_WINDOW GET_USAGE_STATS; do
+    for op in SYSTEM_ALERT_WINDOW GET_USAGE_STATS SCHEDULE_EXACT_ALARM; do
         local mode
         mode="$(adb_ shell appops get "$PKG" "$op" 2>/dev/null | tr -d '\r' || true)"
         if [[ "$mode" == *allow* ]]; then ok "$op: $mode"; else bad "$op: ${mode:-not set}"; fi
@@ -160,7 +160,12 @@ cmd_install() {
     # effect for a permission the app declares, which both of these are.
     adb_ shell appops set "$PKG" SYSTEM_ALERT_WINDOW allow
     adb_ shell appops set "$PKG" GET_USAGE_STATS allow
-    for op in SYSTEM_ALERT_WINDOW GET_USAGE_STATS; do
+    # The watchdog's pulse. Denied by default on Android 14; without it the pulse is inexact.
+    adb_ shell appops set "$PKG" SCHEDULE_EXACT_ALARM allow
+    # App-ops reach the disk on a delay of minutes, and a set that loses power before then
+    # forgets all three. Measured: the watchdog's grant was gone after a reboot.
+    adb_ shell appops write-settings
+    for op in SYSTEM_ALERT_WINDOW GET_USAGE_STATS SCHEDULE_EXACT_ALARM; do
         local mode
         mode="$(adb_ shell appops get "$PKG" "$op" | tr -d '\r')"
         if [[ "$mode" == *allow* ]]; then

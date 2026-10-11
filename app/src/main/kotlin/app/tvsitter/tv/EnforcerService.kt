@@ -5,6 +5,8 @@
  */
 package app.tvsitter.tv
 
+import android.app.ActivityManager
+import android.app.ApplicationExitInfo
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -185,6 +187,8 @@ class EnforcerService : Service() {
         super.onCreate()
         instance = this
         EnforcerNotification.attach(this)
+        // Before anything that could throw: the pulse is what brings this back if it dies.
+        EnforcerWatchdog.arm(this)
 
         // Before the lock, which asks it whether there is a PIN to offer at all. Reads
         // device-encrypted storage, so this works before the user has unlocked the device —
@@ -624,8 +628,37 @@ private suspend fun uncleanRestartAlert(context: Context): Alert? {
     } else {
         0
     }
-    Log.w(EnforcerService.TAG, "restart: the last run ended without notice, ${gap}s ago")
-    return alertOf(AlertKind.UNCLEAN_RESTART, buildJsonObject { put("gap_s", JsonPrimitive(gap)) })
+    val reason = lastExitReason(context)
+    Log.w(EnforcerService.TAG, "restart: the last run ended without notice, ${gap}s ago, $reason")
+    return alertOf(
+        AlertKind.UNCLEAN_RESTART,
+        buildJsonObject {
+            put("gap_s", JsonPrimitive(gap))
+            reason?.let { put("reason", JsonPrimitive(it)) }
+        },
+    )
+}
+
+/**
+ * Why the system says the last process ended, in its own words, or null where it cannot say.
+ *
+ * "anr" and "low_memory" call for different fixes, and a gap alone looked the same for both: the
+ * half hour that let a cast video play under a lock was an ANR, which the gap could not tell apart
+ * from the memory kills seen before it.
+ */
+private fun lastExitReason(context: Context): String? {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
+    val manager = context.getSystemService(ActivityManager::class.java) ?: return null
+    val last = runCatching { manager.getHistoricalProcessExitReasons(context.packageName, 0, 1) }
+        .getOrNull()?.firstOrNull() ?: return null
+    return when (last.reason) {
+        ApplicationExitInfo.REASON_ANR -> "anr"
+        ApplicationExitInfo.REASON_LOW_MEMORY -> "low_memory"
+        ApplicationExitInfo.REASON_CRASH, ApplicationExitInfo.REASON_CRASH_NATIVE -> "crash"
+        ApplicationExitInfo.REASON_USER_REQUESTED -> "force_stop"
+        ApplicationExitInfo.REASON_SIGNALED -> "killed"
+        else -> "other_${last.reason}"
+    }
 }
 
 /** Somebody moved the television's clock. The budget ignored it; a parent should not. */

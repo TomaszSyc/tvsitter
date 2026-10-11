@@ -1407,3 +1407,38 @@ the reconnect rather than holding a payload, and re-reads the helper when the se
 held payload would be the grid as it was; the helper may be drawn on again before the
 television comes back, and re-reading gives the hours as they are. That is what following one
 means.
+
+### D38 — nothing on the main thread may outlast a window's focus, and a pulse brings the enforcer back (measured, 2026-10-09)
+
+A lock was up and a cast video played underneath it for about half an hour. `dumpsys activity
+exit-info` gave the reason: `ANR`, "Input dispatching timed out … Waited 5000ms for
+FocusEvent(hasFocus=true)", followed by `am_kill … user request after error`. Every trace had
+the same main thread: `DuskDrawable.onBoundsChange` → `Dusk.render`. The dithered backdrop was
+rendered at full size on the main thread the first time the lock was drawn after the set woke,
+and in a debuggable build, which ART interprets, two million pixels took longer than the five
+seconds a window has to take focus. The comment above the cache had guessed a couple of hundred
+milliseconds; nobody had timed it on the television.
+
+The kill was the smaller half. After it the system logged `Scheduling restart of crashed
+service … in 1800000ms`: a sticky service that dies by ANR is brought back after thirty minutes,
+not seconds, and `START_STICKY` was the only thing that would bring it back at all.
+
+Three changes, each sufficient against a different failure:
+
+- **The backdrop is made on a worker thread.** Until it is ready the drawable fills with the
+  outer colour, so the lock covers the screen at once and the glow arrives a moment later. The
+  arithmetic is cheaper as well — a square root instead of `hypot`, rounding by hand — but that
+  is a bonus; the thread is the fix.
+- **A watchdog alarm, one minute apart.** An alarm outlives the process, and an explicit start
+  from the app clears a pending restart, so the thirty minutes become at most one whatever killed
+  the process: ANR, memory, a crash. Exact with `SCHEDULE_EXACT_ALARM` (an app-op setup grants),
+  inexact without it. Non-waking, because in standby there is nothing to enforce and an overdue
+  alarm fires on wake. A force-stop clears alarms, so it does not cover that one.
+- **The restart alarm says why.** `unclean_restart` now carries `reason` from
+  `ApplicationExitInfo` (`anr`, `low_memory`, `crash`, `force_stop`, …). A gap alone looked the
+  same for an ANR and for a memory kill, and the two have nothing in common as fixes.
+
+The force-stop that the watchdog cannot see, and anything else that silences the set while it is
+on and locked, is for Home Assistant to answer from outside: the set is still reachable through
+its own integration and can be switched off. That belongs in the user's automations rather than
+here, since it depends on which integration their set has.

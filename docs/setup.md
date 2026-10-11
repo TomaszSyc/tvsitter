@@ -70,6 +70,10 @@ adb shell appops set "$PKG" SYSTEM_ALERT_WINDOW allow
 # Foreground-app detection reads usage events. Android TV lacks the settings screen this
 # is normally granted from.
 adb shell appops set "$PKG" GET_USAGE_STATS allow
+
+# The watchdog that restarts the app within a minute if the system kills it (D38). Denied by
+# default on Android 14; without it the watchdog still runs, just less punctually.
+adb shell appops set "$PKG" SCHEDULE_EXACT_ALARM allow
 ```
 
 No accessibility service is involved. That is deliberate, and the reason is worth knowing:

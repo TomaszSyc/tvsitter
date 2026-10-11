@@ -5,8 +5,7 @@
  */
 package app.tvsitter.rules
 
-import kotlin.math.hypot
-import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 /**
  * The screens' backdrop as pixels: a radial glow from [inner] fading to [outer], dithered.
@@ -43,10 +42,19 @@ data class Dusk(val inner: Int, val outer: Int, val centreX: Float, val centreY:
         mix(shift, reach(x, y, width, height))
 
     /** How far out of the glow a pixel is, from 0 at the centre to 1 at the rim and beyond. */
-    private fun reach(x: Int, y: Int, width: Int, height: Int): Float =
-        (hypot(x + HALF - centreX * width, y + HALF - centreY * height) / radiusPx).coerceAtMost(1f)
+    // A plain square root rather than hypot, and rounding by hand rather than roundToInt: this
+    // runs two million times, on a television's CPU, in a debuggable build that is interpreted.
+    // hypot guards against overflow that a screen's coordinates cannot reach, and costs seconds.
+    private fun reach(x: Int, y: Int, width: Int, height: Int): Float {
+        val dx = x + HALF - centreX * width
+        val dy = y + HALF - centreY * height
+        return (sqrt(dx * dx + dy * dy) / radiusPx).coerceAtMost(1f)
+    }
 
-    private fun channel(shift: Int, t: Float, nudge: Float): Int = (mix(shift, t) + nudge).roundToInt().coerceIn(0, MAX)
+    // Never below -0.5 before rounding, since mix is at least 0 and the nudge above -0.5, so
+    // adding a half and truncating is the same as rounding.
+    private fun channel(shift: Int, t: Float, nudge: Float): Int =
+        (mix(shift, t) + nudge + HALF).toInt().coerceIn(0, MAX)
 
     private fun mix(shift: Int, t: Float): Float {
         val from = (inner shr shift) and MAX

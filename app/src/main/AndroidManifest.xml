@@ -69,6 +69,12 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!--
+      For the watchdog's pulse. Denied by default on Android 14, so setup grants the app-op over
+      ADB; without it the pulse falls back to an inexact alarm rather than failing.
+    -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+
+    <!--
       Both backup attributes are set on purpose. allowBackup="false" covers Android 11 and
       lower; on Android 12+ it does not reliably disable device-to-device transfer, which is
       manufacturer-dependent, so dataExtractionRules excludes that explicitly. Lint asks for
@@ -131,5 +137,14 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
+
+        <!--
+            Not exported: only our own alarm reaches it. It restarts the enforcer when the
+            system killed it and held back the sticky restart.
+        -->
+        <receiver
+            android:name=".EnforcerWatchdog"
+            android:directBootAware="true"
+            android:exported="false" />
     </application>
 </manifest>
