@@ -92,7 +92,15 @@
     const at = new Date(when);
     if (Number.isNaN(at.getTime())) return null;
     if (at.toDateString() === new Date().toDateString()) return TS.clock(at);
-    return at.toLocaleDateString([], {day: "numeric", month: "short"}) + " " +
-      TS.clock(at);
+    // In the page's language, not the phone's: the companion app's web view often runs
+    // in English whatever Home Assistant is set to, and "Oct 11" sat in a Polish page.
+    const tongue = (document.documentElement && document.documentElement.lang) || undefined;
+    let day;
+    try {
+      day = at.toLocaleDateString(tongue, {day: "numeric", month: "short"});
+    } catch (wrong) {
+      day = at.toLocaleDateString(undefined, {day: "numeric", month: "short"});
+    }
+    return day + " " + TS.clock(at);
   };
 })();

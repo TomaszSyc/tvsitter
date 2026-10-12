@@ -205,8 +205,7 @@
       lock: pill(phrase("Lock"), () => ({action: "lock", on: true})),
       unlimited: pill(phrase("No limit today"), () => ({action: "skip_limit_today"})),
     };
-    made.why = element("p", "why",
-      phrase("These need the television to be on and connected."));
+    made.why = element("p", "why");
     made.note = element("p", "note");
     made.note.setAttribute("role", "status");
     made.note.hidden = true;
@@ -329,7 +328,11 @@
    */
   function quick(tv, away) {
     const limited = TS.number(tv.limit_today) !== null;
-    if (away || !tv.locked) {
+    // A set that is not listening still takes a lock: the switch holds it and sends it
+    // the moment the set is back, which is when a parent most wants it (#48). Nothing
+    // else is held — a command sent into the dark is lost — so nothing else is offered.
+    if (away) return [tv.locked ? "unlock" : "lock"];
+    if (!tv.locked) {
       return (limited ? ["add15", "add30", "lock", "unlimited"] : ["lock"]);
     }
     switch (tv.lock_reason) {
@@ -364,20 +367,31 @@
       button.hidden = at < 0;
       // No primary while none of them can be used: a faded mint still reads as "this one".
       button.className = "pill" + (at === 0 && !away ? " pill--accent" :
-        (name === "lock" || name === "unlimited" ? " pill--outline" : ""));
-      button.disabled = sending || away;
+        (name === "lock" || name === "unlimited" || away ? " pill--outline" : ""));
+      button.disabled = sending;
     });
     Object.keys(drawn.answers).forEach((name) => {
       drawn.answers[name].disabled = sending || away;
     });
+    drawn.why.textContent = held(drawn.tv);
     drawn.why.hidden = !away;
     drawn.row.hidden = !wanted.length;
+  }
+
+  /** What a set that is not listening will be told when it is back, in one sentence. */
+  function held(tv) {
+    if (tv.lock_pending === "lock") return phrase("It will lock as soon as it is back.");
+    if (tv.lock_pending === "unlock") {
+      return phrase("It will unlock if it is back within 15 minutes.");
+    }
+    return phrase("A lock waits until it is back; the rest needs it on.");
   }
 
   function paintToday(drawn, away) {
     const watched = (drawn.tv.apps || [])
       .map((app) => ({name: app.name || app.package, minutes: TS.number(app.minutes)}))
-      .filter((app) => app.minutes !== null && app.minutes > 0)
+      // Under half a minute reads as "0 min": a second charged between apps, not viewing.
+      .filter((app) => app.minutes !== null && Math.round(app.minutes) > 0)
       .sort((one, other) => other.minutes - one.minutes);
     const parts = [element("h2", "heading", phrase("Today"))];
     const used = TS.number(drawn.tv.used_today);

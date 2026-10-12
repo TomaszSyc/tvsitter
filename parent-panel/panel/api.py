@@ -109,6 +109,9 @@ def described(
         "reporting": flag(television, "reporting"),
         "screen": flag(television, "screen"),
         "locked": flag(television, "lock"),
+        # What the lock switch is holding for a set that is not listening: "lock",
+        # "unlock" or null. `locked` already reads as the intention while one waits.
+        "lock_pending": held_lock(television),
         "playing": television.state("active_app"),
         "pin_set": flag(television, "pin_set"),
         "used_today": television.number("used_today"),
@@ -128,7 +131,7 @@ def described(
         # Two weeks, and the names keep them apart: `week` is a rule — what each day of
         # the week allows — and `week_by_app` is what happened over the last seven days.
         "week": {day: television.number(f"limit_{day}") for day in WEEK},
-        "week_by_app": weekly(by_app, exempt),
+        "week_by_app": weekly(by_app, exempt, television),
         "apps": apps(television, allowed, exempt, installed(television)),
         "allowed_apps": allowed,
         "exempt_apps": exempt,
@@ -145,7 +148,9 @@ def described(
 
 
 def weekly(
-    by_app: list[dict[str, Any]] | None, exempt: list[str]
+    by_app: list[dict[str, Any]] | None,
+    exempt: list[str],
+    television: Television | None = None,
 ) -> list[dict[str, Any]]:
     """Hand on the seven days as they were read, without what nobody watched.
 
@@ -158,7 +163,26 @@ def weekly(
     Nothing else is. An app uninstalled on Thursday was still watched on Monday, and
     the time charged to an HDMI input is viewing that no launcher lists.
     """
-    return [app for app in by_app or [] if app.get("package") not in exempt]
+    kept = [app for app in by_app or [] if app.get("package") not in exempt]
+    if television is None:
+        return kept
+    # The days were summed under whatever name the set had for an app at the time,
+    # and an app it never labelled went in under its package id. Named again here the
+    # way the daily list names it, so YouTube is not com.google.android.youtube.tv on
+    # one screen and YouTube on the next.
+    on_it = installed(television)
+    return [
+        app
+        if app.get("name") and app.get("name") != app.get("package")
+        else {**app, "name": named(television, str(app.get("package")), on_it)}
+        for app in kept
+    ]
+
+
+def held_lock(television: Television) -> str | None:
+    """Say what the lock switch is waiting to send, if anything."""
+    held = television.attribute("lock", "pending")
+    return {"on": "lock", "off": "unlock"}.get(held) if isinstance(held, str) else None
 
 
 def exempt_apps(television: Television) -> list[str]:

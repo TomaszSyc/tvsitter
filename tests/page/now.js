@@ -322,24 +322,36 @@ async function main() {
   same("an app not allowed: nothing either", actions(), "");
   same("with the reason", text().indexOf("This app is not allowed") >= 0, true);
 
-  process.stdout.write("\nnot reachable disables the immediate actions\n");
+  process.stdout.write("\nnot reachable still takes a lock, and nothing else\n");
   await show(television({reporting: false, playing: null,
     last_reported: "2026-10-12T17:05:00"}));
   same("when it was last seen", text().indexOf("Last seen") >= 0 &&
     text().indexOf("17:05") >= 0, true);
   same("and that its rules keep working", text()
     .indexOf("Its rules keep working on the television.") >= 0, true);
-  same("+15 min is disabled", button("+15 min").disabled, true);
-  same("Lock is disabled", button("Lock").disabled, true);
-  same("with a reason", text()
-    .indexOf("These need the television to be on and connected.") >= 0, true);
+  same("only Lock is offered", actions(), "Lock");
+  same("and it can be pressed", button("Lock").disabled, false);
+  same("with what waits and what does not", text()
+    .indexOf("A lock waits until it is back; the rest needs it on.") >= 0, true);
   same("the header says since when", plain(status().textContent),
     "Not reachable since 17:05");
   same("in amber", status().getAttribute("data-tone"), "warn");
-  const quiet = changes().length;
-  fire(button("+15 min"), "click");
-  await settle();
-  same("a tap sends nothing", changes().length, quiet);
+  await tap("Lock");
+  same("Lock goes to the switch, which holds it", lastChange(),
+    sorted({action: "lock", id: "tv1", on: true}));
+  await show(television({reporting: false, playing: null, locked: true,
+    lock_pending: "lock", last_reported: "2026-10-12T17:05:00"}));
+  same("a held lock can be taken back", actions(), "Unlock");
+  same("and says it is waiting", text()
+    .indexOf("It will lock as soon as it is back.") >= 0, true);
+  await show(television({reporting: false, playing: null, locked: false,
+    lock_pending: "unlock", last_reported: "2026-10-12T17:05:00"}));
+  same("a held unlock says how long it waits", text()
+    .indexOf("It will unlock if it is back within 15 minutes.") >= 0, true);
+  await show(television({reporting: false, playing: null,
+    apps: [{package: "tv.example.blip", name: "Blip", minutes: 0.3}],
+    last_reported: "2026-10-12T17:05:00"}));
+  same("a few seconds in an app is not a row", text().indexOf("Blip") < 0, true);
   await show(television({reporting: false, last_reported: null}));
   same("a set that never reported says so", text().indexOf("Never reported") >= 0,
     true);

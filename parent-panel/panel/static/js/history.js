@@ -33,7 +33,8 @@
         name: String(one.name || one.package),
         minutes: TS.number(one.minutes) || 0,
       }))
-      .filter((one) => one.minutes > 0)
+      // What rounds to "0 min" is the set passing through an app, not anybody watching.
+      .filter((one) => Math.round(one.minutes) > 0)
       .sort((one, other) => other.minutes - one.minutes ||
         (one.name < other.name ? -1 : one.name > other.name ? 1 : 0));
   }

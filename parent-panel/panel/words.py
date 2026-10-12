@@ -120,6 +120,13 @@ POLISH: dict[str, str] = {
     "These need the television to be on and connected.": (
         "To wymaga włączonego telewizora z dostępem do sieci."
     ),
+    "It will lock as soon as it is back.": "Zablokuje się, gdy tylko wróci.",
+    "It will unlock if it is back within 15 minutes.": (
+        "Odblokuje się, jeśli wróci w ciągu 15 minut."
+    ),
+    "A lock waits until it is back; the rest needs it on.": (
+        "Blokada poczeka, aż wróci; reszta wymaga włączonego telewizora."
+    ),
     # A request for more time, and its answers.
     "{minutes} min more, in {app}": "Jeszcze {minutes} min, w {app}",
     "{minutes} min more": "Jeszcze {minutes} min",

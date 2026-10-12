@@ -1225,3 +1225,34 @@ async def test_a_grant_is_for_fifteen_or_thirty_minutes_too() -> None:
             [with_request(ASKED)],
             {"id": DEVICE, "action": "grant", "req_id": "r-1", "minutes": 45},
         )
+
+
+def test_the_week_names_an_app_the_set_lists_as_installed() -> None:
+    """A day summed before the set labelled an app went in under its package id.
+
+    The daily list named it from what the set says is installed; the seven days did
+    not, so YouTube was YouTube on one screen and a package id on the next.
+    """
+    one = with_rules(launchable_apps={"tv.example.tube": "Tube"})
+    week = [
+        {"package": "tv.example.tube", "name": "tv.example.tube", "minutes": 453},
+        {"package": "tv.example.gone", "minutes": 40},
+        {"package": "tv.example.video", "name": "Video", "minutes": 580},
+    ]
+
+    names = [app["name"] for app in only(one, by_app=week)["week_by_app"]]
+
+    assert names == ["Tube", "tv.example.gone", "Video"]
+
+
+def test_a_lock_held_for_a_set_that_is_away_is_said() -> None:
+    """The switch keeps a lock for a set that is off; the page says it is waiting."""
+    one = television(lock="on")
+    one.states["x.lock"]["attributes"] = {"pending": "on"}
+    assert only(one)["lock_pending"] == "lock"
+
+    one.states["x.lock"]["attributes"] = {"pending": "off"}
+    assert only(one)["lock_pending"] == "unlock"
+
+    one.states["x.lock"]["attributes"] = {}
+    assert only(one)["lock_pending"] is None
