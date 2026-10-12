@@ -1075,14 +1075,15 @@ async def test_no_limit_today_calls_skip_limit_today() -> None:
 class Older(Recorder):
     """A Home Assistant whose integration predates the panel's newest actions."""
 
-    def __init__(self, why: str | None) -> None:
+    def __init__(self, why: str | None, status: int = 400) -> None:
         """Refuse every call with this sentence, or with none, as a 400 does."""
         super().__init__()
         self.why = why
+        self.status = status
 
     async def call(self, domain: str, service: str, data: dict[str, Any]) -> None:
         """Refuse, the way Home Assistant refuses an action it has not got."""
-        raise Refused(f"{domain}.{service} was refused", self.why)
+        raise Refused(f"{domain}.{service} was refused", self.why, self.status)
 
 
 @pytest.mark.parametrize(
@@ -1093,13 +1094,39 @@ class Older(Recorder):
     ],
     ids=["skip_limit_today", "add_time"],
 )
-@pytest.mark.parametrize("why", [None, "Action tvsitter.skip_limit_today not found."])
+@pytest.mark.parametrize(
+    "why", [None, "Action tvsitter.skip_limit_today not found."], ids=["bare", "said"]
+)
 async def test_an_integration_without_the_action_is_said_to_need_updating(
     request_: dict[str, Any], why: str | None
 ) -> None:
     """A bare refusal of these is a version mismatch, and the page should say which."""
+    if why is not None and request_["action"] == "add_time":
+        why = "Action tvsitter.add_time not found."
     with pytest.raises(ValueError, match="update it"):
         await apply(Older(why), [with_request()], request_)
+
+
+@pytest.mark.parametrize(
+    ("why", "status"),
+    [
+        (None, 500),
+        ("Internal Server Error", 502),
+        ("Entity x.time_request not found.", 400),
+        ("Action tvsitter.add_time not found.", 400),
+    ],
+    ids=["bare-5xx", "said-5xx", "entity-not-found", "another-action"],
+)
+async def test_other_refusals_are_not_taken_for_an_old_integration(
+    why: str | None, status: int
+) -> None:
+    """A server fault or a missing entity is no version mismatch, and stays itself."""
+    with pytest.raises(Refused):
+        await apply(
+            Older(why, status),
+            [with_request()],
+            {"id": DEVICE, "action": "skip_limit_today"},
+        )
 
 
 async def test_a_refusal_with_a_reason_of_its_own_keeps_it() -> None:

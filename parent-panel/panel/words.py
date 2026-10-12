@@ -209,6 +209,7 @@ POLISH: dict[str, str] = {
     "{most} and {last}": "{most} i {last}",
     "The sleep timer ran out at {clock}.": "Wyłącznik czasowy zadziałał o {clock}.",
     "It is allowed already.": "Już jest dozwolona.",
+    "It is blocked already.": "Już jest zablokowana.",
     "Undo": "Cofnij",
     "The other days will be locked unless they get hours too.": (
         "Pozostałe dni będą zablokowane, jeśli też nie dostaną godzin."

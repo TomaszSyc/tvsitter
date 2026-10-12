@@ -247,6 +247,12 @@
       if (!zero && onList) say(where, phrase("It is allowed already."), true);
       return;
     }
+    // Already blocked, by its zero or by the list: with the list off, blocking would
+    // turn it on for every other app to say something already true.
+    if (limitOf(tv, one) === 0 || !allowedOn(tv, one)) {
+      say(where, phrase("It is blocked already."), true);
+      return;
+    }
     const next = !list.length ?
       listed(tv).map((each) => each.package).filter((each) => each !== one.package) :
       list.filter((each) => each !== one.package);

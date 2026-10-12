@@ -138,10 +138,15 @@ class Television:
 class Refused(RuntimeError):
     """A service Home Assistant would not run, and what it said about it."""
 
-    def __init__(self, what: str, why: str | None) -> None:
-        """Keep the reason apart from the call, so only the reason is shown."""
+    def __init__(self, what: str, why: str | None, status: int | None = None) -> None:
+        """Keep the reason apart from the call, so only the reason is shown.
+
+        The status too, because one answer means something precise: a bare 400 is how
+        Home Assistant says it has no such action, and nothing else says that.
+        """
         super().__init__(f"{what}: {why}" if why else what)
         self.why = why
+        self.status = status
 
 
 def said(body: str) -> str | None:
@@ -240,7 +245,9 @@ class HomeAssistant:
                 # by 500` does not. Never a PIN: `set_pin` refuses before it reaches
                 # here, precisely because the sentence would carry the value.
                 raise Refused(
-                    f"{domain}.{service} was refused", said(await answer.text())
+                    f"{domain}.{service} was refused",
+                    said(await answer.text()),
+                    answer.status,
                 )
 
     async def _registry(self) -> dict[str, list[dict[str, Any]]]:

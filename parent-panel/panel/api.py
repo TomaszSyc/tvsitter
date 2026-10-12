@@ -580,6 +580,9 @@ async def apply(
             raise ValueError(f"There is nothing called {action!r} to do.")
 
 
+# How Home Assistant answers a call to an action it has not got: 400, with no sentence.
+HTTP_BAD_REQUEST = 400
+
 # Said when Home Assistant has no such action: the add-on is newer than the integration.
 NEEDS_UPDATE = (
     "The TV Sitter integration in Home Assistant is older than this panel: update it "
@@ -593,15 +596,25 @@ async def newer(home: HomeAssistant, service: str, data: dict[str, Any]) -> None
     Home Assistant answers an action it does not know with a bare 400 and no sentence of
     its own, which reached the page as "Home Assistant would not make that change" — the
     one reading that sends a parent looking at the television instead of the update.
-    The panel only ever sends these with valid fields, so a refusal without a sentence
-    is the missing action.
+    Only that answer is read this way: a server error, or a sentence about anything but
+    this action — an entity not found, a set not listening — is passed on as it is.
     """
     try:
         await home.call(DOMAIN, service, data)
     except Refused as refused:
-        if refused.why is None or "not found" in refused.why.lower():
+        if missing_action(refused, service):
             raise ValueError(NEEDS_UPDATE) from refused
         raise
+
+
+def missing_action(refused: Refused, service: str) -> bool:
+    """Say whether a refusal is Home Assistant not having this action at all."""
+    if refused.status != HTTP_BAD_REQUEST:
+        return False
+    if refused.why is None:
+        return True
+    said = refused.why.lower()
+    return "not found" in said and f"{DOMAIN}.{service}" in said
 
 
 def deadline(said: Any) -> int | None:

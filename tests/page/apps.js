@@ -264,6 +264,12 @@ async function main() {
   ok("with nothing lower to go", button(sheet(), "−").disabled);
   same("and Access says Blocked too",
     button(sheet(), "Blocked").getAttribute("aria-pressed"), "true");
+  fire(button(sheet(), "Blocked"), "click", {});
+  await settle();
+  same("Blocked again does not turn the list on for everything else",
+    allowedSent().length, 0);
+  same("the switch stays off", toggle().getAttribute("aria-checked"), "false");
+  ok("and it says so", plain(sheet().textContent).indexOf("It is blocked already.") >= 0);
 
   process.stdout.write("\nAllowed on an app a zero blocks takes the zero away\n");
   await show({apps: [app(VIDEO, "Video Player", 27, 0), app(GAMES, "Games Hub", 5, null)]});
