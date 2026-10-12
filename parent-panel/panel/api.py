@@ -20,7 +20,7 @@ from __future__ import annotations
 from typing import Any
 
 from . import statistics
-from .home_assistant import DOMAIN, WEEK, HomeAssistant, Television
+from .home_assistant import DOMAIN, WEEK, HomeAssistant, Refused, Television
 
 # This app's own package, kept for a television that has not said which packages no
 # rule can reach. Not the answer while there is a better one: the set resolves the
@@ -120,6 +120,9 @@ def described(
         "rules_revision": revision(television),
         "daily_limit": television.number("daily_limit"),
         "sleep_timer": television.number("sleep_timer"),
+        # When an armed sleep timer turns the set off, epoch millis, from a television
+        # new enough to say; null otherwise.
+        "sleep_at": deadline(television.attribute("sleep_timer", "sleep_at")),
         "warn_before": television.number("warn_before"),
         "block_settings": flag(television, "block_settings"),
         # Two weeks, and the names keep them apart: `week` is a rule — what each day of
@@ -540,13 +543,19 @@ async def apply(
                 },
             )
         case "add_time":
-            await home.call(
-                DOMAIN,
+            await newer(
+                home,
                 "add_time",
                 {
                     "entity_id": entity(television, "time_request"),
                     "minutes": quarter_or_half(request),
                 },
+            )
+        case "skip_limit_today":
+            await newer(
+                home,
+                "skip_limit_today",
+                {"entity_id": entity(television, "time_request")},
             )
         case "grant":
             await home.call(
@@ -569,6 +578,37 @@ async def apply(
             )
         case _:
             raise ValueError(f"There is nothing called {action!r} to do.")
+
+
+# Said when Home Assistant has no such action: the add-on is newer than the integration.
+NEEDS_UPDATE = (
+    "The TV Sitter integration in Home Assistant is older than this panel: update it "
+    "to the same version."
+)
+
+
+async def newer(home: HomeAssistant, service: str, data: dict[str, Any]) -> None:
+    """Call an action the integration gained with this panel, saying so when it has not.
+
+    Home Assistant answers an action it does not know with a bare 400 and no sentence of
+    its own, which reached the page as "Home Assistant would not make that change" — the
+    one reading that sends a parent looking at the television instead of the update.
+    The panel only ever sends these with valid fields, so a refusal without a sentence
+    is the missing action.
+    """
+    try:
+        await home.call(DOMAIN, service, data)
+    except Refused as refused:
+        if refused.why is None or "not found" in refused.why.lower():
+            raise ValueError(NEEDS_UPDATE) from refused
+        raise
+
+
+def deadline(said: Any) -> int | None:
+    """Read an epoch-millisecond moment, or nothing when it is not a believable one."""
+    if isinstance(said, bool) or not isinstance(said, int | float) or said <= 0:
+        return None
+    return int(said)
 
 
 async def set_pin(

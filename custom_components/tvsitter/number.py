@@ -45,6 +45,8 @@ DEFAULT_WARNING_MINUTES = 5
 # Four hours. Past that it is not "finish this and go to bed", it is tomorrow's problem,
 # and the daily limit is the control for that.
 MAX_SLEEP_MINUTES = 240
+# The attribute the sleep timer says its deadline in, epoch milliseconds.
+ATTR_SLEEP_AT = "sleep_at"
 
 # The same ceiling as the per-app sensors, for the same reason: a television with a
 # shopful of apps must not fill the interface with rows nobody set.
@@ -235,13 +237,10 @@ class SleepTimerNumber(TvSitterEntity, NumberEntity):
     device-encrypted corner as a granted-time stand-down — a deadline a child would most
     like to lose is one they could otherwise lose by pulling the plug.
 
-    Write-only, like the parent PIN. The state payload does not carry the
-    deadline, and a
-    box that read back the minutes remaining would need the television to be
-    publishing a
-    countdown it has no other use for. What it does carry is `until_s`, which
-    says the same
-    thing when the timer is the rule that binds.
+    Write-only as a number, like the parent PIN: a box that read back the minutes
+    remaining would need the television to publish a countdown it has no other use
+    for. A newer television publishes the deadline itself as `sleep_at`, and that is
+    carried as an attribute, which is what a panel reads to say when the set turns off.
     """
 
     _attr_native_min_value = 0
@@ -259,6 +258,18 @@ class SleepTimerNumber(TvSitterEntity, NumberEntity):
     def native_value(self) -> float | None:
         """Return nothing: this is a control, not a reading."""
         return None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object]:
+        """Say when the armed timer covers the screen, for a panel to put in words.
+
+        The deadline rather than the minutes left, from a television new enough to
+        publish it: a fixed moment does not change every minute, so it is not a state
+        written to the recorder sixty times an hour. None when nothing is armed, or
+        the set is too old to say.
+        """
+        snapshot = self._client.snapshot
+        return {ATTR_SLEEP_AT: None if snapshot is None else snapshot.sleep_at}
 
     async def async_set_native_value(self, value: float) -> None:
         """Arm the timer, or cancel one already set.

@@ -157,9 +157,15 @@ ATTR_PENDING_RULES: Final = "pending_rules"
 
 KIND_MORE_TIME: Final = "more_time"
 
+# How long the television waits for an answer before telling the child nobody
+# answered (docs/mqtt-contract.md). Past it a request is not waiting any more, whatever
+# a retained state from a set switched off in the meantime still says.
+REQUEST_EXPIRY_SECONDS: Final = 600
+
 SERVICE_GRANT_TIME: Final = "grant_time"
 SERVICE_DENY_TIME: Final = "deny_time"
 SERVICE_ADD_TIME: Final = "add_time"
+SERVICE_SKIP_LIMIT_TODAY: Final = "skip_limit_today"
 SERVICE_SET_SCHEDULE: Final = "set_schedule"
 SERVICE_SET_WINDOWS: Final = "set_windows"
 SERVICE_SET_APP_LIMIT: Final = "set_app_limit"

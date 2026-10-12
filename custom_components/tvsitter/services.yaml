@@ -20,7 +20,8 @@ grant_time:
       selector:
         text:
 
-# Time given without a request to answer. The television also lifts a lock set by hand.
+# Time given without a request to answer, and exactly that much: a lock set by hand stands
+# down for it and comes back, and a sleep timer that has run out moves on by it.
 add_time:
   target:
     entity:
@@ -35,6 +36,15 @@ add_time:
           min: 1
           max: 240
           unit_of_measurement: min
+
+# Today's limit set aside until the 04:00 reset, and nothing else: the hours, the app
+# budgets and a lock set by hand stay. One day's decision, so no rule is written; the
+# clear_limit button is the one that removes the daily limit for good.
+skip_limit_today:
+  target:
+    entity:
+      integration: tvsitter
+      domain: event
 
 deny_time:
   target:

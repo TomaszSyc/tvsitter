@@ -93,6 +93,11 @@ POLISH: dict[str, str] = {
     "Lock": "Zablokuj",
     "Unlock": "Odblokuj",
     "No limit today": "Bez limitu dziś",
+    "The TV Sitter integration in Home Assistant is older than this panel: update it "
+    "to the same version.": (
+        "Integracja TV Sitter w Home Assistancie jest starsza niż ten panel: "
+        "zaktualizuj ją do tej samej wersji."
+    ),
     # Why the screen is covered. Short, because each also stands as the status line.
     "Today's time is used up": "Dzisiejszy czas się skończył",
     "Outside the allowed hours": "Poza dozwolonymi godzinami",

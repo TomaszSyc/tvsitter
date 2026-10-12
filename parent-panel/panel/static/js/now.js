@@ -24,6 +24,9 @@
   const MINUTES_PER_HOUR = 60;
   const MS_PER_SECOND = 1000;
   const DAYS_AHEAD = 8;
+  // How long the television waits for an answer (docs/mqtt-contract.md). A set switched
+  // off inside it leaves its last state saying a request waits, all evening.
+  const REQUEST_MS = 10 * MINUTE_MS;
   // The days the way `hours` names them, in the order `Date.getDay()` counts them.
   const DAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 
@@ -200,7 +203,7 @@
       add15: pill(phrase("+15 min"), () => ({action: "add_time", minutes: 15})),
       add30: pill(phrase("+30 min"), () => ({action: "add_time", minutes: 30})),
       lock: pill(phrase("Lock"), () => ({action: "lock", on: true})),
-      unlimited: pill(phrase("No limit today"), () => ({action: "clear_limit"})),
+      unlimited: pill(phrase("No limit today"), () => ({action: "skip_limit_today"})),
     };
     made.why = element("p", "why",
       phrase("These need the television to be on and connected."));
@@ -213,10 +216,23 @@
     return made;
   }
 
+  /**
+   * Whether a request can still be answered: the set is reporting, the question has a
+   * believable time of asking, and its ten minutes are not up. The same reading Home
+   * Assistant's attribute makes, so the two never disagree about what waits.
+   */
+  function stillWaiting(tv, request) {
+    if (!tv.reporting || !request || typeof request !== "object" || !request.id) {
+      return false;
+    }
+    const at = TS.number(request.asked_at);
+    return at !== null && at > 0 && Date.now() - at < REQUEST_MS;
+  }
+
   /** The request panel: on top while one waits, gone once it has been answered. */
   function paintRequest(drawn) {
     const request = drawn.tv.pending_request;
-    const waiting = Boolean(request && typeof request === "object" && request.id);
+    const waiting = stillWaiting(drawn.tv, request);
     drawn.request = waiting ? request : null;
     if (!waiting) {
       drawn.ask.remove();
@@ -300,12 +316,36 @@
     ];
   }
 
-  /** The buttons for this state, in order, the first of them the one most wanted. */
+  /**
+   * The buttons for this state, in order, the first of them the one most wanted.
+   *
+   * Only the ones that change something on the television for this lock: a button that
+   * sends a command the set then ignores tells a parent the child is covered by
+   * something that did nothing. Added minutes are a bonus on the day's limit, a parent's
+   * lock standing down, or a bedtime moved on; "No limit today" sets the day's limit
+   * aside and nothing else; Unlock lifts a parent's lock, the bedtime, or the hours and
+   * the limit for the rest of the day. Nothing here reaches an app's own budget or the
+   * allow-list, so a lock for those offers no button at all.
+   */
   function quick(tv, away) {
     const limited = TS.number(tv.limit_today) !== null;
-    const wanted = !away && tv.locked ? ["unlock", "add15", "unlimited"] :
-      ["add15", "add30", "lock", "unlimited"];
-    return wanted.filter((name) => name !== "unlimited" || limited);
+    if (away || !tv.locked) {
+      return (limited ? ["add15", "add30", "lock", "unlimited"] : ["lock"]);
+    }
+    switch (tv.lock_reason) {
+      case "daily_limit":
+        return ["unlock", "add15", "add30"].concat(limited ? ["unlimited"] : []);
+      case "manual":
+      case "sleep_timer":
+        return ["unlock", "add15", "add30"];
+      case "app_limit":
+      case "app_not_allowed":
+        return [];
+      // The hours, and a reason this page has no words for: lifting the lock is the
+      // one thing the set does with either.
+      default:
+        return ["unlock"];
+    }
   }
 
   function paintActions(drawn, away) {
@@ -331,6 +371,7 @@
       drawn.answers[name].disabled = sending || away;
     });
     drawn.why.hidden = !away;
+    drawn.row.hidden = !wanted.length;
   }
 
   function paintToday(drawn, away) {

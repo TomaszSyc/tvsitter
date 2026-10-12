@@ -170,8 +170,8 @@ async function main() {
   await tap("Lock");
   same("Lock locks", lastChange(), sorted({action: "lock", id: "tv1", on: true}));
   await tap("No limit today");
-  same("No limit today lifts the limit", lastChange(),
-    sorted({action: "clear_limit", id: "tv1"}));
+  same("No limit today sets today's limit aside, not the rule", lastChange(),
+    sorted({action: "skip_limit_today", id: "tv1"}));
   const kept = button("+15 min");
   const count = screen.children.length;
   await beat();
@@ -180,7 +180,8 @@ async function main() {
   same("and adds nothing", screen.children.length, count);
   await show(television({limit_today: null, remaining_today: null, until_s: null}));
   same("no limit says so", text().indexOf("No limit") >= 0, true);
-  same("and does not offer to lift it", actions(), "+15 min,+30 min,Lock");
+  same("and offers only the lock: added minutes would change nothing", actions(),
+    "Lock");
   same("nothing to be allowed until", text().indexOf("allowed until"), -1);
   await show(television({until_s: "not a number"}));
   same("an odd until_s is left out", text().indexOf("allowed until"), -1);
@@ -213,6 +214,21 @@ async function main() {
   same("Not now refuses it", lastChange(),
     sorted({action: "deny", id: "tv1", req_id: "ab12"}));
 
+  process.stdout.write("\na request that cannot be waiting any more is not shown\n");
+  await show(television({pending_request: Object.assign({}, request,
+    {asked_at: NOW - 10 * 60000})}));
+  same("not once its ten minutes are up", asking(), null);
+  await show(television({pending_request: Object.assign({}, request,
+    {asked_at: NOW - 9 * 60000})}));
+  same("but still a minute before", Boolean(asking()), true);
+  await show(television({pending_request: Object.assign({}, request, {asked_at: 0})}));
+  same("not with no time of asking", asking(), null);
+  await show(television({pending_request: Object.assign({}, request,
+    {asked_at: "soon"})}));
+  same("nor with a time that is not one", asking(), null);
+  await show(television({reporting: false, pending_request: request}));
+  same("nor on a set that has stopped reporting", asking(), null);
+
   process.stdout.write("\nrequest answered elsewhere drops the panel\n");
   await show(television());
   same("no amber panel", asking(), null);
@@ -239,8 +255,8 @@ async function main() {
     {mon: ["16:00", "16:30"], tue: ["16:00", "16:30", "17:00"]});
   await show(television({locked: true, lock_reason: "outside_window", until_s: null,
     playing: null, hours: evenings}));
-  same("Unlock first, then more time and no limit", actions(),
-    "Unlock,+15 min,No limit today");
+  same("outside the hours only Unlock, which sets the evening's hours aside", actions(),
+    "Unlock");
   same("says it is locked", text().indexOf("Locked") >= 0, true);
   same("and why", text().indexOf("Outside the allowed hours") >= 0, true);
   same("and when viewing is allowed again", text()
@@ -274,6 +290,37 @@ async function main() {
   same("a parent's own lock", text().indexOf("Locked by a parent") >= 0, true);
   await show(television({locked: true, lock_reason: "something_new", until_s: null}));
   same("a reason nobody knows is just locked", plain(status().textContent), "Locked");
+  same("and offers the one thing the set does with any lock", actions(), "Unlock");
+
+  process.stdout.write("\neach lock offers only what lifts it\n");
+  await show(television({locked: true, lock_reason: "daily_limit", until_s: null,
+    remaining_today: 0}));
+  same("the day's time: unlock, minutes, or no limit today", actions(),
+    "Unlock,+15 min,+30 min,No limit today");
+  await tap("+15 min");
+  same("+15 min is fifteen minutes", lastChange(),
+    sorted({action: "add_time", id: "tv1", minutes: 15}));
+  await tap("No limit today");
+  same("No limit today is for today", lastChange(),
+    sorted({action: "skip_limit_today", id: "tv1"}));
+  await show(television({locked: true, lock_reason: "manual", until_s: null}));
+  same("a parent's lock: unlock, or minutes it stands down for", actions(),
+    "Unlock,+15 min,+30 min");
+  await tap("+30 min");
+  same("+30 min is half an hour", lastChange(),
+    sorted({action: "add_time", id: "tv1", minutes: 30}));
+  await show(television({locked: true, lock_reason: "sleep_timer", until_s: null}));
+  same("a bedtime: unlock, or minutes that move it on", actions(),
+    "Unlock,+15 min,+30 min");
+  await show(television({locked: true, lock_reason: "app_limit", until_s: null}));
+  same("an app's own budget: nothing here lifts it", actions(), "");
+  same("so no row of dead buttons", all(screen, "actions").some(shown), false);
+  same("but the reason", text().indexOf("This app's time is used up") >= 0, true);
+  same("and what can still be watched", text()
+    .indexOf("Other apps can still be watched") >= 0, true);
+  await show(television({locked: true, lock_reason: "app_not_allowed", until_s: null}));
+  same("an app not allowed: nothing either", actions(), "");
+  same("with the reason", text().indexOf("This app is not allowed") >= 0, true);
 
   process.stdout.write("\nnot reachable disables the immediate actions\n");
   await show(television({reporting: false, playing: null,

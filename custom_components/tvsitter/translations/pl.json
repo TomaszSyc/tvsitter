@@ -183,13 +183,17 @@
     },
     "add_time": {
       "name": "Dodaj czas",
-      "description": "Dodaje czas bez prośby i zdejmuje blokadę założoną ręcznie.",
+      "description": "Dodaje czas bez prośby. Blokada założona ręcznie ustępuje na ten czas i wraca; wyłącznik czasowy, który już minął, przesuwa się o tyle samo.",
       "fields": {
         "minutes": {
           "name": "Minuty",
           "description": "Ile czasu dodać do dzisiejszego budżetu."
         }
       }
+    },
+    "skip_limit_today": {
+      "name": "Bez limitu dziś",
+      "description": "Zawiesza dzisiejszy limit do resetu o 4:00. Godziny, limity aplikacji i blokada założona ręcznie zostają."
     },
     "deny_time": {
       "name": "Odmów",

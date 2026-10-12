@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import re
 
+from panel.api import NEEDS_UPDATE
 from panel.server import NO_TOKEN, NOT_A_REQUEST, REFUSED, SILENT, UNKEPT, UNMADE
 from panel.shell import SCRIPTS, STATIC, render_shell
 from panel.words import LANGUAGES, POLISH, words
@@ -39,6 +40,7 @@ SERVER = [
     UNMADE,
     "That television is not here any more.",
     "This needs an action.",
+    NEEDS_UPDATE,
 ]
 
 

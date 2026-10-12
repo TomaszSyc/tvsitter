@@ -19,6 +19,7 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_platform
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.util import dt as dt_util
 
 from . import TvSitterConfigEntry
 from .const import (
@@ -27,9 +28,11 @@ from .const import (
     ATTR_MINUTES,
     ATTR_REQUEST_ID,
     KIND_MORE_TIME,
+    REQUEST_EXPIRY_SECONDS,
     SERVICE_ADD_TIME,
     SERVICE_DENY_TIME,
     SERVICE_GRANT_TIME,
+    SERVICE_SKIP_LIMIT_TODAY,
 )
 from .coordinator import TvSitterClient
 from .entity import TvSitterEntity
@@ -77,6 +80,9 @@ async def async_setup_entry(
         },
         "async_add_time",
     )
+    platform.async_register_entity_service(
+        SERVICE_SKIP_LIMIT_TODAY, {}, "async_skip_limit_today"
+    )
 
 
 class TimeRequestEvent(TvSitterEntity, EventEntity):
@@ -120,10 +126,17 @@ class TimeRequestEvent(TvSitterEntity, EventEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, object] | None:
-        """Expose what the television is waiting on, or None when nothing is."""
+        """Expose what the television is waiting on, or None when nothing is.
+
+        The retained state is the television's last word, and a set switched off within
+        the ten minutes a request lasts never gets to say the request has gone: read as
+        it stands, a question asked at seven would wait all evening. So it waits only
+        while the set is reporting and the ten minutes are not up, and one with no
+        believable time of asking is not a question anybody can still answer.
+        """
         snapshot = self._client.snapshot
         pending = None if snapshot is None else snapshot.request_pending
-        if pending is None:
+        if pending is None or not self._still_waiting(pending.asked_at):
             return {"pending": None}
         return {
             "pending": {
@@ -133,6 +146,16 @@ class TimeRequestEvent(TvSitterEntity, EventEntity):
                 "app_name": pending.app_name,
             }
         }
+
+    def _still_waiting(self, asked_at: int) -> bool:
+        """Say whether a request asked at this moment can still be waiting."""
+        client = self._client
+        if not client.available or client.reporting_stopped:
+            return False
+        if asked_at <= 0:
+            return False
+        age = dt_util.utcnow().timestamp() - asked_at / 1000
+        return age < REQUEST_EXPIRY_SECONDS
 
     def _details(self, request: TimeRequest) -> dict[str, object]:
         """Describe the request, naming the app when we can be sure which it is."""
@@ -160,12 +183,29 @@ class TimeRequestEvent(TvSitterEntity, EventEntity):
         )
 
     async def async_add_time(self, minutes: int) -> None:
-        """Give time nobody asked for, which also lifts a lock set by hand.
+        """Give time nobody asked for, and exactly that much of it.
 
-        The television treats `unlock` as bonus minutes plus the end of a manual lock,
-        so a parent can answer "let him watch" without there being a request to answer.
+        The television treats `unlock` with minutes as a grant: bonus minutes, a lock
+        set by hand standing down for as long and coming back, a bedtime that has come
+        moving on by as long. A parent can answer "let him watch" without there being a
+        request to answer, and without handing over the evening.
         """
         await self._client.async_send({"op": "unlock", "minutes": minutes})
+
+    async def async_skip_limit_today(self) -> None:
+        """Set today's limit aside until the reset, leaving every other rule in force.
+
+        A command rather than a rule change, unlike the clear-limit button: it is about
+        today, and the television forgets it at four in the morning without anybody
+        having to put the limit back. So it is refused for a set that is not listening
+        rather than held, like the sleep timer: a "no limit today" delivered tomorrow
+        would be about the wrong day.
+        """
+        if not self._client.available:
+            raise ServiceValidationError(
+                f"{self._client.name} is not listening; the limit stays in force"
+            )
+        await self._client.async_send({"op": "skip_limit"})
 
     async def async_deny_time(self, req_id: str | None = None) -> None:
         """Refuse, which the TV shows rather than leaving the child waiting."""

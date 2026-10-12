@@ -183,13 +183,17 @@
     },
     "add_time": {
       "name": "Add time",
-      "description": "Adds time without a request, and lifts a lock set by hand.",
+      "description": "Adds time without a request. A lock set by hand stands down for that long and comes back; a sleep timer that has run out moves on by that long.",
       "fields": {
         "minutes": {
           "name": "Minutes",
           "description": "How much time to add to today's budget."
         }
       }
+    },
+    "skip_limit_today": {
+      "name": "No limit today",
+      "description": "Sets today's limit aside until the reset at 04:00. The hours, app limits and a lock set by hand stay in force."
     },
     "deny_time": {
       "name": "Deny time",

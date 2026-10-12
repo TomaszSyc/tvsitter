@@ -15,7 +15,7 @@ import traceback
 from typing import Any
 
 from panel.api import apply, snapshot
-from panel.home_assistant import WEEK, Television
+from panel.home_assistant import WEEK, Refused, Television
 import pytest
 
 DEVICE = "b0fc4e4987a5b78b71faf37e6a219e9b"
@@ -1059,6 +1059,72 @@ async def test_adding_time_calls_add_time() -> None:
     assert home.calls == [
         ("tvsitter", "add_time", {"entity_id": "x.time_request", "minutes": 15})
     ]
+
+
+async def test_no_limit_today_calls_skip_limit_today() -> None:
+    """A command about today, aimed where add_time is, not at the clear-limit button."""
+    home = Recorder()
+
+    await apply(home, [with_request()], {"id": DEVICE, "action": "skip_limit_today"})
+
+    assert home.calls == [
+        ("tvsitter", "skip_limit_today", {"entity_id": "x.time_request"})
+    ]
+
+
+class Older(Recorder):
+    """A Home Assistant whose integration predates the panel's newest actions."""
+
+    def __init__(self, why: str | None) -> None:
+        """Refuse every call with this sentence, or with none, as a 400 does."""
+        super().__init__()
+        self.why = why
+
+    async def call(self, domain: str, service: str, data: dict[str, Any]) -> None:
+        """Refuse, the way Home Assistant refuses an action it has not got."""
+        raise Refused(f"{domain}.{service} was refused", self.why)
+
+
+@pytest.mark.parametrize(
+    "request_",
+    [
+        {"id": DEVICE, "action": "skip_limit_today"},
+        {"id": DEVICE, "action": "add_time", "minutes": 15},
+    ],
+    ids=["skip_limit_today", "add_time"],
+)
+@pytest.mark.parametrize("why", [None, "Action tvsitter.skip_limit_today not found."])
+async def test_an_integration_without_the_action_is_said_to_need_updating(
+    request_: dict[str, Any], why: str | None
+) -> None:
+    """A bare refusal of these is a version mismatch, and the page should say which."""
+    with pytest.raises(ValueError, match="update it"):
+        await apply(Older(why), [with_request()], request_)
+
+
+async def test_a_refusal_with_a_reason_of_its_own_keeps_it() -> None:
+    """Home Assistant's sentence about a set that is not listening is the better one."""
+    with pytest.raises(Refused, match="not listening"):
+        await apply(
+            Older("TV Lounge is not listening; the limit stays in force"),
+            [with_request()],
+            {"id": DEVICE, "action": "skip_limit_today"},
+        )
+
+
+def test_the_sleep_timer_deadline_reaches_the_page() -> None:
+    """When the set turns itself off, in epoch millis, or null for none or nonsense."""
+    one = television(sleep_timer="unknown")
+    for said, read in [
+        (1787430600000, 1787430600000),
+        (None, None),
+        (0, None),
+        ("21:30", None),
+        (True, None),
+    ]:
+        one.states["x.sleep_timer"]["attributes"] = {"sleep_at": said}
+        assert only(one)["sleep_at"] == read, said
+    assert only(television())["sleep_at"] is None
 
 
 async def test_only_fifteen_or_thirty_minutes_can_be_added() -> None:

@@ -63,6 +63,13 @@ def _pending_request(raw: object) -> PendingRequest | None:
         return None
 
 
+def _deadline(raw: Any) -> int | None:
+    """Read an epoch-millisecond deadline, treating anything unbelievable as none."""
+    if isinstance(raw, bool) or not isinstance(raw, int | float) or raw <= 0:
+        return None
+    return int(raw)
+
+
 @dataclass(frozen=True, slots=True)
 class StateSnapshot:
     """One `<prefix>/state` payload.
@@ -105,6 +112,8 @@ class StateSnapshot:
     pin_changed_at: int | None = None
     pin_changed_by: str | None = None
     request_pending: PendingRequest | None = None
+    # When tonight's sleep timer covers the screen, epoch millis; None for none armed.
+    sleep_at: int | None = None
 
     @classmethod
     def from_payload(cls, payload: str) -> StateSnapshot:
@@ -142,6 +151,7 @@ class StateSnapshot:
             pin_changed_at=data.get("pin_changed_at"),
             pin_changed_by=data.get("pin_changed_by"),
             request_pending=_pending_request(data.get("request_pending")),
+            sleep_at=_deadline(data.get("sleep_at")),
         )
 
 

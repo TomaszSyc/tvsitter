@@ -182,31 +182,129 @@ async def test_granting_answers_the_request_by_id(hass: HomeAssistant) -> None:
     assert publish.call_args.kwargs["qos"] == 1
 
 
-async def test_the_waiting_request_is_an_attribute(hass: HomeAssistant) -> None:
-    """A panel reads what waits from the entity, not from a push it may have missed."""
-    client = make_client(hass)
-    entity = TimeRequestEvent(client)
+# A moment to ask at, and the clock held a little after it.
+ASKED_AT = 1787400000000
 
-    client.snapshot = snapshot(
+
+def waiting(asked_at: object = ASKED_AT) -> StateSnapshot:
+    """Build a state saying a request is waiting, asked at the moment given."""
+    return snapshot(
         request_pending={
             "id": "ab12",
             "asked_minutes": 15,
-            "asked_at": 1787400000000,
+            "asked_at": asked_at,
             "app_name": "Netflix",
         }
     )
-    pending = entity.extra_state_attributes["pending"]
+
+
+def minutes_after_asking(minutes: float) -> Any:
+    """Hold Home Assistant's clock this long after ASKED_AT."""
+    moment = dt_util.utc_from_timestamp(ASKED_AT / 1000 + minutes * 60)
+    return patch("custom_components.tvsitter.event.dt_util.utcnow", return_value=moment)
+
+
+def reporting(hass: HomeAssistant) -> TvSitterClient:
+    """Build a client for a television that is on and saying so."""
+    client = make_client(hass)
+    client.available = True
+    return client
+
+
+async def test_the_waiting_request_is_an_attribute(hass: HomeAssistant) -> None:
+    """A panel reads what waits from the entity, not from a push it may have missed."""
+    client = reporting(hass)
+    entity = TimeRequestEvent(client)
+
+    client.snapshot = waiting()
+    with minutes_after_asking(2):
+        pending = entity.extra_state_attributes["pending"]
     assert pending["id"] == "ab12"
     assert pending["asked_minutes"] == 15
-    assert pending["asked_at"] == 1787400000000
+    assert pending["asked_at"] == ASKED_AT
     assert pending["app_name"] == "Netflix"
 
     client.snapshot = snapshot()
-    assert entity.extra_state_attributes["pending"] is None
+    with minutes_after_asking(2):
+        assert entity.extra_state_attributes["pending"] is None
+
+
+async def test_a_request_on_a_set_switched_off_is_not_waiting(
+    hass: HomeAssistant,
+) -> None:
+    """The retained state still says so; a set that is off cannot say otherwise."""
+    client = reporting(hass)
+    entity = TimeRequestEvent(client)
+    client.snapshot = waiting()
+
+    client.available = False
+    with minutes_after_asking(2):
+        assert entity.extra_state_attributes["pending"] is None
+
+    client.available = True
+    client.reporting_stopped = True
+    with minutes_after_asking(2):
+        assert entity.extra_state_attributes["pending"] is None, "gone quiet"
+
+
+async def test_a_request_older_than_ten_minutes_is_not_waiting(
+    hass: HomeAssistant,
+) -> None:
+    """The television gives up after ten minutes, and so does what reads it."""
+    client = reporting(hass)
+    entity = TimeRequestEvent(client)
+    client.snapshot = waiting()
+
+    with minutes_after_asking(9.9):
+        assert entity.extra_state_attributes["pending"] is not None
+    with minutes_after_asking(10):
+        assert entity.extra_state_attributes["pending"] is None
+
+
+@pytest.mark.parametrize("asked_at", [0, -1, None])
+async def test_a_request_with_no_time_of_asking_is_not_waiting(
+    hass: HomeAssistant, asked_at: object
+) -> None:
+    """Without a believable moment it cannot be known whether it is still waiting."""
+    client = reporting(hass)
+    entity = TimeRequestEvent(client)
+    client.snapshot = waiting(asked_at)
+
+    with minutes_after_asking(1):
+        assert entity.extra_state_attributes["pending"] is None
+
+
+async def test_no_limit_today_sends_skip_limit(hass: HomeAssistant) -> None:
+    """A command about today, not a rule: nothing for the set to keep after 04:00."""
+    entity = TimeRequestEvent(reporting(hass))
+
+    with patch("homeassistant.components.mqtt.async_publish") as publish:
+        await entity.async_skip_limit_today()
+
+    _hass, topic, payload = publish.call_args.args
+    assert topic == f"{PREFIX}/cmd"
+    assert json.loads(payload) == {"op": "skip_limit"}
+    assert publish.call_args.kwargs["retain"] is False
+    assert publish.call_args.kwargs["qos"] == 1
+
+
+async def test_no_limit_today_is_refused_for_a_set_that_is_not_listening(
+    hass: HomeAssistant,
+) -> None:
+    """Held until tomorrow it would be about the wrong day, so it is said instead."""
+    entity = TimeRequestEvent(make_client(hass))
+
+    with (
+        patch("homeassistant.components.mqtt.async_publish") as publish,
+        pytest.raises(ServiceValidationError),
+    ):
+        await entity.async_skip_limit_today()
+
+    publish.assert_not_called()
 
 
 async def test_adding_time_unlocks_with_minutes(hass: HomeAssistant) -> None:
-    """No request id: this is time given unasked, and it also lifts a manual lock."""
+    """No request id: this is time given unasked, which the set treats as a grant."""
     client = make_client(hass)
     entity = TimeRequestEvent(client)
 

@@ -248,6 +248,30 @@ async def test_the_sleep_timer_reads_back_nothing(hass: HomeAssistant) -> None:
     assert SleepTimerNumber(make_client(hass)).native_value is None
 
 
+async def test_the_sleep_timer_says_when_it_turns_the_set_off(
+    hass: HomeAssistant,
+) -> None:
+    """The deadline the television publishes, as it published it, for a panel."""
+    client = make_client(hass)
+    timer = SleepTimerNumber(client)
+    assert timer.extra_state_attributes == {"sleep_at": None}, "nothing heard yet"
+
+    base = {"schema": 1, "ts": 1, "fw": "0.11.34", "screen_on": True, "locked": False}
+    client.snapshot = StateSnapshot.from_payload(
+        json.dumps({**base, "sleep_at": 1787430600000})
+    )
+    assert timer.extra_state_attributes == {"sleep_at": 1787430600000}
+
+    client.snapshot = StateSnapshot.from_payload(json.dumps(base))
+    assert timer.extra_state_attributes == {"sleep_at": None}, "none armed"
+
+    for odd in (0, -5, "21:30", True):
+        client.snapshot = StateSnapshot.from_payload(
+            json.dumps({**base, "sleep_at": odd})
+        )
+        assert timer.extra_state_attributes == {"sleep_at": None}, odd
+
+
 async def test_the_settings_switch_reads_the_television(hass: HomeAssistant) -> None:
     """#107. What the TV says it is enforcing, not what was last sent from here."""
     on = with_rules(make_client(hass), {"block_settings": True})
