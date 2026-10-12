@@ -54,6 +54,16 @@ class ContractCodecTest {
     }
 
     @Test
+    fun `a sleep timer travels as its deadline, and none as no field`() {
+        val none = (Json.parseToJsonElement(ContractCodec.encode(snapshot)) as JsonObject).keys
+        assertFalse("sleep_at" in none)
+
+        val armed = ContractCodec.encode(snapshot.copy(sleepAt = 1_787_430_600_000))
+        assertTrue(armed.contains("\"sleep_at\":1787430600000"), armed)
+        assertEquals(1_787_430_600_000, ContractCodec.decodeState(armed).sleepAt)
+    }
+
+    @Test
     fun `no waiting request is no field`() {
         val keys = (Json.parseToJsonElement(ContractCodec.encode(snapshot)) as JsonObject).keys
         assertFalse("request_pending" in keys)
@@ -143,6 +153,7 @@ class ContractCodecTest {
             Command.SetPin(null),
             Command.StopApp("com.google.android.youtube.tv"),
             Command.Ping,
+            Command.SkipLimit,
         )
 
         commands.forEach { command ->
@@ -188,6 +199,18 @@ class ContractCodecTest {
         assertThrows<SerializationException> {
             ContractCodec.decodeCommand("""{"op":"set_pin"}""")
         }
+    }
+
+    @Test
+    fun `setting the limit aside for today is its own op, carrying nothing`() {
+        // Home Assistant writes this by hand, so the spelling is the contract.
+        assertEquals("""{"op":"skip_limit"}""", ContractCodec.encode(Command.SkipLimit))
+        assertEquals(Command.SkipLimit, ContractCodec.decodeCommand("""{"op":"skip_limit"}"""))
+        // Anything else said with it is ignored like any unknown key, not a reason to refuse.
+        assertEquals(
+            Command.SkipLimit,
+            ContractCodec.decodeCommand("""{"op":"skip_limit","minutes":15}"""),
+        )
     }
 
     @Test

@@ -141,18 +141,29 @@ class ScreenTimeTracker(
     }
 
     /**
-     * Sets the limit aside for the rest of this budget day.
+     * Sets the limit aside for the rest of this budget day, or puts it back.
      *
-     * What `unlock` with no minutes means: not "some more time" but "not tonight". It clears
-     * itself at the next reset, because it lives in the day's state.
+     * What `unlock` with no minutes means: not "some more time" but "not tonight", and the hours
+     * go with it. [keepHours] is `skip_limit`, a parent deciding today has no limit while the
+     * hours still close when they close. Both clear themselves at the next reset, because they
+     * live in the day's state; putting the limit back clears both.
      */
-    fun setLimitAside(aside: Boolean) {
-        if (state.limitSuspended == aside) return
-        state = state.copy(limitSuspended = aside)
+    fun setLimitAside(aside: Boolean, keepHours: Boolean = false) {
+        val next = when {
+            !aside -> state.copy(limitSuspended = false, limitWaived = false)
+            keepHours -> state.copy(limitWaived = true)
+            else -> state.copy(limitSuspended = true)
+        }
+        if (next == state) return
+        state = next
         val until = state.day.plusDays(1)
         Log.i(
             EnforcerService.TAG,
-            if (aside) "counter: limit set aside until $until" else "counter: limit back in force",
+            when {
+                !aside -> "counter: limit back in force"
+                keepHours -> "counter: no limit until $until, the hours still apply"
+                else -> "counter: limit set aside until $until"
+            },
         )
         persistNow()
         announceVerdict()

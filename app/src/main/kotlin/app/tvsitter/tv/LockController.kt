@@ -245,10 +245,18 @@ class LockController(
         act(LockTransitions.lockManually(state), reason)
     }
 
-    /** A parent granted time, so a lock they put up stands down and comes back on its own. */
+    /**
+     * A parent granted time: a lock they put up stands down and comes back on its own, and a
+     * bedtime that has come moves on by the same amount. A bedtime still ahead is not touched.
+     */
     fun standDownFor(seconds: Long) {
         Log.i(EnforcerService.TAG, "lock: standing down for ${seconds}s of granted time")
-        act(LockTransitions.standDownFor(state, seconds, now()))
+        val grant = LockTransitions.grantTime(state, seconds, sleepAtMs, now())
+        if (grant.sleepAtMs != sleepAtMs) {
+            Log.i(EnforcerService.TAG, "sleep timer: moved on by ${seconds}s of granted time")
+            sleepAtMs = grant.sleepAtMs
+        }
+        act(grant.lock)
     }
 
     /**

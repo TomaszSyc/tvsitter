@@ -71,6 +71,20 @@ class EnforcementTest {
     }
 
     @Test
+    fun `no limit today ends with today`() {
+        val waived = today.copy(limitWaived = true, usedMillis = 3_600_000, lastSampleAtMs = 1_787_421_600_000)
+        val clock = BudgetClock(ZoneId.of("Europe/Warsaw"))
+        val counter = ScreenTimeCounter(clock, maxIntervalMillis = Long.MAX_VALUE)
+
+        val sameEvening = counter.sample(waived, 1_787_421_600_000 + 60_000, watching = true)
+        assertEquals(true, sameEvening.state.limitWaived)
+
+        val next = counter.sample(waived, 1_787_421_600_000 + 2 * 86_400_000, watching = false)
+        assertEquals(false, next.state.limitWaived)
+        assertEquals(600L, counter.effectiveLimitSeconds(next.state, 600))
+    }
+
+    @Test
     fun `a bonus buys time against the same limit`() {
         val state = today.copy(usedMillis = 3_600_000, bonusMillis = 900_000)
 

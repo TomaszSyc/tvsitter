@@ -10,6 +10,8 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.time.LocalDate
+import java.time.ZoneId
 
 class LockStateTest {
 
@@ -183,6 +185,65 @@ class LockStateTest {
 
         assertFalse(change.effects!!.standDownLimit)
         assertFalse(change.effects.covered)
+    }
+
+    @Test
+    fun `lifting a bedtime the sleep timer brought does not hand over the day's budget either`() {
+        // The timer's lock arrives as a spent verdict, the same shape a spent budget has. Only
+        // the deadline is answered by lifting it; the limit and the hours stay.
+        val bedtime = LockTransitions.applyDecision(
+            nothing,
+            verdict(BudgetVerdict.SPENT, 0, reason = LockReason.SLEEP_TIMER),
+            now,
+        ).state
+
+        val change = LockTransitions.unlockUntilReset(bedtime, now)
+
+        assertFalse(change.effects!!.standDownLimit)
+    }
+
+    @Test
+    fun `fifteen minutes on a parent's lock stand it down and it comes back`() {
+        val locked = LockTransitions.lockManually(nothing).state
+
+        val grant = LockTransitions.grantTime(locked, seconds = 900, sleepAtMs = 0, nowMs = now)
+
+        assertFalse(grant.lock.effects!!.covered)
+        assertTrue(grant.lock.state.manual, "standing down, not ended")
+        assertTrue(grant.lock.state.covered(now + 15 * minute), "back when the quarter hour is up")
+        assertEquals(0, grant.sleepAtMs, "no bedtime was armed, and none is invented")
+    }
+
+    @Test
+    fun `fifteen minutes while watching leave a bedtime still to come where it is`() {
+        // The old unlock cancelled the timer outright, so "+15" gave away the whole night.
+        val bedtime = now + 40 * minute
+
+        val grant = LockTransitions.grantTime(nothing, seconds = 900, sleepAtMs = bedtime, nowMs = now)
+
+        assertEquals(bedtime, grant.sleepAtMs)
+        assertNull(grant.lock.effects, "nobody locked it, so the lock has nothing to do")
+    }
+
+    @Test
+    fun `fifteen minutes past bedtime move bedtime fifteen minutes on`() {
+        val asleep = LockTransitions.applyDecision(
+            nothing,
+            verdict(BudgetVerdict.SPENT, 0, reason = LockReason.SLEEP_TIMER),
+            now,
+        ).state
+
+        val grant = LockTransitions.grantTime(asleep, seconds = 900, sleepAtMs = now - minute, nowMs = now)
+
+        assertEquals(now + 15 * minute, grant.sleepAtMs)
+        // And the engine, handed the moved deadline, lets the screen off and brings it back.
+        val engine = RuleEngine(BudgetClock(ZoneId.of("Europe/Warsaw")))
+        val day = BudgetState(day = LocalDate.of(2026, 8, 22))
+        val during = engine.judge(Rules.NONE, day, null, now + minute, sleepAtMs = grant.sleepAtMs)
+        val after = engine.judge(Rules.NONE, day, null, now + 15 * minute, sleepAtMs = grant.sleepAtMs)
+        assertFalse(during.state == BudgetVerdict.SPENT, "lifted for the quarter hour")
+        assertEquals(BudgetVerdict.SPENT, after.state)
+        assertEquals(LockReason.SLEEP_TIMER, after.reason)
     }
 
     @Test

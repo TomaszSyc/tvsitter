@@ -120,6 +120,7 @@ class Settings(private val context: Context) {
             perAppMillis = decodePerApp(prefs[KEY_BUDGET_PER_APP]),
             lastSampleAtMs = prefs[KEY_BUDGET_LAST_SAMPLE_MS],
             limitSuspended = prefs[KEY_BUDGET_LIMIT_SUSPENDED] ?: false,
+            limitWaived = prefs[KEY_BUDGET_LIMIT_WAIVED] ?: false,
         )
     }
 
@@ -131,6 +132,7 @@ class Settings(private val context: Context) {
             prefs[KEY_BUDGET_PER_APP] = Json.encodeToString(state.perAppMillis)
             state.lastSampleAtMs?.let { prefs[KEY_BUDGET_LAST_SAMPLE_MS] = it }
             prefs[KEY_BUDGET_LIMIT_SUSPENDED] = state.limitSuspended
+            prefs[KEY_BUDGET_LIMIT_WAIVED] = state.limitWaived
         }
     }
 
@@ -219,6 +221,7 @@ class Settings(private val context: Context) {
         val KEY_BUDGET_PER_APP = stringPreferencesKey("budget_per_app")
         val KEY_BUDGET_LAST_SAMPLE_MS = longPreferencesKey("budget_last_sample_ms")
         val KEY_BUDGET_LIMIT_SUSPENDED = booleanPreferencesKey("budget_limit_suspended")
+        val KEY_BUDGET_LIMIT_WAIVED = booleanPreferencesKey("budget_limit_waived")
 
         val KEY_REQUESTS = stringPreferencesKey("request_history")
 

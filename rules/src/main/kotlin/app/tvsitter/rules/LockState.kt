@@ -76,6 +76,19 @@ data class LockEffects(
 data class LockChange(val state: LockState, val effects: LockEffects?)
 
 /**
+ * What granting time comes to: the lock's half, and where tonight's deadline now stands.
+ *
+ * The budget half is not here because it is the same every time — the seconds go on the day as
+ * a bonus — and the caller adds them after acting on [lock], for the reason given at
+ * [LockTransitions.standDownFor].
+ */
+data class TimeGrant(
+    val lock: LockChange,
+    /** Tonight's deadline after the grant, epoch millis, zero for none. Unchanged unless it was due. */
+    val sleepAtMs: Long,
+)
+
+/**
  * Every way the lock can change, as pure functions.
  *
  * Each returns the new state and what to do about it. Nothing here reads a clock, opens a
@@ -171,9 +184,14 @@ object LockTransitions {
      */
     fun unlockUntilReset(state: LockState, nowMs: Long): LockChange {
         val unlocked = unlockManually(state, nowMs)
+        // A bedtime that has come covers the screen through the same verdict a spent budget
+        // does, so `budget` alone cannot tell them apart. Lifting it clears the deadline, which
+        // is the whole answer; setting the limit aside as well handed over the rest of the day,
+        // hours included, to somebody who had only said "not bed yet".
+        val bedtime = state.lastDecision?.reason == LockReason.SLEEP_TIMER
         return LockChange(
             unlocked.state,
-            LockEffects(covered = unlocked.state.covered(nowMs), standDownLimit = state.budget),
+            LockEffects(covered = unlocked.state.covered(nowMs), standDownLimit = state.budget && !bedtime),
         )
     }
 
@@ -189,6 +207,24 @@ object LockTransitions {
 
         val next = state.copy(pausedUntilMs = nowMs + seconds * MILLIS_PER_SECOND, lastDecision = null)
         return LockChange(next, LockEffects(covered = next.covered(nowMs)))
+    }
+
+    /**
+     * A parent gave [seconds] of viewing, from a request or unasked: exactly that long, whatever
+     * is holding the screen, and then whatever held it comes back.
+     *
+     * A lock they put up stands down, as [standDownFor]. A bedtime already reached moves to now
+     * plus the grant, so the screen lifts and the bedtime returns when the time is spent — the
+     * bonus alone could never lift it, because the deadline keeps saying zero. A bedtime still
+     * ahead is left exactly where it is: fifteen more minutes this evening is not a later
+     * bedtime, and cancelling it, which an unlock used to do, gave the whole night away.
+     */
+    fun grantTime(state: LockState, seconds: Long, sleepAtMs: Long, nowMs: Long): TimeGrant {
+        val due = sleepAtMs in 1..nowMs
+        return TimeGrant(
+            lock = standDownFor(state, seconds, nowMs),
+            sleepAtMs = if (due) nowMs + seconds * MILLIS_PER_SECOND else sleepAtMs,
+        )
     }
 
     /** The granted time is up. The lock comes back if it was a parent's, and not otherwise. */

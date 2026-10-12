@@ -101,7 +101,7 @@ class EnforcerService : Service() {
      * screen said the first when the second was true — which reads as the product having
      * forgotten what it was told.
      */
-    val limitSetAside: Boolean get() = screenTime?.state?.limitSuspended == true
+    val limitSetAside: Boolean get() = screenTime?.state?.let { it.limitSuspended || it.limitWaived } == true
 
     /** Time per package today, for the screen that shows it at the set. */
     val perAppToday: Map<String, Int> get() = screenTime?.perAppSeconds.orEmpty()
@@ -377,9 +377,10 @@ class EnforcerService : Service() {
             // Carrying minutes it is a sleep timer, not a lock: the deadline goes in and the
             // engine counts down to it with the same warnings every other rule gets.
             is Command.Lock -> obeyLock(command)
-            // Minutes buy time against today's budget, and the lock then lifts because
-            // there is time again rather than because it was hidden — hiding it while the
-            // budget is spent would bring it straight back on the next sample.
+            // Minutes are a grant like an answered request, and mean exactly that many: a
+            // parent's lock stands down and comes back, a bedtime that has come moves on, and
+            // the budget gets the bonus. Lifting the lock outright here ended a manual lock
+            // for good and cancelled the sleep timer, so "+15" gave away the evening.
             //
             // No minutes lifts the lock and sets the limit aside only if the limit is what put
             // it there. Setting it aside either way made the lock switch a limit-killer:
@@ -389,9 +390,16 @@ class EnforcerService : Service() {
                 if (minutes == null) {
                     locks?.unlockUntilReset()
                 } else {
+                    // The lock first, then the budget, for the reason onGranted gives.
+                    locks?.standDownFor(minutes * SECONDS_PER_MINUTE)
                     screenTime?.addBonus(minutes * SECONDS_PER_MINUTE)
-                    locks?.unlockManually()
                 }
+                telemetry?.publishSoon()
+            }
+            // Today's limit only: the hours, the app budgets and the lock a parent put up all
+            // stay. Clears itself at the reset, which is what "today" promised.
+            is Command.SkipLimit -> {
+                screenTime?.setLimitAside(true, keepHours = true)
                 telemetry?.publishSoon()
             }
             // Hashed in Home Assistant, so the PIN itself never reaches the broker. No
@@ -524,6 +532,7 @@ class EnforcerService : Service() {
             pinChangedAt = parentPin?.changedAtMs,
             pinChangedBy = parentPin?.changedBy,
             requestPending = requests?.pending?.let { PendingState(it.id, it.askedMinutes, it.askedAtMs, it.appName) },
+            sleepAt = locks?.sleepAtMs?.takeIf { it > 0 },
         )
     }
 

@@ -239,6 +239,30 @@ class RuleEngineTest {
     }
 
     @Test
+    fun `a limit waived for today leaves the hours in force`() {
+        // "No limit today" is a decision about the allowance. The hours closing at half past
+        // seven are a different rule, and nobody lifted them.
+        val rules = Rules(dailyLimitSeconds = 3600, windows = listOf(school))
+        val state = onDay("2026-08-24").copy(usedMillis = 3_600_000, limitWaived = true)
+
+        val evening = engine.judge(rules, state, null, at("2026-08-24T18:00:00"))
+        assertEquals(BudgetVerdict.WITHIN, evening.state)
+        assertEquals(5400L, evening.remainingSeconds, "the window, not the spent allowance, binds")
+
+        val night = engine.judge(rules, state, null, at("2026-08-24T21:00:00"))
+        assertEquals(BudgetVerdict.SPENT, night.state)
+        assertEquals(LockReason.OUTSIDE_WINDOW, night.reason)
+    }
+
+    @Test
+    fun `a limit waived for today is no limit in force`() {
+        val waived = onDay("2026-08-24").copy(usedMillis = 3_600_000, limitWaived = true)
+
+        assertNull(waived.effectiveLimitSeconds(3600))
+        assertNull(waived.remainingSeconds(3600))
+    }
+
+    @Test
     fun `an app budget survives a limit set aside for the evening`() {
         // The suspension answers the lock the day's budget put up. An app's own allowance is a
         // different rule and nobody lifted it.

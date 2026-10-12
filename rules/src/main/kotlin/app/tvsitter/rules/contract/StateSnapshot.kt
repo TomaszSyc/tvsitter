@@ -134,6 +134,17 @@ data class StateSnapshot(
     @OptIn(ExperimentalSerializationApi::class)
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     @SerialName("request_pending") val requestPending: PendingState? = null,
+    /**
+     * When tonight's sleep timer covers the screen, epoch milliseconds, or null for none armed.
+     *
+     * A deadline rather than minutes left, so the reading does not change every minute and a
+     * panel can say "turns off at 21:30" without a countdown. Still set once it has passed, for
+     * as long as the bedtime holds the screen. Left out when null, like [requestPending]: no
+     * timer is the ordinary case.
+     */
+    @OptIn(ExperimentalSerializationApi::class)
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    @SerialName("sleep_at") val sleepAt: Long? = null,
 )
 
 /** A question put to a parent and not yet answered, as [StateSnapshot.requestPending]. */

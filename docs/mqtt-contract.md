@@ -58,7 +58,8 @@ Three rules the correctness of the whole thing rests on:
   "pin_set": true,
   "pin_changed_at": 1787400000000,
   "pin_changed_by": "tv",
-  "request_pending": { "id": "8f14e45f", "asked_minutes": 15, "asked_at": 1787315400000, "app_name": "Netflix" }
+  "request_pending": { "id": "8f14e45f", "asked_minutes": 15, "asked_at": 1787315400000, "app_name": "Netflix" },
+  "sleep_at": 1787319000000
 }
 ```
 
@@ -125,7 +126,14 @@ Three rules the correctness of the whole thing rests on:
   milliseconds) and `app_name` (omitted when unknown). It is here as well as on `<p>/request`
   because that topic is not retained, so a panel opened after the moment passed would find
   nothing to answer. The field disappears when the request is answered or has gone unanswered
-  for its full lifetime, and `state` is republished at each of those moments.
+  for its full lifetime, and `state` is republished at each of those moments. A set switched
+  off inside those ten minutes cannot republish, so its retained `state` keeps the field: a
+  consumer treats a request as waiting only while the television is reporting and less than
+  ten minutes after `asked_at`, and one with `asked_at` missing or not positive as nothing.
+- `sleep_at` — optional, absent when no sleep timer is armed. The deadline tonight's timer
+  covers the screen at, in epoch milliseconds, so a panel can say when the set turns off. It
+  stays while a bedtime that has come holds the screen, and goes when the timer is cancelled or
+  the lock is lifted.
 
 ## `<p>/request`
 
@@ -243,6 +251,7 @@ worse hole than the one it reports.
 { "op": "lock",      "reason": "bedtime" }
 { "op": "lock",      "in_minutes": 30 }
 { "op": "unlock",    "minutes": 30 }
+{ "op": "skip_limit" }
 { "op": "grant",     "req_id": "8f14e45f", "minutes": 15 }
 { "op": "deny",      "req_id": "8f14e45f" }
 { "op": "set_rules", "rev": 8, "rules": { } }
@@ -261,13 +270,30 @@ evening's decision: it is not stored with the rules and does not survive the nig
 
 Lifting the lock clears it. A deadline already past keeps saying zero, so a lock lifted without
 clearing would come straight back on the next sample — and whoever lifted it has answered the
-bedtime too.
+bedtime too. Time given with `unlock` and `minutes` is not lifting the lock: it moves a bedtime
+that has come, and leaves one still to come alone (below).
 
 `unlock` without `minutes` lifts the lock. If the daily limit is what put the lock there,
 the limit is set aside until the next reset — anything less would be undone by the next
-sample, ten seconds later. If the lock was one a parent asked for, the limit stays in force:
-taking down a bedtime lock is not a decision to hand over the rest of the day's budget. A
-correct parent PIN at the television means exactly the same thing.
+sample, ten seconds later. If the lock was one a parent asked for, or the sleep timer's, the
+limit stays in force: taking down a bedtime lock is not a decision to hand over the rest of the
+day's budget. A correct parent PIN at the television means exactly the same thing.
+
+`unlock` with `minutes` is time given unasked, and it is a grant like an answered request:
+exactly that many minutes, whatever holds the screen. The minutes go on today's budget as a
+bonus; a lock a parent put up stands down for them and comes back when they run out; a bedtime
+that has already come moves to now plus the minutes, so the screen comes off and the bedtime
+returns when they are spent. A sleep timer still to come is left where it is. It does not lift
+the hours or an app's own budget — fifteen more minutes is not a different evening.
+
+`skip_limit` sets today's limit aside until the next reset at 04:00 and nothing else: the
+hours, the app budgets and a lock a parent put up all stay in force. It is one day's decision,
+not a rule — nothing is written into the rules, so tomorrow's limit is back without anybody
+restoring it, and `limit_today_s` reads `null` until then. Changing the daily limit or a day's
+limit with `set_rules` brings today's limit back, as it does after `unlock`. A television older
+than this op cannot decode the command: it logs it as undecodable and changes nothing, so
+pressing "No limit today" against one leaves the limit in force rather than doing something
+else.
 
 A `set_rules` whose `rev` is not higher than the current `rules_rev` is ignored, which
 protects against a duplicated message rolling the rules back. A sender therefore takes the

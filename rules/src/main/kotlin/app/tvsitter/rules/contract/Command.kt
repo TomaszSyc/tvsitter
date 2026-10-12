@@ -28,10 +28,23 @@ sealed interface Command {
     @SerialName("lock")
     data class Lock(val reason: String? = null, @SerialName("in_minutes") val inMinutes: Int? = null) : Command
 
-    /** [minutes] null means "until the end of the budget day". */
+    /**
+     * [minutes] null means "until the end of the budget day". With minutes it is time given
+     * unasked, and it means exactly that many minutes: a lock a parent put up stands down for
+     * them and comes back, and a bedtime already reached moves that far ahead.
+     */
     @Serializable
     @SerialName("unlock")
     data class Unlock(val minutes: Int? = null) : Command
+
+    /**
+     * Sets today's limit aside until the next reset, leaving the hours and every other rule in
+     * force. One day's decision rather than a rule: nothing is stored with the rules, so
+     * tomorrow has its limit back without anybody remembering to restore it.
+     */
+    @Serializable
+    @SerialName("skip_limit")
+    data object SkipLimit : Command
 
     @Serializable
     @SerialName("grant")

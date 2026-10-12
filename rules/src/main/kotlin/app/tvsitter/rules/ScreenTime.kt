@@ -38,6 +38,15 @@ data class BudgetState(
      * to put it back.
      */
     val limitSuspended: Boolean = false,
+    /**
+     * Whether only the limit is set aside for the rest of this budget day, the hours staying.
+     *
+     * What `skip_limit` means, and narrower than [limitSuspended] on purpose. That one answers
+     * a lock somebody lifted, where the hours closing ten seconds later would read as a broken
+     * television; this one is a parent deciding at six that today has no limit, who has said
+     * nothing about the hours closing at eight. Cleared at the reset like the other.
+     */
+    val limitWaived: Boolean = false,
 ) {
     val usedSeconds: Long get() = usedMillis / MILLIS_PER_SECOND
     val bonusSeconds: Long get() = bonusMillis / MILLIS_PER_SECOND
@@ -51,7 +60,7 @@ data class BudgetState(
      * counter because it is a fact about the day, and the rule engine needs the same answer
      * without holding a counter to get it.
      */
-    fun effectiveLimitSeconds(limitSeconds: Long?): Long? = if (limitSuspended) null else limitSeconds
+    fun effectiveLimitSeconds(limitSeconds: Long?): Long? = if (limitSuspended || limitWaived) null else limitSeconds
 
     /**
      * The limit this day was held to, from its own weekday.
