@@ -122,6 +122,7 @@
   },
   "services": {
     "grant_time": "mdi:timer-plus",
+    "add_time": "mdi:timer-plus-outline",
     "deny_time": "mdi:timer-remove",
     "set_schedule": "mdi:calendar-week",
     "set_windows": "mdi:calendar-clock",

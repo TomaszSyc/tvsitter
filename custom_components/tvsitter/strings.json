@@ -181,6 +181,16 @@
         }
       }
     },
+    "add_time": {
+      "name": "Add time",
+      "description": "Adds time without a request, and lifts a lock set by hand.",
+      "fields": {
+        "minutes": {
+          "name": "Minutes",
+          "description": "How much time to add to today's budget."
+        }
+      }
+    },
     "deny_time": {
       "name": "Deny time",
       "description": "Refuses, which the TV shows on screen.",

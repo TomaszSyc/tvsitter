@@ -184,3 +184,43 @@ def test_a_television_that_cannot_enumerate_offers_nothing() -> None:
     snapshot = StateSnapshot.from_payload(json.dumps({"schema": 1, "ts": 1}))
 
     assert snapshot.launchable_apps == {}
+
+
+def test_a_waiting_request_is_read() -> None:
+    """The television says what is waiting so a panel can answer without a push."""
+    payload = json.dumps(
+        {
+            "ts": 1,
+            "fw": "x",
+            "request_pending": {
+                "id": "ab12",
+                "asked_minutes": 15,
+                "asked_at": 1787400000000,
+                "app_name": "Netflix",
+            },
+        }
+    )
+    pending = StateSnapshot.from_payload(payload).request_pending
+
+    assert pending is not None
+    assert pending.id == "ab12"
+    assert pending.asked_minutes == 15
+    assert pending.asked_at == 1787400000000
+    assert pending.app_name == "Netflix"
+
+
+@pytest.mark.parametrize(
+    "value", ["x", 3, [], {"asked_minutes": 15}, {"id": "ab12"}, {"id": ""}]
+)
+def test_a_malformed_waiting_request_is_none(value: object) -> None:
+    """A garbled field must not cost the whole state payload."""
+    payload = json.dumps({"ts": 1, "fw": "x", "request_pending": value})
+
+    assert StateSnapshot.from_payload(payload).request_pending is None
+
+
+def test_an_absent_or_null_waiting_request_is_none() -> None:
+    """Absent is the normal case, nothing waiting; null reads the same."""
+    assert StateSnapshot.from_payload('{"ts": 1, "fw": "x"}').request_pending is None
+    null = '{"ts": 1, "fw": "x", "request_pending": null}'
+    assert StateSnapshot.from_payload(null).request_pending is None

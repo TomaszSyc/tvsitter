@@ -25,6 +25,7 @@ from custom_components.tvsitter.const import (
 from custom_components.tvsitter.coordinator import TvSitterClient
 from custom_components.tvsitter.models import StateSnapshot
 from custom_components.tvsitter.sensor import (
+    ActiveAppSensor,
     AppUsageSensor,
     BonusTodaySensor,
     LastReportedSensor,
@@ -720,3 +721,10 @@ async def test_forgetting_tells_the_entities_it_happened(hass: HomeAssistant) ->
 
     assert told, "nothing was told the following had stopped"
     assert client.followed_schedule is None
+
+
+async def test_the_active_app_carries_the_version(hass: HomeAssistant) -> None:
+    """A panel shows which build is on the television without a second entity."""
+    client = make_client(hass, fw="0.11.20")
+
+    assert ActiveAppSensor(client).extra_state_attributes["fw"] == "0.11.20"

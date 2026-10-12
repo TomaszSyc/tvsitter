@@ -27,6 +27,7 @@ from .const import (
     ATTR_MINUTES,
     ATTR_REQUEST_ID,
     KIND_MORE_TIME,
+    SERVICE_ADD_TIME,
     SERVICE_DENY_TIME,
     SERVICE_GRANT_TIME,
 )
@@ -66,6 +67,15 @@ async def async_setup_entry(
         SERVICE_DENY_TIME,
         {vol.Optional(ATTR_REQUEST_ID): cv.string},
         "async_deny_time",
+    )
+    platform.async_register_entity_service(
+        SERVICE_ADD_TIME,
+        {
+            vol.Required(ATTR_MINUTES): vol.All(
+                vol.Coerce(int), vol.Range(min=1, max=MAX_MINUTES)
+            )
+        },
+        "async_add_time",
     )
 
 
@@ -108,6 +118,22 @@ class TimeRequestEvent(TvSitterEntity, EventEntity):
         self._trigger_event(request.kind, self._details(request))
         self.async_write_ha_state()
 
+    @property
+    def extra_state_attributes(self) -> dict[str, object] | None:
+        """Expose what the television is waiting on, or None when nothing is."""
+        snapshot = self._client.snapshot
+        pending = None if snapshot is None else snapshot.request_pending
+        if pending is None:
+            return {"pending": None}
+        return {
+            "pending": {
+                "id": pending.id,
+                "asked_minutes": pending.asked_minutes,
+                "asked_at": pending.asked_at,
+                "app_name": pending.app_name,
+            }
+        }
+
     def _details(self, request: TimeRequest) -> dict[str, object]:
         """Describe the request, naming the app when we can be sure which it is."""
         snapshot = self._client.snapshot
@@ -132,6 +158,14 @@ class TimeRequestEvent(TvSitterEntity, EventEntity):
         await self._client.async_send(
             {"op": "grant", "req_id": self._answering(req_id), "minutes": minutes}
         )
+
+    async def async_add_time(self, minutes: int) -> None:
+        """Give time nobody asked for, which also lifts a lock set by hand.
+
+        The television treats `unlock` as bonus minutes plus the end of a manual lock,
+        so a parent can answer "let him watch" without there being a request to answer.
+        """
+        await self._client.async_send({"op": "unlock", "minutes": minutes})
 
     async def async_deny_time(self, req_id: str | None = None) -> None:
         """Refuse, which the TV shows rather than leaving the child waiting."""

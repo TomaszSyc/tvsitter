@@ -181,6 +181,16 @@
         }
       }
     },
+    "add_time": {
+      "name": "Dodaj czas",
+      "description": "Dodaje czas bez prośby i zdejmuje blokadę założoną ręcznie.",
+      "fields": {
+        "minutes": {
+          "name": "Minuty",
+          "description": "Ile czasu dodać do dzisiejszego budżetu."
+        }
+      }
+    },
     "deny_time": {
       "name": "Odmów",
       "description": "Odmawia, a telewizor pokazuje to na ekranie.",

@@ -182,6 +182,44 @@ async def test_granting_answers_the_request_by_id(hass: HomeAssistant) -> None:
     assert publish.call_args.kwargs["qos"] == 1
 
 
+async def test_the_waiting_request_is_an_attribute(hass: HomeAssistant) -> None:
+    """A panel reads what waits from the entity, not from a push it may have missed."""
+    client = make_client(hass)
+    entity = TimeRequestEvent(client)
+
+    client.snapshot = snapshot(
+        request_pending={
+            "id": "ab12",
+            "asked_minutes": 15,
+            "asked_at": 1787400000000,
+            "app_name": "Netflix",
+        }
+    )
+    pending = entity.extra_state_attributes["pending"]
+    assert pending["id"] == "ab12"
+    assert pending["asked_minutes"] == 15
+    assert pending["asked_at"] == 1787400000000
+    assert pending["app_name"] == "Netflix"
+
+    client.snapshot = snapshot()
+    assert entity.extra_state_attributes["pending"] is None
+
+
+async def test_adding_time_unlocks_with_minutes(hass: HomeAssistant) -> None:
+    """No request id: this is time given unasked, and it also lifts a manual lock."""
+    client = make_client(hass)
+    entity = TimeRequestEvent(client)
+
+    with patch("homeassistant.components.mqtt.async_publish") as publish:
+        await entity.async_add_time(15)
+
+    _hass, topic, payload = publish.call_args.args
+    assert topic == f"{PREFIX}/cmd"
+    assert json.loads(payload) == {"op": "unlock", "minutes": 15}
+    assert publish.call_args.kwargs["retain"] is False
+    assert publish.call_args.kwargs["qos"] == 1
+
+
 async def test_an_explicit_id_wins_over_the_last_one(hass: HomeAssistant) -> None:
     """A blueprint answers the notification it was tagged with, not the newest one."""
     client = make_client(hass)

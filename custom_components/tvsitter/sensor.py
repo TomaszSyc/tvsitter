@@ -244,6 +244,7 @@ class ActiveAppSensor(TvSitterEntity, SensorEntity):
             "active_window": snapshot.active_window,
             "lock_reason": snapshot.lock_reason,
             "until_s": snapshot.until_seconds,
+            "fw": snapshot.firmware,
         }
 
 

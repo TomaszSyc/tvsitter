@@ -26,6 +26,44 @@ class UnsupportedSchemaError(ValueError):
 
 
 @dataclass(frozen=True, slots=True)
+class PendingRequest:
+    """A request the television is still waiting to have answered.
+
+    Carried in the state payload as well as sent on `<prefix>/request`, because the
+    request topic is not retained: a panel opened after the asking would otherwise never
+    learn that anybody is waiting.
+    """
+
+    id: str
+    asked_minutes: int
+    asked_at: int
+    app_name: str | None
+
+
+def _pending_request(raw: object) -> PendingRequest | None:
+    """Read `request_pending`, which is absent when nothing waits.
+
+    Anything that is not a whole request reads as nothing waiting: a garbled field
+    must not cost the rest of the state, and a half-request cannot be answered anyway.
+    """
+    if not isinstance(raw, dict):
+        return None
+    request_id = raw.get("id")
+    asked = raw.get("asked_minutes")
+    if not isinstance(request_id, str) or not request_id or asked is None:
+        return None
+    try:
+        return PendingRequest(
+            id=request_id,
+            asked_minutes=int(asked),
+            asked_at=int(raw.get("asked_at") or 0),
+            app_name=raw.get("app_name"),
+        )
+    except TypeError, ValueError:
+        return None
+
+
+@dataclass(frozen=True, slots=True)
 class StateSnapshot:
     """One `<prefix>/state` payload.
 
@@ -66,6 +104,7 @@ class StateSnapshot:
     pin_set: bool = False
     pin_changed_at: int | None = None
     pin_changed_by: str | None = None
+    request_pending: PendingRequest | None = None
 
     @classmethod
     def from_payload(cls, payload: str) -> StateSnapshot:
@@ -102,6 +141,7 @@ class StateSnapshot:
             pin_set=bool(data.get("pin_set", False)),
             pin_changed_at=data.get("pin_changed_at"),
             pin_changed_by=data.get("pin_changed_by"),
+            request_pending=_pending_request(data.get("request_pending")),
         )
 
 

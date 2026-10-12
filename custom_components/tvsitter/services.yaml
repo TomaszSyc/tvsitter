@@ -20,6 +20,22 @@ grant_time:
       selector:
         text:
 
+# Time given without a request to answer. The television also lifts a lock set by hand.
+add_time:
+  target:
+    entity:
+      integration: tvsitter
+      domain: event
+  fields:
+    minutes:
+      required: true
+      example: 15
+      selector:
+        number:
+          min: 1
+          max: 240
+          unit_of_measurement: min
+
 deny_time:
   target:
     entity:
