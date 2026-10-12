@@ -1442,3 +1442,41 @@ The force-stop that the watchdog cannot see, and anything else that silences the
 on and locked, is for Home Assistant to answer from outside: the set is still reachable through
 its own integration and can be switched off. That belongs in the user's automations rather than
 here, since it depends on which integration their set has.
+
+### D39 — the panel follows the television's look and is served as static files (2026-10-12)
+
+The panel began as a settings form in one Python string: `page.py` held the markup, the styles
+and the script, in the light of the Home Assistant theme, laid out for a desktop. Used mostly on a
+phone, in the companion app, and for three things about equally — reacting in the moment, setting
+rules, looking back — it read as a form rather than as the product on the television, and the
+things a parent does most (a few more minutes, lock now, answer a request) were buried or only
+possible from a notification.
+
+It is now `parent-panel/panel/static/`: an `index.html` shell, `tokens.css` copied one-to-one from
+`TvStyle`, `app.css`, and one script per screen (Now, Rules, Apps, History, Settings) beside the
+shared `api.js`, `sheet.js` and `words.js`. `shell.py` fills the three slots in the shell (language,
+translations, script list) and `server.py` serves `/static/*`.
+
+- **The television's palette, always dark.** The navy backdrop, the mint glow, mint for what is
+  active, amber only for "needs attention". Not themed to Home Assistant: a parent should
+  recognise the product, and a panel that changes colour with the theme is a different product
+  each time it is opened. No cards; a bottom sheet is the one raised surface.
+- **A bottom bar and a gear, not one long page.** Now, Rules, Apps and History are the four things
+  a parent does; Settings, which is touched rarely, sits behind the gear. A thumb reaches the
+  bottom of a phone and not the top of a long scroll.
+- **Static files, no build step.** A file a person can open, lint and read, rather than a script
+  inside a string that nothing could parse until the page was served. Still no bundler, no
+  framework and no dependency: the scripts share one namespace and load in a fixed order.
+  Everything stays behind Ingress and `no-store`, so an update reaches a phone that kept the panel
+  open. A handler, not `add_static`, so that only `.js` and `.css` leave the folder and nothing
+  resolved outside it does at all.
+- **Text through `textContent`, every sentence through `phrase()`.** Unchanged from the old page,
+  and still checked in both directions against `words.py` by `tests/test_panel_words.py`, which
+  now reads the static scripts and the server's own sentences.
+- **Quick actions are 15 and 30 minutes, fixed.** The same two amounts on the Now screen and on
+  answering a request, whatever the child asked for; the asked minutes are shown and change
+  nothing. Fewer decisions at the moment of a request.
+
+What did not change: the panel still talks to Home Assistant and never to the broker (D34), and
+enforcement is still on the television. History and trends (stage 2) and exceptions and modes
+(stage 3) are designed to land on these screens and are not built.

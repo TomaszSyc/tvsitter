@@ -11,7 +11,7 @@
 // and the television saying it back there is a gap, and a poll landing in it used to
 // paint the old hours over the ones just drawn.
 //
-// Run by tests/test_panel_page.py, which hands over the new page's scripts, joined.
+// Run by tests/test_page_drivers.py, which hands over the new page's scripts, joined.
 //
 // TV Sitter — parental control for Android TV / Google TV.
 // Copyright (C) 2026 Tomasz Syc

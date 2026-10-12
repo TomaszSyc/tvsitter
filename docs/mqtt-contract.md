@@ -100,8 +100,9 @@ Three rules the correctness of the whole thing rests on:
   television could not enumerate, which is an allow-list screen with nothing to offer rather than
   a claim that nothing is installed. The exempt packages are still listed here; `exempt_apps` is
   what says not to draw a control for them.
-- `lock_reason` — why the screen is covered, or `null` when it is not. One of `daily_limit`,
-  `app_limit`, `app_not_allowed`, `outside_window`, or `manual` for a lock a parent asked for. A parent's own lock
+- `lock_reason` — why the screen is covered, or `null` when it is not. One of `sleep_timer`
+  (the deadline a parent set for tonight, which wins a tie), `outside_window`, `daily_limit`,
+  `app_limit`, `app_not_allowed`, or `manual` for a lock a parent asked for. A parent's own lock
   outranks whatever the rules were saying at the time: they asked for it, and "the day's
   allowance is gone" would answer a question nobody put.
 - `until_s` — how long viewing may still go on, counting whichever rule binds first, or `null`

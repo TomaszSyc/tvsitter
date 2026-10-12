@@ -8,7 +8,7 @@
 // is four digits before it leaves, never kept in its field, and a removal that asks
 // twice. The setup is read from its own address and not from the five-second poll.
 //
-// Run by tests/test_panel_page.py, which hands over the new page's scripts, joined.
+// Run by tests/test_page_drivers.py, which hands over the new page's scripts, joined.
 //
 // TV Sitter — parental control for Android TV / Google TV.
 // Copyright (C) 2026 Tomasz Syc

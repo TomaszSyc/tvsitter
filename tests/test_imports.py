@@ -52,7 +52,6 @@ PANEL_MODULES = [
     "panel.automations",
     "panel.blueprints",
     "panel.home_assistant",
-    "panel.page",
     "panel.server",
     "panel.shell",
     "panel.statistics",

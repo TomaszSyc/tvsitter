@@ -624,7 +624,7 @@
           {from: one.from, to: one.to}));
         made.addEventListener("click", () => {
           // Where the focus goes back to once the sheet is put away.
-          made.focus();
+          made.focus({preventScroll: true});
           edit(drawn, one);
         });
       }

@@ -6,7 +6,7 @@
 // watched, says so in a sentence and never leaves a blank screen. A poll draws it
 // again every five seconds, so what it draws must not pile up.
 //
-// Run by tests/test_panel_page.py, which hands over the new page's scripts, joined.
+// Run by tests/test_page_drivers.py, which hands over the new page's scripts, joined.
 //
 // TV Sitter — parental control for Android TV / Google TV.
 // Copyright (C) 2026 Tomasz Syc

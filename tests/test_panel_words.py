@@ -7,8 +7,8 @@ Home Assistant, on one screen, for whoever happens to open it.
 
 So the sentences are read back out of the page itself and compared both ways. Every
 sentence the page can say has to be in the catalogue, and every entry in the catalogue
-has to be one the page can say. The page is read from both of the places it lives while
-it moves: the old one-file script and the new static scripts.
+has to be one the page can say. The page is read from its static scripts, each on
+its own.
 
 TV Sitter — parental control for Android TV / Google TV.
 Copyright (C) 2026 Tomasz Syc
@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import re
 
-from panel.page import _SCRIPT
 from panel.server import NO_TOKEN, NOT_A_REQUEST, REFUSED, SILENT, UNKEPT, UNMADE
 from panel.shell import SCRIPTS, STATIC, render_shell
 from panel.words import LANGUAGES, POLISH, words
@@ -133,13 +132,13 @@ def _joined(part: str) -> str:
 
 
 def sources() -> list[str]:
-    """Return the old page and every new script, each read on its own.
+    """Return every static script, each read on its own.
 
     On its own rather than joined, so a sentence cannot be stitched together from the
     end of one file and the start of the next.
     """
     scripts = sorted((STATIC / "js").glob("*.js"))
-    return [_SCRIPT] + [one.read_text(encoding="utf-8") for one in scripts]
+    return [one.read_text(encoding="utf-8") for one in scripts]
 
 
 def asked() -> list[str]:

@@ -7,6 +7,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from aiohttp.test_utils import TestClient, TestServer
@@ -240,4 +241,41 @@ async def test_static_files_are_served_without_cache(
         assert style.content_type == "text/css"
         assert page.status == 200
         assert '<script src="static/js/main.js"></script>' in await page.text()
+        assert [one.status for one in outside] == [404] * len(outside)
+
+
+# The `.py` probes above are turned away by the file-type check before the folder check
+# is ever reached, so these use the two kinds of file the handler does hand out.
+@pytest.mark.usefixtures("socket_enabled")
+async def test_a_script_or_style_outside_static_is_refused(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """`..`, its encoded forms and a link out of the folder all end at the guard."""
+    folder = (tmp_path / "static").resolve()
+    (folder / "js").mkdir(parents=True)
+    (folder / "js" / "inside.js").write_text("inside", encoding="utf-8")
+    (tmp_path / "secret.js").write_text("secret", encoding="utf-8")
+    (tmp_path / "secret.css").write_text("secret", encoding="utf-8")
+    (folder / "link.js").symlink_to(tmp_path / "secret.js")
+    monkeypatch.setattr(server, "STATIC", folder)
+    monkeypatch.setattr(server, "INGRESS", "127.0.0.1")
+    monkeypatch.setattr(server, "install", lambda: [])
+    monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
+
+    async with TestClient(TestServer(server.build())) as client:
+        inside = await client.get("/static/js/inside.js")
+        outside = [
+            await client.get(path)
+            for path in (
+                "/static/../secret.js",
+                "/static/../secret.css",
+                "/static/%2E%2E/secret.js",
+                "/static/js/..%2F..%2Fsecret.css",
+                "/static/js/%2e%2e/%2e%2e/secret.js",
+                "/static/link.js",
+            )
+        ]
+
+        assert inside.status == 200
+        assert await inside.text() == "inside"
         assert [one.status for one in outside] == [404] * len(outside)

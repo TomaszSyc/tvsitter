@@ -8,7 +8,7 @@
 // on every poll, but never while somebody is typing into it and never with an empty
 // state because one poll failed.
 //
-// Run by tests/test_panel_page.py, which hands over the new page's scripts, joined.
+// Run by tests/test_page_drivers.py, which hands over the new page's scripts, joined.
 //
 // TV Sitter — parental control for Android TV / Google TV.
 // Copyright (C) 2026 Tomasz Syc

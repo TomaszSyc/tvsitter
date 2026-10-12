@@ -6,7 +6,7 @@
 // null — and about what stays on it while a poll lands every five seconds: a switch
 // just turned, a sheet being used.
 //
-// Run by tests/test_panel_page.py, which hands over the new page's scripts, joined.
+// Run by tests/test_page_drivers.py, which hands over the new page's scripts, joined.
 //
 // TV Sitter — parental control for Android TV / Google TV.
 // Copyright (C) 2026 Tomasz Syc

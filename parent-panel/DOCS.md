@@ -2,9 +2,9 @@
 
 ## What it is
 
-A page of TV Sitter's own, in the Home Assistant sidebar: one card per television, showing what
-the set is doing now and what it has watched today, with the rules on the same page as the
-figures that made you want to change them.
+A page of TV Sitter's own, in the Home Assistant sidebar, made for a phone: what the television is
+doing now, the rules, the apps, and what was watched, in the same dark look as the television's
+own screens.
 
 It is a second interface onto the TV Sitter integration and never a second way to reach the
 televisions. The integration enforces nothing on its own either — the decision to block is made
@@ -47,47 +47,50 @@ is expected: HACS reads `custom_components/`, the Supervisor reads the App besid
 
 ## What is on the page
 
-One card per television, in these sections.
+A header with the television's name, a one-line status and a gear. With more than one television,
+the name switches between them. A bottom bar has four tabs.
 
-**Now.** Whether the set is reporting to Home Assistant at all, whether the screen is on, what is
-playing, whether the lock is up, and whether a parent PIN has been set. When something is wrong
-with a television, the card says so in a line of its own rather than leaving you to work it out
-from a missing figure.
+**Now.** The first thing to look at, and it changes with the set:
 
-**Today.** Watched so far, the limit in force today, what is left of it, any bonus minutes granted
-from a "more time" request, and yesterday's total for comparison. The time the set last reported,
-so you can tell a quiet television from a stale figure. Durations are shown as hours and minutes
-rather than as the number the sensor happens to hold.
+- **Watching.** What is playing and for how long, how much of today is left, and until when
+  viewing is allowed. Quick actions: **+15 min** and **+30 min** (extra time for today), **Lock**,
+  and **No limit today**, which removes the daily limit outright and leaves every other rule alone
+  — zero cannot stand in for it, because zero minutes means no viewing and that is a real thing a
+  parent may mean. Today's time by app is below.
+- **Request waiting.** When the child asks for more time, an amber panel appears at the top with
+  what was asked and how long ago. **Give 15** or **Give 30** grants that much, **Not now**
+  refuses. The amounts are fixed whatever was asked. Answering from the phone notification
+  instead makes the panel drop it on the next refresh.
+- **Locked.** The reason and when viewing is allowed again. **Unlock** lifts the lock; **+15 min**
+  and **No limit today** are here too.
+- **Not reachable.** When the set was last seen. Its rules keep working and a change waits for it;
+  the quick actions are greyed out with the reason.
 
-**Buttons that act now.** Lock the television or lift the lock. Block the Settings app or allow
-it. Clear the limit, which removes the daily limit outright and leaves every other rule alone —
-zero cannot stand in for it, because zero minutes means no viewing today and that is a real thing
-a parent may mean.
-
-**The rules.** The daily limit, the sleep timer, and how long before the end of the allowance the
-television warns the child. That last one is a single warning; a ladder of several, which only an
-automation can write, is collapsed to one by changing it here.
-
-**The week.** A limit for each day, each of which overrides the daily limit on that day. Clearing
-one hands the day back to the daily limit; setting it to zero means no viewing that day.
-
-**Apps.** What the television has spent time in today, longest first, with a budget you can set
-per app. A budget of zero blocks the app. Beside the budgets is the allow-list: tick the apps the
-child may open at all, and every other app is refused. An empty allow-list allows everything,
-which reads backwards until you ask which way it should fail — a rule that fails towards nothing
-enforced is one a parent can recover from, and one that fails towards a television nobody can use
-locks them out of the thing they would fix it with.
-
-The two live side by side because they answer different questions: a budget says how long, an
-allow-list says which apps exist. An app has to pass both.
-
-**The hours viewing is allowed.** Shown, not edited. Home Assistant already has a weekly grid with
-a proper editor — the Schedule helper — and TV Sitter reads it rather than shipping a second one.
-[`docs/setup.md`](https://github.com/TomaszSyc/tvsitter/blob/main/docs/setup.md) has the three
+**Rules.** One day at a time, picked from the weekday chips. **How much** is that day's limit with
+minus and plus; **When** is the day's allowed hours, drawn on a time axis. Tap an empty place to
+add a block, tap a block to change or delete it. A limit longer than the hours is allowed, with a
+note that no more than the hours can be watched. Copy the day to the weekend, the weekdays or the
+whole week. Below are the daily limit, which is the default for days without their own, and the
+sleep timer. While a change is held for a sleeping television, an amber bar says so and offers
+Undo. Hours that come from a Home Assistant schedule helper are shown read-only; see
+[`docs/setup.md`](https://github.com/TomaszSyc/tvsitter/blob/main/docs/setup.md) for the three
 steps.
 
-**The rules revision.** One number, on every card. It is what the television says it is
-enforcing, so it is the honest answer to "has my change actually arrived".
+**Apps.** What the television has spent time in today, longest first, each with a tag: allowed,
+blocked, or its own daily limit. **Only chosen apps** is the allow-list: only the apps marked
+allowed open. With it off, every app is allowed, which reads backwards until you ask which way
+it should fail — a rule that fails towards nothing enforced is one a parent can recover from.
+Tap an app for today and this week, allowed or blocked, and its own limit; zero blocks it. An
+app has to pass both the allow-list and its limit. The launcher, the TV Sitter app, the system
+and screen savers are not listed.
+
+**History.** Today by app and the last seven days by app.
+
+**Settings** (the gear; Back returns). The parent PIN, and where time requests are sent. The
+warning before the end of the allowance, whether the Settings app on the television is blocked,
+and whether the hours follow a Home Assistant schedule. The version on the television, when it
+last reported, and the rules revision — what the set says it is enforcing, so the honest answer
+to "has my change arrived".
 
 ## What it does not do
 
@@ -95,12 +98,10 @@ It is the youngest part of the project, and worth saying plainly:
 
 - **No profiles yet.** A named bundle of rules you can write to a television in one go is
   designed (D36) and not built.
-- **The parent PIN is shown, not set.** The card says whether there is one. Setting or clearing
-  it stays on the television's device page, which is where the hashing lives.
-- **Today and yesterday are the whole of the history.** Anything longer is a graph, and graphs
-  belong on the dashboard, which draws them from the same sensors.
-- **English only.** The integration and the television's own screens are translatable; these
-  pages are not, yet.
+- **No history beyond a week.** Longer is a graph, and graphs belong on the dashboard, which
+  draws them from the same sensors.
+- **Polish and English.** The page follows Home Assistant's language; any other language shows
+  English.
 - **Nothing here enforces anything.** Close the panel, stop it, uninstall it: the television goes
   on counting and locking exactly as before.
 
@@ -116,7 +117,7 @@ It is the youngest part of the project, and worth saying plainly:
   sent to a set that is not there would go nowhere and the panel would have lied about it. Wake
   the television, or check that it is still reporting, and try again.
 - **An app you know is installed is not in the list** — the list is what the television has spent
-  time in today, not what it has installed. An app appears once it has been opened. To budget one
+  time in, not what it has installed. An app appears once it has been opened. To budget one
   before that, use the `tvsitter.set_app_limit` action with the package name.
 - **The App does not appear after adding the repository** — only `aarch64` and `amd64` are built,
   and the Supervisor hides an App whose architecture is not claimed. That is a better failure

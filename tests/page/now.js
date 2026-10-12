@@ -11,7 +11,7 @@
 // The clock is held still, so "allowed until" and "a minute ago" are the same on every
 // machine that runs this.
 //
-// Run by tests/test_panel_page.py, which hands over the new page's scripts, joined.
+// Run by tests/test_page_drivers.py, which hands over the new page's scripts, joined.
 //
 // TV Sitter — parental control for Android TV / Google TV.
 // Copyright (C) 2026 Tomasz Syc

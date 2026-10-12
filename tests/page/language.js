@@ -9,7 +9,7 @@
 // So the shell is driven with the Polish words in place and each screen is read: the
 // four tabs, the chooser, Now, Rules, Apps, History and Settings.
 //
-// Run by tests/test_panel_page.py, which hands over the new page's scripts, joined, and
+// Run by tests/test_page_drivers.py, which hands over the new page's scripts, joined, and
 // the Polish words.
 //
 // TV Sitter — parental control for Android TV / Google TV.
