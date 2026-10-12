@@ -124,15 +124,23 @@
   /**
    * What the set is doing, in the fewest words: one line under its name.
    *
-   * On `TS` so the Now screen can say it better once it knows how; the shell only
-   * needs something true to put there.
+   * Amber for the two states a parent may need to act on — a set that is locked and
+   * one that has stopped answering — so the header says so on every screen, not only
+   * on Now. A lock gives its reason, which is what anybody looking wants to know next.
    */
   TS.status = function status(tv) {
-    if (!tv.reporting) return {words: phrase("Not reporting"), tone: "off"};
-    if (tv.locked) return {words: phrase("Locked"), tone: "off"};
+    if (!tv.reporting) {
+      const seen = TS.seen(tv.last_reported);
+      return {words: seen ? phrase("Not reachable since {when}", {when: seen}) :
+        phrase("Not reporting"), tone: "warn"};
+    }
+    if (tv.locked) return {words: TS.screens.now.reason(tv), tone: "warn"};
     if (tv.playing) {
       const app = (tv.apps || []).find((one) => one.package === tv.playing);
-      return {words: (app && app.name) || String(tv.playing), tone: "on"};
+      const named = (app && app.name) || String(tv.playing);
+      const minutes = app ? TS.number(app.minutes) : null;
+      return {words: minutes ? phrase("{app} \u00b7 {time} today",
+        {app: named, time: TS.length(minutes)}) : named, tone: "on"};
     }
     return {words: phrase(tv.screen ? "Screen on" : "Screen off"),
       tone: tv.screen ? "on" : "off"};
@@ -215,6 +223,9 @@
     said.textContent = now ? now.words : "";
     said.setAttribute("data-tone", now ? now.tone : "off");
     said.hidden = !now;
+    // The mark goes grey with a set that has stopped answering, as the lock screen's
+    // dial does with a television that is off.
+    dial.classList.toggle("dial--away", Boolean(tv && !tv.reporting));
     if (read && !typing()) draw(false);
   }
 

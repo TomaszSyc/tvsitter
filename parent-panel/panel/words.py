@@ -79,6 +79,49 @@ POLISH: dict[str, str] = {
     "Nothing": "Nic",
     "Lift the lock": "Zdejmij blokadę",
     "Lock the television": "Zablokuj telewizor",
+    # The Now screen. The header's status line says the same things in fewer words.
+    "{app} · {time} today": "{app} · dziś {time}",
+    "Not reachable since {when}": "Nie odpowiada od {when}",
+    "No limit": "Bez limitu",
+    "of {time}": "z {time}",
+    "allowed until {clock}": "wolno do {clock}",
+    "+15 min": "+15 min",
+    "+30 min": "+30 min",
+    # Buttons: what they do, said as an order, unlike "Locked" above.
+    "Lock": "Zablokuj",
+    "Unlock": "Odblokuj",
+    "No limit today": "Bez limitu dziś",
+    # Why the screen is covered. Short, because each also stands as the status line.
+    "Today's time is used up": "Dzisiejszy czas się skończył",
+    "Outside the allowed hours": "Poza dozwolonymi godzinami",
+    "The sleep timer ran out": "Zadziałał wyłącznik czasowy",
+    "Locked by a parent": "Zablokowany przez rodzica",
+    "This app's time is used up": "Czas tej aplikacji się skończył",
+    "This app is not allowed": "Ta aplikacja nie jest dozwolona",
+    "Allowed again at {clock}": "Znowu wolno o {clock}",
+    "Allowed again tomorrow at {clock}": "Znowu wolno jutro o {clock}",
+    "Allowed again tomorrow": "Znowu wolno jutro",
+    "Other apps can still be watched": "Inne aplikacje nadal są dostępne",
+    "{time} watched today": "dziś obejrzane {time}",
+    # A television that does not answer.
+    "Last seen": "Ostatnio widziany",
+    "Switched off or without a network.": "Wyłączony albo bez sieci.",
+    "Its rules keep working on the television.": (
+        "Reguły działają na telewizorze dalej."
+    ),
+    "Changes will wait until it is back.": "Zmiany poczekają, aż wróci.",
+    "These need the television to be on and connected.": (
+        "To wymaga włączonego telewizora z dostępem do sieci."
+    ),
+    # A request for more time, and its answers.
+    "{minutes} min more, in {app}": "Jeszcze {minutes} min, w {app}",
+    "{minutes} min more": "Jeszcze {minutes} min",
+    "just now": "przed chwilą",
+    "{count} min ago": "{count} min temu",
+    "at {clock}": "o {clock}",
+    "Give 15": "Daj 15",
+    "Give 30": "Daj 30",
+    "Not now": "Nie teraz",
     # The PIN.
     "The parent PIN": "PIN rodzica",
     "The television only ever receives a hash of it.": (
