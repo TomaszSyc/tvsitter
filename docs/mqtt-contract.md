@@ -268,12 +268,13 @@ it into the same thing every rule becomes — how long until viewing has to stop
 its warnings and countdown come from. It is a command rather than a rule because it is one
 evening's decision: it is not stored with the rules and does not survive the night.
 
-Lifting the lock clears it. A deadline already past keeps saying zero, so a lock lifted without
-clearing would come straight back on the next sample — and whoever lifted it has answered the
-bedtime too. Time given with `unlock` and `minutes` is not lifting the lock: it moves a bedtime
+Lifting the lock clears a deadline that has already come. One already past keeps saying zero,
+so a lock lifted without clearing it would come straight back on the next sample — and whoever
+lifted it has answered the bedtime too. A deadline still to come is kept: lifting a lock put up
+for dinner is not cancelling tonight's bedtime, and only `in_minutes: 0` does that. Time given with `unlock` and `minutes` is not lifting the lock: it moves a bedtime
 that has come, and leaves one still to come alone (below).
 
-`unlock` without `minutes` lifts the lock. If the daily limit is what put the lock there,
+`unlock` without `minutes` lifts the lock, and leaves a sleep timer still to come armed. If the daily limit is what put the lock there,
 the limit is set aside until the next reset — anything less would be undone by the next
 sample, ten seconds later. If the lock was one a parent asked for, or the sleep timer's, the
 limit stays in force: taking down a bedtime lock is not a decision to hand over the rest of the

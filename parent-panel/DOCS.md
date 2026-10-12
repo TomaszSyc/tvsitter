@@ -34,7 +34,8 @@ being only one.
   the integration gained alongside them (`tvsitter.add_time`, `tvsitter.skip_limit_today`); an
   older integration does not have them, and the panel then says the integration needs updating.
   "No limit today" also needs a television of the same version: an older one ignores it and the
-  limit stays.
+  limit stays. Worse, on an older television **+15 min** / **+30 min** end a lock you put up for
+  good and cancel tonight's sleep timer, so update the television together with the add-on.
 
 ## Installing
 
@@ -73,7 +74,8 @@ the name switches between them. A bottom bar has four tabs.
   - *Today's time is used up* — **Unlock** (the limit and the hours are set aside until 04:00),
     **+15 min**, **+30 min**, **No limit today** (the limit only; the hours still close).
   - *Locked by a parent* — **Unlock** ends your lock; **+15 min** / **+30 min** stand it down for
-    that long, and it comes back.
+    that long, and it comes back. A sleep timer armed for later stays armed either way, and so it
+    does when the lock is lifted with the PIN at the television.
   - *The sleep timer ran out* — **Unlock** cancels tonight's timer; **+15 min** / **+30 min** move
     it on by that much, so the set turns off again when the time is spent.
   - *Outside the allowed hours* — **Unlock** only, which sets the hours (and the limit) aside until

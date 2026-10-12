@@ -227,6 +227,17 @@ object LockTransitions {
         )
     }
 
+    /**
+     * Tonight's deadline after a lock is lifted, epoch millis, zero for none.
+     *
+     * A bedtime that has come is cleared: it keeps saying zero, so a lock lifted without
+     * clearing it would come straight back on the next sample, and whoever lifted it has
+     * answered the bedtime too. A bedtime still to come is kept. Cancelling it on every unlock
+     * meant that lifting a lock put up for dinner at seven also threw away the half past nine
+     * a parent had armed — the television then simply never went off.
+     */
+    fun bedtimeAfterUnlock(sleepAtMs: Long, nowMs: Long): Long = if (sleepAtMs in 1..nowMs) 0 else sleepAtMs
+
     /** The granted time is up. The lock comes back if it was a parent's, and not otherwise. */
     fun resumeAfterStandDown(state: LockState, nowMs: Long): LockChange {
         val next = state.copy(pausedUntilMs = 0, lastDecision = null)

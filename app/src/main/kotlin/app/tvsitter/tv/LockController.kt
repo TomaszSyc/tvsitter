@@ -275,7 +275,7 @@ class LockController(
 
     /** Lifts a lock a parent asked for, and not one the rules put up. */
     fun unlockManually() {
-        if (memory.sleepAtMs > 0) sleepIn(0)
+        sleepAtMs = LockTransitions.bedtimeAfterUnlock(sleepAtMs, now())
         if (state.budget) {
             Log.i(EnforcerService.TAG, "unlock ignored: the budget is spent, grant time instead")
         }
@@ -290,9 +290,9 @@ class LockController(
      * handed over the rest of the day's budget (#42).
      */
     fun unlockUntilReset() {
-        // A deadline already past keeps saying zero, so a lock lifted without clearing it would
-        // return on the next sample. Whoever lifts it has answered the bedtime too.
-        if (memory.sleepAtMs > 0) sleepIn(0)
+        // Only a bedtime that has come, which keeps saying zero and would put the lock straight
+        // back; one still to come was not what this lock was about (see bedtimeAfterUnlock).
+        sleepAtMs = LockTransitions.bedtimeAfterUnlock(sleepAtMs, now())
         act(LockTransitions.unlockUntilReset(state, now()))
     }
 

@@ -203,6 +203,26 @@ class LockStateTest {
     }
 
     @Test
+    fun `unlocking a parent's lock keeps a bedtime still to come`() {
+        // Armed for half past nine, locked for dinner at seven, unlocked at half past: the
+        // bedtime is still tonight's.
+        val dinner = LockTransitions.lockManually(nothing).state
+        val bedtime = now + 120 * minute
+
+        val unlocked = LockTransitions.unlockUntilReset(dinner, now)
+
+        assertFalse(unlocked.effects!!.covered)
+        assertEquals(bedtime, LockTransitions.bedtimeAfterUnlock(bedtime, now))
+    }
+
+    @Test
+    fun `unlocking clears a bedtime that has come`() {
+        assertEquals(0, LockTransitions.bedtimeAfterUnlock(now - minute, now))
+        assertEquals(0, LockTransitions.bedtimeAfterUnlock(now, now), "due this instant")
+        assertEquals(0, LockTransitions.bedtimeAfterUnlock(0, now), "none stays none")
+    }
+
+    @Test
     fun `fifteen minutes on a parent's lock stand it down and it comes back`() {
         val locked = LockTransitions.lockManually(nothing).state
 
