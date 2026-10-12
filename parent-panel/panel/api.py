@@ -28,6 +28,8 @@ from .home_assistant import DOMAIN, WEEK, HomeAssistant, Television
 # the screen saver among them. This one is knowable here because the panel, the
 # integration and the television are one product with one name.
 OURS = "app.tvsitter.tv"
+# What the panel offers a parent for extra time, as the two buttons on the page.
+EXTRA_MINUTES = (15, 30)
 # The operating system, which the set charges the odd second to between one app and the
 # next. No rule reaches it, so it is exempt whatever an older television says (#140).
 SYSTEM = ("android", "com.android.systemui")
@@ -131,6 +133,10 @@ def described(
         "following_schedule": following(television),
         "hours": hours(asked.get(RULE_WINDOWS)),
         "pending_rules": pending(television),
+        "pending_request": waiting_request(television),
+        "lock_reason": television.attribute("active_app", "lock_reason"),
+        "until_s": television.attribute("active_app", "until_s"),
+        "version": television.attribute("active_app", "fw"),
         "trouble": trouble(television),
     }
 
@@ -331,6 +337,17 @@ def pending(television: Television) -> dict[str, Any] | None:
     return said if isinstance(said, dict) and said else None
 
 
+def waiting_request(television: Television) -> dict[str, Any] | None:
+    """Say what the television has asked for and nobody has answered yet.
+
+    Handed on as the integration wrote it, because the page needs all four fields to
+    draw the question. Anything without an id is nothing waiting: an answer has to name
+    the request it answers, so a question that cannot be named cannot be answered.
+    """
+    said = television.attribute("time_request", "pending")
+    return said if isinstance(said, dict) and isinstance(said.get("id"), str) else None
+
+
 def hours(said: Any) -> dict[str, list[str]]:
     """Lay the windows out as the half hours of each day they allow viewing in.
 
@@ -520,6 +537,34 @@ async def apply(
                 {
                     "entity_id": entity(television, "rules"),
                     "windows": windows_for(request.get("days")),
+                },
+            )
+        case "add_time":
+            await home.call(
+                DOMAIN,
+                "add_time",
+                {
+                    "entity_id": entity(television, "time_request"),
+                    "minutes": quarter_or_half(request),
+                },
+            )
+        case "grant":
+            await home.call(
+                DOMAIN,
+                "grant_time",
+                {
+                    "entity_id": entity(television, "time_request"),
+                    "minutes": quarter_or_half(request),
+                    "req_id": text(request, "req_id"),
+                },
+            )
+        case "deny":
+            await home.call(
+                DOMAIN,
+                "deny_time",
+                {
+                    "entity_id": entity(television, "time_request"),
+                    "req_id": text(request, "req_id"),
                 },
             )
         case _:
@@ -742,6 +787,18 @@ def entity(television: Television, key: str) -> str:
     if entity_id is None:
         raise ValueError(f"{television.name} has no {key} to change.")
     return entity_id
+
+
+def quarter_or_half(request: dict[str, Any]) -> int:
+    """Read the minutes of extra time, which the panel offers as 15 or 30 and no more.
+
+    The service accepts anything up to four hours; the panel does not, so a page that
+    sends another amount is refused here rather than handing out time nobody offered.
+    """
+    minutes = needed(request, "minutes")
+    if minutes not in EXTRA_MINUTES:
+        raise ValueError("Extra time is 15 or 30 minutes.")
+    return int(minutes)
 
 
 def needed(request: dict[str, Any], name: str) -> float:

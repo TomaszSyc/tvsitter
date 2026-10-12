@@ -999,3 +999,136 @@ def test_the_week_still_drops_what_no_rule_can_reach() -> None:
     written = only(one, by_app=week)
 
     assert [app["package"] for app in written["week_by_app"]] == ["com.netflix.ninja"]
+
+
+ASKED = {
+    "id": "r-1",
+    "asked_minutes": 30,
+    "asked_at": 1_760_000_000_000,
+    "app_name": "Films",
+}
+
+
+def with_request(pending: Any = None, **active: Any) -> Television:
+    """Build a television with the time-request entity and the active-app sensor."""
+    one = television(time_request="unknown", active_app="tv.example.films")
+    one.states["x.time_request"]["attributes"] = {"pending": pending}
+    one.states["x.active_app"]["attributes"] = active
+    return one
+
+
+def test_a_waiting_request_reaches_the_page() -> None:
+    """The page draws the question from this, so it arrives whole."""
+    assert only(with_request(ASKED))["pending_request"] == ASKED
+
+
+def test_no_request_is_null() -> None:
+    """A set that never asked, and one whose entity is missing, both say nothing."""
+    assert only(with_request(None))["pending_request"] is None
+    assert only(television())["pending_request"] is None
+
+
+def test_the_lock_reason_until_and_version_reach_the_page() -> None:
+    """All three come off the active-app sensor, where the television put them."""
+    written = only(with_request(lock_reason="limit", until_s=125, fw="1.2.3"))
+
+    assert written["lock_reason"] == "limit"
+    assert written["until_s"] == 125
+    assert written["version"] == "1.2.3"
+
+
+def test_what_the_television_has_not_said_is_null() -> None:
+    """No countdown is not a countdown of zero."""
+    written = only(with_request(until_s=None))
+
+    assert written["lock_reason"] is None
+    assert written["until_s"] is None
+    assert written["version"] is None
+
+
+async def test_adding_time_calls_add_time() -> None:
+    """Aimed at the time-request entity, like the other services at theirs."""
+    home = Recorder()
+
+    await apply(
+        home,
+        [with_request()],
+        {"id": DEVICE, "action": "add_time", "minutes": 15},
+    )
+
+    assert home.calls == [
+        ("tvsitter", "add_time", {"entity_id": "x.time_request", "minutes": 15})
+    ]
+
+
+async def test_only_fifteen_or_thirty_minutes_can_be_added() -> None:
+    """Anything else is a sentence for the page, not a service call."""
+    home = Recorder()
+
+    with pytest.raises(ValueError, match=r"\.$"):
+        await apply(
+            home,
+            [with_request()],
+            {"id": DEVICE, "action": "add_time", "minutes": 240},
+        )
+
+    assert home.calls == []
+
+
+async def test_granting_names_the_request() -> None:
+    """The answer says which question it answers, so a stale one cannot be taken."""
+    home = Recorder()
+
+    await apply(
+        home,
+        [with_request(ASKED)],
+        {"id": DEVICE, "action": "grant", "req_id": "r-1", "minutes": 30},
+    )
+
+    assert home.calls == [
+        (
+            "tvsitter",
+            "grant_time",
+            {"entity_id": "x.time_request", "minutes": 30, "req_id": "r-1"},
+        )
+    ]
+
+
+async def test_denying_names_the_request() -> None:
+    """A refusal needs no minutes, only the question it refuses."""
+    home = Recorder()
+
+    await apply(
+        home,
+        [with_request(ASKED)],
+        {"id": DEVICE, "action": "deny", "req_id": "r-1"},
+    )
+
+    assert home.calls == [
+        ("tvsitter", "deny_time", {"entity_id": "x.time_request", "req_id": "r-1"})
+    ]
+
+
+@pytest.mark.parametrize("action", ["grant", "deny"])
+async def test_answering_without_a_request_id_is_refused_in_words(action: str) -> None:
+    """There is nothing to answer without the question's id."""
+    home = Recorder()
+
+    with pytest.raises(ValueError, match=r"\.$"):
+        await apply(
+            home,
+            [with_request(ASKED)],
+            {"id": DEVICE, "action": action, "minutes": 15},
+        )
+
+    assert home.calls == []
+
+
+async def test_a_grant_is_for_fifteen_or_thirty_minutes_too() -> None:
+    """The same two amounts the page offers, wherever the minutes are sent."""
+    with pytest.raises(ValueError, match=r"\.$"):
+        await apply(
+            Recorder(),
+            [with_request(ASKED)],
+            {"id": DEVICE, "action": "grant", "req_id": "r-1", "minutes": 45},
+        )
