@@ -5,6 +5,8 @@
  */
 package app.tvsitter.rules.contract
 
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
@@ -118,6 +120,31 @@ data class StateSnapshot(
      * laptop — a PIN changed on the television was changed by whoever was in the room.
      */
     @SerialName("pin_changed_by") val pinChangedBy: String? = null,
+    /**
+     * The request still waiting for a parent, or null when nothing is.
+     *
+     * Carried in the state because that is what a panel reads on opening: the request topic is
+     * not retained, so a parent who looks after the moment has passed would otherwise see
+     * nothing to answer.
+     *
+     * Left out of the payload when null, unlike the other nullable fields here, which travel as
+     * an explicit null: "nothing waits" is the ordinary case and not a value a consumer must
+     * tell apart from an older television that never sent the field.
+     */
+    @OptIn(ExperimentalSerializationApi::class)
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    @SerialName("request_pending") val requestPending: PendingState? = null,
+)
+
+/** A question put to a parent and not yet answered, as [StateSnapshot.requestPending]. */
+@Serializable
+data class PendingState(
+    /** The id an answer has to carry. */
+    val id: String,
+    @SerialName("asked_minutes") val askedMinutes: Int,
+    /** When it was asked, epoch milliseconds. */
+    @SerialName("asked_at") val askedAt: Long,
+    @SerialName("app_name") val appName: String? = null,
 )
 
 /**

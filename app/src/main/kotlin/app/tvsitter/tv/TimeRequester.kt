@@ -11,6 +11,7 @@ import android.os.Looper
 import android.util.Log
 import app.tvsitter.rules.Answer
 import app.tvsitter.rules.AskVerdict
+import app.tvsitter.rules.PendingRequest
 import app.tvsitter.rules.RequestHistory
 import app.tvsitter.rules.RequestPolicy
 import app.tvsitter.rules.contract.TimeRequest
@@ -56,6 +57,17 @@ class TimeRequester(
      * counting is not one of its responsibilities so much as a side effect somebody else wants.
      */
     var tally: DayTally? = null
+
+    /**
+     * Called when what is waiting changes, so the state that carries it is republished.
+     * Set after construction for the same reason as [tally].
+     */
+    var onChanged: (() -> Unit)? = null
+
+    /** The question still waiting for a parent, or null once it is answered or has lapsed. */
+    val pending: PendingRequest?
+        get() = RequestPolicy.pendingAt(history, System.currentTimeMillis())
+
     private var scope: CoroutineScope? = null
     private val handler = Handler(Looper.getMainLooper())
     private val giveUp = Runnable { expireIfDue() }
@@ -106,7 +118,7 @@ class TimeRequester(
     /** The child pressed the button on the lock screen. */
     fun ask() {
         val nowMs = System.currentTimeMillis()
-        val result = RequestPolicy.ask(history, newId(), ASK_MINUTES, nowMs)
+        val result = RequestPolicy.ask(history, newId(), ASK_MINUTES, nowMs, currentAppName())
         history = result.history
         persist()
 
@@ -131,6 +143,7 @@ class TimeRequester(
                 Log.i(EnforcerService.TAG, "request ${verdict.request.id} sent")
                 say(context.getString(R.string.request_sent), false)
                 scheduleGiveUp(verdict.request)
+                onChanged?.invoke()
             }
 
             is AskVerdict.AlreadyWaiting -> startWaiting(
@@ -156,6 +169,7 @@ class TimeRequester(
         persist()
 
         Log.i(EnforcerService.TAG, "request $id answered: ${result.answer}")
+        onChanged?.invoke()
 
         when (val answer = result.answer) {
             is Answer.Granted -> {
@@ -218,10 +232,11 @@ class TimeRequester(
         stopWaiting(announce = false)
         Log.i(EnforcerService.TAG, "request expired with no answer")
         tally?.recordExpired()
+        onChanged?.invoke()
         say(context.getString(R.string.request_expired), false)
     }
 
-    private fun scheduleGiveUp(request: app.tvsitter.rules.PendingRequest) {
+    private fun scheduleGiveUp(request: PendingRequest) {
         handler.removeCallbacks(giveUp)
         val remaining = request.askedAtMs + RequestPolicy.EXPIRY_MS - System.currentTimeMillis()
         handler.postDelayed(giveUp, remaining.coerceAtLeast(0))

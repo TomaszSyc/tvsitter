@@ -40,6 +40,25 @@ class ContractCodecTest {
         assertEquals(snapshot, ContractCodec.decodeState(ContractCodec.encode(snapshot)))
     }
 
+    @Test
+    fun `a waiting request travels in the state`() {
+        val waiting = snapshot.copy(
+            requestPending = PendingState("ab12", 15, 1_791_700_000_000, "Netflix"),
+        )
+        val encoded = ContractCodec.encode(waiting)
+        val pending = (Json.parseToJsonElement(encoded) as JsonObject)["request_pending"] as JsonObject
+
+        assertEquals("15", pending["asked_minutes"].toString())
+        assertEquals("1791700000000", pending["asked_at"].toString())
+        assertEquals(waiting, ContractCodec.decodeState(encoded))
+    }
+
+    @Test
+    fun `no waiting request is no field`() {
+        val keys = (Json.parseToJsonElement(ContractCodec.encode(snapshot)) as JsonObject).keys
+        assertFalse("request_pending" in keys)
+    }
+
     /**
      * The wire format is a contract with the Home Assistant integration, so the field names
      * are asserted literally. Renaming a Kotlin property must not silently rename a key.

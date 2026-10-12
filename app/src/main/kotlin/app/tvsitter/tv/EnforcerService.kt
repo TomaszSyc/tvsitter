@@ -19,6 +19,7 @@ import app.tvsitter.rules.contract.AlertKind
 import app.tvsitter.rules.contract.Command
 import app.tvsitter.rules.contract.ContractCodec
 import app.tvsitter.rules.contract.DaySummary
+import app.tvsitter.rules.contract.PendingState
 import app.tvsitter.rules.contract.StateSnapshot
 import app.tvsitter.rules.pairing.PairRequest
 import kotlinx.coroutines.CoroutineScope
@@ -438,6 +439,7 @@ class EnforcerService : Service() {
         // right, which is the wrong way round (#41).
         parentPin?.onLockout = { tries, until -> telemetry?.publish(pinLockoutAlert(tries, until)) }
         requests?.tally = dayTally
+        requests?.onChanged = { telemetry?.publishSoon() }
         locks?.tally = dayTally
         locks?.onFight = { telemetry?.publish(alertOf(AlertKind.SOURCE_FIGHT)) }
         locks?.settingsBlocked = { activeRules?.rules?.settingsBlocked == true }
@@ -521,6 +523,7 @@ class EnforcerService : Service() {
             pinSet = parentPin?.isSet == true,
             pinChangedAt = parentPin?.changedAtMs,
             pinChangedBy = parentPin?.changedBy,
+            requestPending = requests?.pending?.let { PendingState(it.id, it.askedMinutes, it.askedAtMs, it.appName) },
         )
     }
 

@@ -57,7 +57,8 @@ Three rules the correctness of the whole thing rests on:
   "rules_rev": 7,
   "pin_set": true,
   "pin_changed_at": 1787400000000,
-  "pin_changed_by": "tv"
+  "pin_changed_by": "tv",
+  "request_pending": { "id": "8f14e45f", "asked_minutes": 15, "asked_at": 1787315400000, "app_name": "Netflix" }
 }
 ```
 
@@ -118,6 +119,12 @@ Three rules the correctness of the whole thing rests on:
   made in Home Assistant was made by somebody holding the parent's phone, one made on the
   television by whoever was in the room. Because `state` is retained, a change made while
   Home Assistant was down arrives on the next connect.
+- `request_pending` — optional, absent when nothing is waiting. The question a parent has not
+  answered yet: `id` (what an answer must carry), `asked_minutes`, `asked_at` (epoch
+  milliseconds) and `app_name` (omitted when unknown). It is here as well as on `<p>/request`
+  because that topic is not retained, so a panel opened after the moment passed would find
+  nothing to answer. The field disappears when the request is answered or has gone unanswered
+  for its full lifetime, and `state` is republished at each of those moments.
 
 ## `<p>/request`
 
