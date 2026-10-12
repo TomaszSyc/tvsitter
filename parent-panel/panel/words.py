@@ -65,6 +65,29 @@ POLISH: dict[str, str] = {
     "No televisions yet: add the TV Sitter integration first.": (
         "Jeszcze żadnego telewizora: najpierw dodaj integrację TV Sitter."
     ),
+    # The Apps screen.
+    "Only chosen apps": "Tylko wybrane aplikacje",
+    "Only the apps allowed below open. New apps stay blocked until you allow them.": (
+        "Otwierają się tylko dozwolone poniżej aplikacje. Nowe są zablokowane, dopóki "
+        "ich nie dopuścisz."
+    ),
+    "Every app can be opened. Turn this on to allow only the ones you choose.": (
+        "Można otworzyć każdą aplikację. Włącz, by dopuścić tylko wybrane."
+    ),
+    "No apps to list yet.": "Brak aplikacji do pokazania.",
+    "Blocked": "Zablokowana",
+    "{time} a day": "{time} dziennie",
+    "today {time}": "dziś {time}",
+    "Not used today": "Dziś nie używana",
+    "today {today} · this week {week}": "dziś {today} · tydzień {week}",
+    "Access": "Dostęp",
+    "No limit means only the television's own limit applies.": (
+        "Bez limitu obowiązuje tylko limit całego telewizora."
+    ),
+    "Remove limit": "Usuń limit",
+    "Keep at least one app allowed, or turn the switch off.": (
+        "Zostaw co najmniej jedną dozwoloną aplikację albo wyłącz przełącznik."
+    ),
     # Now.
     "Playing": "Odtwarzane",
     "Left today": "Zostało dziś",
