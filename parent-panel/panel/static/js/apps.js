@@ -53,10 +53,19 @@
     return made;
   }
 
-  /** A line under a control: an error in rose, anything else quietly. */
-  function say(note, words) {
+  /** A line under a control: an error in rose, a plain report quietly. */
+  function say(note, words, quiet) {
     note.textContent = words || "";
     note.hidden = !words;
+    note.classList.toggle("note--quiet", Boolean(quiet));
+  }
+
+  /** The amber line that says a change shown here is waiting for the set. */
+  function heldLine() {
+    const made = element("p", "held-line",
+      phrase("The television is asleep. The change goes when it wakes."));
+    made.hidden = true;
+    return made;
   }
 
   function note() {
@@ -88,9 +97,36 @@
     return one.length === other.length && one.every((item) => other.includes(item));
   }
 
+  /** The allow-list the set has, or the one waiting for it when the set is asleep. */
+  function listOf(tv) {
+    const held = TS.held(tv, "apps_allowed");
+    if (held !== undefined) return Array.isArray(held) ? held.map(String) : [];
+    return Array.isArray(tv.allowed_apps) ? tv.allowed_apps : [];
+  }
+
+  /** An app's own limit in minutes as the set has it, or as a held change will have it. */
+  function heldLimit(tv, one) {
+    const held = TS.held(tv, "app_limits_s");
+    if (held === undefined) return one.limit;
+    // A null on the whole map is every app's budget removed.
+    if (held === null) return null;
+    if (typeof held !== "object" ||
+      !Object.prototype.hasOwnProperty.call(held, one.package)) return one.limit;
+    const seconds = TS.number(held[one.package]);
+    return seconds === null ? null : seconds / 60;
+  }
+
+  /** Whether a held change says anything about this app. */
+  function heldFor(tv, one) {
+    if (TS.held(tv, "apps_allowed") !== undefined) return true;
+    const held = TS.held(tv, "app_limits_s");
+    return held === null || Boolean(held && typeof held === "object" &&
+      Object.prototype.hasOwnProperty.call(held, one.package));
+  }
+
   /** The allow-list as the screen shows it: the one just sent until the set says it. */
   function chosen(tv) {
-    const reported = Array.isArray(tv.allowed_apps) ? tv.allowed_apps : [];
+    const reported = listOf(tv);
     const saved = savedLists[tv.id];
     if (!saved) return reported;
     if (sameSet(reported, saved.list) || Date.now() - saved.at >= AGREE_MS) {
@@ -102,11 +138,12 @@
 
   /** An app's limit as the screen shows it, with the one just set laid over it. */
   function limitOf(tv, one) {
+    const reported = heldLimit(tv, one);
     const saved = (savedLimits[tv.id] || {})[one.package];
-    if (!saved) return one.limit;
-    if (saved.value === one.limit || Date.now() - saved.at >= AGREE_MS) {
+    if (!saved) return reported;
+    if (saved.value === reported || Date.now() - saved.at >= AGREE_MS) {
       delete savedLimits[tv.id][one.package];
-      return one.limit;
+      return reported;
     }
     return saved.value;
   }
@@ -191,19 +228,28 @@
     sendList(drawn, on ? [] : listed(tv).map((one) => one.package), drawn.note);
   }
 
+  /**
+   * Allow or block one app.
+   *
+   * A limit of zero is a block too, and the sheet says Blocked for it, so Allowed has to
+   * lift it: the zero goes, and with the allow-list on the app joins the list as well.
+   * Before, Allowed on such an app changed nothing and said nothing, with the switch off
+   * because the list already allowed it, and the app stayed blocked by its zero.
+   */
   function setAccess(drawn, one, allow, where) {
     const tv = drawn.tv;
     const list = chosen(tv);
-    let next;
-    if (!list.length) {
-      if (allow) return;
-      next = listed(tv).map((each) => each.package).filter((each) => each !== one.package);
-    } else if (allow) {
-      if (list.includes(one.package)) return;
-      next = list.concat([one.package]);
-    } else {
-      next = list.filter((each) => each !== one.package);
+    if (allow) {
+      const zero = limitOf(tv, one) === 0;
+      const onList = !list.length || list.includes(one.package);
+      if (zero) sendLimit(drawn, one, null, where);
+      if (!onList) sendList(drawn, list.concat([one.package]), where);
+      if (!zero && onList) say(where, phrase("It is allowed already."), true);
+      return;
     }
+    const next = !list.length ?
+      listed(tv).map((each) => each.package).filter((each) => each !== one.package) :
+      list.filter((each) => each !== one.package);
     if (!next.length) {
       say(where, phrase("Keep at least one app allowed, or turn the switch off."));
       return;
@@ -273,7 +319,8 @@
         sendLimit(drawn, here(), null, sheet.note));
       foot.appendChild(sheet.remove);
 
-      body.append(head, access, limit, foot, sheet.note);
+      sheet.held = heldLine();
+      body.append(head, access, limit, foot, sheet.held, sheet.note);
       drawn.sheet = sheet;
       fillSheet(drawn);
     });
@@ -304,7 +351,9 @@
       today: TS.length(one.minutes),
       week: TS.length(weekMinutes(tv, one.package)),
     });
-    const allowed = allowedOn(tv, one);
+    // Blocked by a zero limit reads as blocked here too, so Allowed is the way out of it.
+    const allowed = allowedOn(tv, one) && limitOf(tv, one) !== 0;
+    sheet.held.hidden = !heldFor(tv, one);
     sheet.allow.setAttribute("aria-pressed", String(allowed));
     sheet.block.setAttribute("aria-pressed", String(!allowed));
     sheet.allow.classList.toggle("seg--on", allowed);
@@ -334,12 +383,14 @@
     });
     made.switchRow.append(label, made.switch);
     made.hint = element("p", "hint");
+    made.held = heldLine();
     made.note = note();
     made.list = element("div", "apps");
     made.empty = element("p", "empty", phrase("No apps to list yet."));
     made.empty.hidden = true;
 
-    root.replaceChildren(made.switchRow, made.hint, made.note, made.list, made.empty);
+    root.replaceChildren(made.switchRow, made.hint, made.held, made.note, made.list,
+      made.empty);
     return made;
   }
 
@@ -380,6 +431,8 @@
     drawn.switch.setAttribute("aria-checked", String(on));
     drawn.switch.classList.toggle("switch--on", on);
     drawn.switch.disabled = !on && !apps.length;
+    drawn.held.hidden = TS.held(tv, "apps_allowed") === undefined &&
+      TS.held(tv, "app_limits_s") === undefined;
     drawn.hint.textContent = on ?
       phrase("Only the apps allowed below open. New apps stay blocked until you allow them.") :
       phrase("Every app can be opened. Turn this on to allow only the ones you choose.");

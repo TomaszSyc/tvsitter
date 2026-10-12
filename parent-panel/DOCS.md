@@ -30,6 +30,11 @@ being only one.
   Container or Core. The integration does, and it is the half that matters.
 - **The TV Sitter integration**, installed and paired with at least one television. The panel
   shows the televisions Home Assistant already knows about; it cannot find one on its own.
+- **The same version of the panel and the integration.** The quick actions on Now use actions
+  the integration gained alongside them (`tvsitter.add_time`, `tvsitter.skip_limit_today`); an
+  older integration does not have them, and the panel then says the integration needs updating.
+  "No limit today" also needs a television of the same version: an older one ignores it and the
+  limit stays.
 
 ## Installing
 
@@ -53,16 +58,28 @@ the name switches between them. A bottom bar has four tabs.
 **Now.** The first thing to look at, and it changes with the set:
 
 - **Watching.** What is playing and for how long, how much of today is left, and until when
-  viewing is allowed. Quick actions: **+15 min** and **+30 min** (extra time for today), **Lock**,
-  and **No limit today**, which removes the daily limit outright and leaves every other rule alone
-  — zero cannot stand in for it, because zero minutes means no viewing and that is a real thing a
-  parent may mean. Today's time by app is below.
+  viewing is allowed. Quick actions: **Lock** always; and while a daily limit applies,
+  **+15 min** and **+30 min** (exactly that much extra time today — a sleep timer still to come
+  stays where it is) and **No limit today**, which sets today's limit aside until the reset at
+  04:00. The hours, the apps' own limits and a lock you put up stay in force, and tomorrow has its
+  limit back without anybody restoring it. The daily limit itself is not changed — that is Rules.
+  Today's time by app is below.
 - **Request waiting.** When the child asks for more time, an amber panel appears at the top with
   what was asked and how long ago. **Give 15** or **Give 30** grants that much, **Not now**
   refuses. The amounts are fixed whatever was asked. Answering from the phone notification
   instead makes the panel drop it on the next refresh.
-- **Locked.** The reason and when viewing is allowed again. **Unlock** lifts the lock; **+15 min**
-  and **No limit today** are here too.
+- **Locked.** The reason and when viewing is allowed again, and only the buttons that change
+  something for that reason:
+  - *Today's time is used up* — **Unlock** (the limit and the hours are set aside until 04:00),
+    **+15 min**, **+30 min**, **No limit today** (the limit only; the hours still close).
+  - *Locked by a parent* — **Unlock** ends your lock; **+15 min** / **+30 min** stand it down for
+    that long, and it comes back.
+  - *The sleep timer ran out* — **Unlock** cancels tonight's timer; **+15 min** / **+30 min** move
+    it on by that much, so the set turns off again when the time is spent.
+  - *Outside the allowed hours* — **Unlock** only, which sets the hours (and the limit) aside until
+    04:00; extra minutes cannot open hours that are closed.
+  - *This app's time is used up* / *This app is not allowed* — no buttons: the rest of the
+    television can still be watched, and the app is changed under Apps.
 - **Not reachable.** When the set was last seen. Its rules keep working and a change waits for it;
   the quick actions are greyed out with the reason.
 
@@ -71,8 +88,9 @@ minus and plus; **When** is the day's allowed hours, drawn on a time axis. Tap a
 add a block, tap a block to change or delete it. A limit longer than the hours is allowed, with a
 note that no more than the hours can be watched. Copy the day to the weekend, the weekdays or the
 whole week. Below are the daily limit, which is the default for days without their own, and the
-sleep timer. While a change is held for a sleeping television, an amber bar says so and offers
-Undo. Hours that come from a Home Assistant schedule helper are shown read-only; see
+sleep timer, with the time it turns the set off when one is running and Cancel only then. While a
+change is held for a sleeping television, an amber bar says so, lists what is waiting, and offers
+Undo; the same change is shown amber wherever it appears, on Apps and in Settings too. Hours that come from a Home Assistant schedule helper are shown read-only; see
 [`docs/setup.md`](https://github.com/TomaszSyc/tvsitter/blob/main/docs/setup.md) for the three
 steps.
 
@@ -80,8 +98,9 @@ steps.
 blocked, or its own daily limit. **Only chosen apps** is the allow-list: only the apps marked
 allowed open. With it off, every app is allowed, which reads backwards until you ask which way
 it should fail — a rule that fails towards nothing enforced is one a parent can recover from.
-Tap an app for today and this week, allowed or blocked, and its own limit; zero blocks it. An
-app has to pass both the allow-list and its limit. The launcher, the TV Sitter app, the system
+Tap an app for today and this week, allowed or blocked, and its own limit; zero blocks it, and
+**Allowed** on an app blocked that way removes the zero (and puts it on the allow-list when that is
+on). An app has to pass both the allow-list and its limit. The launcher, the TV Sitter app, the system
 and screen savers are not listed.
 
 **History.** Today by app and the last seven days by app.
@@ -107,6 +126,9 @@ It is the youngest part of the project, and worth saying plainly:
 
 ## If something looks wrong
 
+- **"The TV Sitter integration in Home Assistant is older than this panel"** — the add-on was
+  updated and the integration was not. Update the integration (HACS) to the same version and
+  restart Home Assistant.
 - **"No televisions yet"** — the integration is not installed, or no television has paired with
   it. The panel reports what Home Assistant already knows and has no other source.
 - **"Home Assistant did not answer"** — usually a restart still in progress. The App's log has

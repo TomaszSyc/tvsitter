@@ -36,6 +36,27 @@
     ["sun", phrase("Sunday"), phrase("Sun")],
   ];
   const DAYS = WEEK.map((day) => day[0]);
+
+  // The rules a television carries, in the words this page calls them by, for saying
+  // what a held change holds. A key it has never heard of is said as it arrived: an ugly
+  // name beats Undo throwing away something the parent was never shown.
+  const RULES = {
+    daily_limit_s: phrase("the daily limit"),
+    warn_before_s: phrase("the warning before the end"),
+    block_settings: phrase("the Settings block"),
+    app_limits_s: phrase("the app budgets"),
+    days: phrase("the week's allowances"),
+    windows: phrase("the hours"),
+    apps_allowed: phrase("the allowed apps"),
+  };
+
+  /** Which rules are waiting, listed the way somebody would say them aloud. */
+  function waitingFor(held) {
+    const said = Object.keys(held || {}).map((key) => RULES[key] || key);
+    if (said.length < 2) return said[0] || phrase("a change");
+    return phrase("{most} and {last}",
+      {most: said.slice(0, -1).join(", "), last: said[said.length - 1]});
+  }
   // The same days in the order `Date.getDay()` counts them.
   const BY_DATE = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 
@@ -450,8 +471,11 @@
     // everything under it is read.
     made.held = element("div", "held");
     made.held.setAttribute("role", "status");
-    made.heldText = element("p", "held__text",
+    made.heldText = element("p", "held__text");
+    made.heldSaid = element("span", null,
       phrase("The television is asleep. The change goes when it wakes."));
+    made.heldWhat = element("span");
+    made.heldText.append(made.heldSaid, made.heldWhat);
     made.undo = element("button", "held__undo", phrase("Undo"));
     made.undo.setAttribute("type", "button");
     made.undo.addEventListener("click", () => {
@@ -591,8 +615,11 @@
     sleepActions.append(made.start, made.stop);
     made.why = element("p", "why", phrase("These need the television to be on and connected."));
     made.sleepNote = note();
-    tonight.append(element("h2", "heading", phrase("Today")), sleepRow, sleepActions,
-      made.why, made.sleepNote);
+    // What the television says is armed, which is the one reading that survives the
+    // phone being put down; the note under the buttons only says what was just sent.
+    made.armed = element("p", "setting__hint sleep__armed");
+    tonight.append(element("h2", "heading", phrase("Today")), sleepRow, made.armed,
+      sleepActions, made.why, made.sleepNote);
 
     root.replaceChildren(made.held, made.chips, much, when, every, tonight);
     return made;
@@ -671,6 +698,8 @@
     const locked = sealed(tv);
 
     drawn.held.hidden = !tv.pending_rules;
+    drawn.heldWhat.textContent = tv.pending_rules ?
+      " " + phrase("Waiting: {what}.", {what: waitingFor(tv.pending_rules)}) : "";
     DAYS.forEach((day) => {
       const on = day === drawn.day;
       drawn.chip[day].setAttribute("aria-pressed", String(on));
@@ -703,6 +732,15 @@
 
     // The timer is a command, not a rule: it is not held for a set that is away.
     const away = !tv.reporting;
+    const at = TS.number(tv.sleep_at);
+    const armed = at !== null && at > 0;
+    drawn.armed.hidden = !armed;
+    drawn.armed.textContent = !armed ? "" : at > Date.now() ?
+      phrase("The television turns off at {clock}.", {clock: TS.clock(new Date(at))}) :
+      phrase("The sleep timer ran out at {clock}.", {clock: TS.clock(new Date(at))});
+    // Cancel only while there is something to cancel: a television too old to say what
+    // is armed says nothing, and offering Cancel then would be a guess.
+    drawn.stop.hidden = !armed;
     drawn.start.disabled = away;
     drawn.stop.disabled = away;
     drawn.why.hidden = !away;

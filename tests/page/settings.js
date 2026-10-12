@@ -297,6 +297,43 @@ async function main() {
   same("a warning the list does not offer is still shown",
     labelled("Warning before the end").value, "7");
 
+  process.stdout.write("\nA choice made in a list lets go of the focus\n");
+  await open();
+  const chosen = labelled("Warning before the end");
+  // A phone's web view keeps the focus on a list after a choice, and the shell then
+  // took the parent for somebody still typing and stopped drawing the screen.
+  chosen.focus();
+  chosen.value = "10";
+  fire(chosen, "change", {});
+  await settle();
+  ok("the list no longer holds the focus", document.activeElement !== chosen);
+  state.televisions[0].warn_before = 15;
+  state.televisions[0].version = "0.11.40";
+  await TS.refresh();
+  await settle();
+  same("so the next read is drawn", valueOf("Version on the television"), "0.11.40");
+  same("and the list shows what the television now says",
+    labelled("Warning before the end").value, "15");
+
+  process.stdout.write("\nA change held for a sleeping set is what is shown\n");
+  const heldLine = () => all(screen, "held-line").filter((one) => shown(one, screen));
+  await open();
+  same("nothing held, no amber line", heldLine().length, 0);
+  await open({reporting: false,
+    pending_rules: {warn_before_s: 600, block_settings: false}});
+  same("the held warning is the one shown",
+    labelled("Warning before the end").value, "10");
+  same("the held switch is the one shown",
+    labelled("Block Settings on the television").getAttribute("aria-checked"), "false");
+  same("with the amber line", heldLine().map((one) => plain(one.textContent)),
+    ["The television is asleep. The change goes when it wakes."]);
+  await open({reporting: false, block_settings: false,
+    pending_rules: {block_settings: true}});
+  same("a held block turns the switch on",
+    labelled("Block Settings on the television").getAttribute("aria-checked"), "true");
+  await open({reporting: false, pending_rules: {daily_limit_s: 3600}});
+  same("a change to another rule draws no line here", heldLine().length, 0);
+
   process.stdout.write("\nHours from a schedule\n");
   await open();
   same("not followed, it says off", valueOf("Hours from a Home Assistant schedule"), "Off");

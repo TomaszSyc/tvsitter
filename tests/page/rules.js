@@ -464,11 +464,23 @@ async function main() {
   await settle();
   same("Tuesday holds the block", blocks(), ["16:00–19:30"]);
   ok("and the amber bar says it is waiting", shown(all(screen, "held")[0], screen));
+  same("and what is waiting", plain(all(screen, "held__text")[0].textContent),
+    "The television is asleep. The change goes when it wakes. Waiting: the hours.");
   await beat();
   same("a poll does not take it away", blocks(), ["16:00–19:30"]);
   now += 60000;
   await beat();
   same("and neither does time passing", blocks(), ["16:00–19:30"]);
+
+  process.stdout.write("\nThe held bar names everything Undo would throw away\n");
+  await show(television({reporting: false, pending_rules: {daily_limit_s: 3600,
+    apps_allowed: ["tv.example.video"], app_limits_s: {"tv.example.video": 1800},
+    something_new: 1}}));
+  same("each held rule, said aloud", plain(all(screen, "held__text")[0].textContent),
+    "The television is asleep. The change goes when it wakes. Waiting: the daily " +
+    "limit, the allowed apps, the app budgets and something_new.");
+  await show(television());
+  ok("nothing held, no bar", !shown(all(screen, "held")[0], screen));
 
   process.stdout.write("\nHours an awake television never takes\n");
   await show(television());
@@ -508,6 +520,27 @@ async function main() {
     {id: "tv1", action: "number", key: "sleep_timer", value: 60});
   await show(television({reporting: false}));
   ok("and cannot while the set is away", button(screen, "Start").disabled);
+
+  process.stdout.write("\nThe sleep timer the television has armed\n");
+  const armed = () => all(screen, "sleep__armed").filter((one) => shown(one, screen))
+    .map((one) => plain(one.textContent)).join("|");
+  await show(television());
+  same("none armed, nothing said", armed(), "");
+  ok("and nothing to cancel", !button(screen, "Cancel the timer"));
+  await show(television({sleep_at: new RealDate(2026, 9, 12, 19, 30, 0).getTime()}));
+  same("armed, it says when the set turns off", armed(),
+    "The television turns off at 19:30.");
+  fire(button(screen, "Cancel the timer"), "click", {});
+  await settle();
+  same("and Cancel sends zero", sent[sent.length - 1],
+    {id: "tv1", action: "number", key: "sleep_timer", value: 0});
+  await show(television({locked: true,
+    sleep_at: new RealDate(2026, 9, 12, 18, 30, 0).getTime()}));
+  same("a bedtime already come says so", armed(),
+    "The sleep timer ran out at 18:30.");
+  ok("and can still be cancelled", button(screen, "Cancel the timer"));
+  await show(television({sleep_at: "not a time"}));
+  same("a deadline that is not one is none", armed(), "");
 
   process.stdout.write(failures ? "\n" + failures + " failed\n" : "\nall held\n");
   process.exit(failures ? 1 : 0);

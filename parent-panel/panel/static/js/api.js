@@ -89,6 +89,22 @@
     },
   };
 
+  /**
+   * What a change held for a sleeping television says about one rule, by the name the
+   * television gives it, or `undefined` when the change does not touch that rule.
+   *
+   * Undefined rather than null because null is a value here: a held removal, which has
+   * to be shown as much as a held number. Every screen that draws a rule lays this over
+   * what the set reports; one that did not showed the old value again once its own wait
+   * ran out, while the change still sat in Home Assistant.
+   */
+  TS.held = function held(tv, key) {
+    const waiting = tv && tv.pending_rules;
+    if (!waiting || typeof waiting !== "object" ||
+      !Object.prototype.hasOwnProperty.call(waiting, key)) return undefined;
+    return waiting[key];
+  };
+
   /** The television being looked at, or null when there is none. */
   TS.tv = function tv() {
     return TS.state.televisions.find((one) => one.id === TS.state.current) || null;

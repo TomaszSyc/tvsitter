@@ -196,6 +196,19 @@ POLISH: dict[str, str] = {
     "The television is asleep. The change goes when it wakes.": (
         "Telewizor śpi. Zmiana trafi do niego, gdy się obudzi."
     ),
+    # What a held change holds, named in the bar that offers to throw it away.
+    "Waiting: {what}.": "Czeka: {what}.",
+    "the daily limit": "limit dzienny",
+    "the warning before the end": "ostrzeżenie przed końcem",
+    "the Settings block": "blokada Ustawień",
+    "the app budgets": "budżety aplikacji",
+    "the week's allowances": "przydziały tygodnia",
+    "the hours": "godziny",
+    "the allowed apps": "dozwolone aplikacje",
+    "a change": "zmiana",
+    "{most} and {last}": "{most} i {last}",
+    "The sleep timer ran out at {clock}.": "Wyłącznik czasowy zadziałał o {clock}.",
+    "It is allowed already.": "Już jest dozwolona.",
     "Undo": "Cofnij",
     "The other days will be locked unless they get hours too.": (
         "Pozostałe dni będą zablokowane, jeśli też nie dostaną godzin."

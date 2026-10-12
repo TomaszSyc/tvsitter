@@ -184,6 +184,15 @@
     title.replaceChildren(select);
   }
 
+  // A choice made in a list is finished, but a phone's web view leaves the focus on the
+  // list, and `typing()` then read it as somebody still choosing: the screen stopped
+  // being drawn until something else was tapped. After the screen's own handler, so the
+  // choice is taken before the focus goes.
+  screen.addEventListener("change", (event) => {
+    const target = event.target;
+    if (target && target.tagName === "SELECT" && target.blur) target.blur();
+  });
+
   /** Whether somebody is typing into the screen, which a redraw would take from them. */
   function typing() {
     const active = document.activeElement;

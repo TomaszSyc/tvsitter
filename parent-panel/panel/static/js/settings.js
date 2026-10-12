@@ -278,10 +278,16 @@
       view.update();
     });
 
-    view.television = {warn, block, followed, stop, keeps, idle};
+    // The two are rules, so a change to either waits for a sleeping set, and says so here
+    // where it was made rather than only on Rules.
+    const held = element("p", "held-line",
+      phrase("The television is asleep. The change goes when it wakes."));
+    held.hidden = true;
+
+    view.television = {warn, block, followed, stop, keeps, idle, held};
     return [
       row(phrase("Warning before the end"), warn),
-      row(phrase("Block Settings on the television"), block),
+      row(phrase("Block Settings on the television"), block), held,
       row(phrase("Hours from a Home Assistant schedule"), followed),
       keeps, idle, stop, warned,
     ];
@@ -305,7 +311,14 @@
     if (!set) view.pin.arm(false);
 
     const warn = view.television.warn;
-    const held = TS.number(tv.warn_before);
+    // What a change waiting for a sleeping set says, over what the set reports: read
+    // the other way, the choice snapped back once the shell stopped holding it.
+    const heldWarn = TS.held(tv, "warn_before_s");
+    const heldBlock = TS.held(tv, "block_settings");
+    view.television.held.hidden = heldWarn === undefined && heldBlock === undefined;
+    const warnSeconds = heldWarn === undefined ? null : TS.number(heldWarn);
+    const held = heldWarn === undefined ? TS.number(tv.warn_before) :
+      warnSeconds === null ? null : warnSeconds / 60;
     // What a parent is choosing is not written over while the choice travels.
     if (!view.holding && document.activeElement !== warn) {
       warn.replaceChildren();
@@ -323,7 +336,7 @@
       warn.value = held === null ? "" : String(held);
     }
 
-    const on = Boolean(tv.block_settings);
+    const on = heldBlock === undefined ? Boolean(tv.block_settings) : Boolean(heldBlock);
     view.television.block.setAttribute("aria-checked", String(on));
     view.television.block.classList.toggle("switch--on", on);
 

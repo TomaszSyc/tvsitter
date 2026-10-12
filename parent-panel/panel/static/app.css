@@ -492,6 +492,13 @@ select.name option {
   color: var(--secondary);
 }
 
+/* A change shown where it is made, held for a sleeping television: one amber line. */
+.held-line {
+  margin: var(--space-2) 0 0;
+  color: var(--warn);
+  font-size: var(--size-small);
+}
+
 /* The Rules screen. */
 
 /* A change held for a sleeping television: amber, on top, with the way back. */

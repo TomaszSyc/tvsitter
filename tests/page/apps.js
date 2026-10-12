@@ -262,6 +262,72 @@ async function main() {
   same("zero is sent", limitsSent()[0].minutes, 0);
   same("and read as Blocked", tagOf("Video Player"), "Blocked");
   ok("with nothing lower to go", button(sheet(), "−").disabled);
+  same("and Access says Blocked too",
+    button(sheet(), "Blocked").getAttribute("aria-pressed"), "true");
+
+  process.stdout.write("\nAllowed on an app a zero blocks takes the zero away\n");
+  await show({apps: [app(VIDEO, "Video Player", 27, 0), app(GAMES, "Games Hub", 5, null)]});
+  fire(row("Video Player"), "click", {});
+  same("Access shows Blocked", button(sheet(), "Blocked").getAttribute("aria-pressed"),
+    "true");
+  fire(button(sheet(), "Allowed"), "click", {});
+  await settle();
+  same("with the list off, the zero goes", limitsSent(),
+    [{id: "tv1", action: "app_limit", package: VIDEO, minutes: null}]);
+  same("and nothing else needs sending", allowedSent().length, 0);
+  same("the tag says Allowed", tagOf("Video Player"), "Allowed");
+  same("and so does Access", button(sheet(), "Allowed").getAttribute("aria-pressed"),
+    "true");
+  fire(button(sheet(), "Allowed"), "click", {});
+  await settle();
+  same("tapping it again sends nothing", limitsSent().length + allowedSent().length, 1);
+  ok("but says so rather than nothing",
+    plain(sheet().textContent).indexOf("It is allowed already.") >= 0);
+  TS.sheet.close();
+
+  await show({apps: [app(VIDEO, "Video Player", 27, 0), app(GAMES, "Games Hub", 5, null)],
+    allowed_apps: [GAMES]});
+  fire(row("Video Player"), "click", {});
+  fire(button(sheet(), "Allowed"), "click", {});
+  await settle();
+  same("with the list on, the zero goes", limitsSent().map((one) => one.minutes),
+    [null]);
+  same("and the app joins the list", lastAllowed().packages, [GAMES, VIDEO]);
+  same("so it is Allowed", tagOf("Video Player"), "Allowed");
+  TS.sheet.close();
+
+  process.stdout.write("\nA change held for a sleeping set is what the screen shows\n");
+  await show({reporting: false, apps: LIST,
+    pending_rules: {app_limits_s: {[VIDEO]: 1800, [NETFLIX]: null}}});
+  same("a held limit is the tag", tagOf("Video Player"), "30 min a day");
+  same("a held removal is the tag", tagOf("Stream Plus"), "Allowed");
+  same("an app the change leaves alone keeps its own", tagOf("Games Hub"), "Allowed");
+  const line = () => all(screen, "held-line").find((one) => shown(one, screen));
+  ok("with the amber line", line());
+  now += 60000;
+  await beat();
+  await settle();
+  same("long after any wait, still the held limit", tagOf("Video Player"),
+    "30 min a day");
+  fire(row("Video Player"), "click", {});
+  same("the sheet shows it", plain(all(sheet(), "step__figure")[0].textContent),
+    "30 min");
+  ok("and says it is waiting",
+    all(sheet(), "held-line").some((one) => shown(one, document.body)));
+  TS.sheet.close();
+  fire(row("Games Hub"), "click", {});
+  ok("not in the sheet of an app it does not touch",
+    !all(sheet(), "held-line").some((one) => shown(one, document.body)));
+  TS.sheet.close();
+  await show({reporting: false, apps: LIST, pending_rules: {app_limits_s: null}});
+  same("every budget removed is every tag without one", tagOf("Stream Plus"),
+    "Allowed");
+  await show({reporting: false, apps: LIST, pending_rules: {apps_allowed: [VIDEO]}});
+  same("a held list is the switch", toggle().getAttribute("aria-checked"), "true");
+  same("and the tags", [tagOf("Video Player"), tagOf("Games Hub")],
+    ["Allowed", "Blocked"]);
+  await show({apps: LIST, pending_rules: {daily_limit_s: 3600}});
+  ok("a change elsewhere draws no line here", !line());
 
   process.stdout.write("\nWhat was just set stays until the television says it\n");
   await show({apps: LIST});
