@@ -612,6 +612,19 @@ select.name option {
   color: var(--tertiary);
 }
 
+/* The days the first hours of a week have just locked, and the amber line in the sheet
+   that says so before the save. */
+.when__locked,
+.sheet__warn {
+  margin: var(--space-3) 0 0;
+  color: var(--warn);
+  font-size: var(--size-small);
+}
+
+.sheet__warn {
+  text-align: center;
+}
+
 .limit .pill--small,
 .daily .pill--small {
   margin-top: var(--space-3);

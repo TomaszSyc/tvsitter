@@ -216,6 +216,50 @@ async function main() {
     [{from: "16:00", to: "19:00"}]);
   same("and the axis shows one block", blocks(), ["16:00–19:00"]);
 
+  process.stdout.write("\nThe first block warns that other days lock\n");
+  const lockWarn = () => sheet() && all(sheet(), "sheet__warn")
+    .find((one) => shown(one, document.body));
+  await show(television());
+  fire(button(screen, "Add hours"), "click", {});
+  ok("the first block of an empty week warns",
+    lockWarn() && plain(lockWarn().textContent).indexOf("locked") >= 0);
+  TS.sheet.close();
+  await show(television({hours: evening}));
+  fire(button(screen, "Add hours"), "click", {});
+  ok("a week that already has hours does not", !lockWarn());
+  TS.sheet.close();
+  fire(block("17:00–19:00"), "click", {});
+  ok("nor does editing a block", !lockWarn());
+  TS.sheet.close();
+
+  process.stdout.write("\nAfter the first block the locked days are named\n");
+  const lockedNote = () => all(screen, "when__locked").find((one) => shown(one, screen));
+  await show(television());
+  ok("nothing is named before", !lockedNote());
+  fire(button(screen, "Add hours"), "click", {});
+  choose("from", "16:00");
+  choose("to", "17:00");
+  fire(button(sheet(), "Save"), "click", {});
+  await settle();
+  ok("the note is there", lockedNote());
+  ok("naming Tuesday to Sunday", lockedNote() &&
+    plain(lockedNote().textContent).indexOf("Tue, Wed, Thu, Fri, Sat, Sun") >= 0);
+  ok("and not Monday", lockedNote() &&
+    plain(lockedNote().textContent).indexOf("Mon") < 0);
+  ok("the copy chips are beside it", button(screen, "the whole week"));
+  fire(button(screen, "the whole week"), "click", {});
+  await settle();
+  same("whole week sends all seven days equal",
+    WEEK.map((day) => lastHours().days[day]), WEEK.map(() => span("16:00", "17:00")));
+  ok("and the note goes", !lockedNote());
+  await show(television());
+  fire(button(screen, "Add hours"), "click", {});
+  fire(button(sheet(), "Save"), "click", {});
+  await settle();
+  ok("named again after another first block", lockedNote());
+  fire(chip("tue"), "click", {});
+  ok("and gone when the day is switched", !lockedNote());
+
   process.stdout.write("\nEditing a block sends the whole week, one day changed\n");
   const week = blank();
   week.mon = span("16:00", "18:00");

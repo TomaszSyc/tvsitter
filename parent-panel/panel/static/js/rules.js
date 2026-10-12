@@ -313,16 +313,29 @@
       say(drawn.hoursNote, done);
     }
     if (view) paint(view);
+    return answer;
+  }
+
+  function emptyWeek(week) {
+    return DAYS.every((day) => !week[day].length);
   }
 
   /** One day's hours with one block taken out and another put in. */
-  function changeDay(drawn, day, was, now) {
+  async function changeDay(drawn, day, was, now) {
     const week = shownWeek(drawn.tv);
+    const first = emptyWeek(week);
     const days = weekOf(week);
     const gone = new Set(was ? slots([was]) : []);
     const kept = days[day].filter((at) => !gone.has(at));
     days[day] = slots(blocks(kept).concat(now ? [now] : []));
-    sendWeek(drawn, days);
+    const answer = await sendWeek(drawn, days);
+    // The first hours of an unrestricted week turn every other day into a day with no
+    // hours, which is a locked day (D27) — on a screen that shows one day at a time.
+    // So the days that just locked are named, next to the way of giving them hours.
+    if (first && answer && answer.ok && drawn.day === day) {
+      drawn.lockedAfter = day;
+      if (view) paint(view);
+    }
   }
 
   function options(select, first, last) {
@@ -357,6 +370,11 @@
       const wheels = element("div", "wheels");
       wheels.append(opens.box, shuts.box);
       const said = note();
+      // Said before the save rather than after: the hours of one day are about to
+      // decide the other six.
+      const warn = element("p", "sheet__warn", phrase("The other days will be locked " +
+        "unless they get hours too."));
+      warn.hidden = Boolean(was) || !emptyWeek(shownWeek(drawn.tv));
       // A start moved onto or past the end takes the end with it, half an hour on,
       // rather than leaving a block that ends before it begins.
       opens.select.addEventListener("change", () => {
@@ -385,7 +403,7 @@
         changeDay(drawn, day, was, now);
       });
       row.append(cancel, save);
-      body.append(title, wheels, said, row);
+      body.append(title, wheels, warn, said, row);
     });
   }
 
@@ -457,6 +475,7 @@
         made.day = day;
         say(made.limitNote, "");
         say(made.hoursNote, "");
+        made.lockedAfter = null;
         paint(made);
       });
       made.chip[day] = chip;
@@ -510,9 +529,12 @@
       });
       made.copy.appendChild(chip);
     });
+    made.locked = element("p", "when__locked");
+    made.locked.setAttribute("role", "status");
+    made.locked.hidden = true;
     made.hoursNote = note();
     when.append(element("h2", "heading", phrase("When")), made.readOnly, buildAxis(made),
-      made.add, made.copy, made.hoursNote);
+      made.add, made.locked, made.copy, made.hoursNote);
 
     // Every day: the limit a day without its own takes.
     const every = element("section", "daily");
@@ -664,6 +686,14 @@
     paintBlocks(drawn, blocks(week[drawn.day]), locked);
     drawn.add.hidden = locked;
     drawn.copy.hidden = locked;
+    const shut = DAYS.filter((day) => !week[day].length);
+    if (drawn.lockedAfter && (locked || !shut.length || drawn.lockedAfter !== drawn.day)) {
+      drawn.lockedAfter = null;
+    }
+    drawn.locked.hidden = !drawn.lockedAfter;
+    drawn.locked.textContent = drawn.lockedAfter ?
+      phrase("No hours on {days}, so the television stays locked on them.",
+        {days: shut.map((day) => WEEK[DAYS.indexOf(day)][2]).join(", ")}) : "";
 
     const daily = limit(tv, "daily_limit");
     drawn.dailyFigure.textContent = daily !== null ? TS.length(daily) : phrase("No limit");

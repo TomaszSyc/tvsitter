@@ -283,6 +283,12 @@ POLISH: dict[str, str] = {
         "Telewizor śpi. Zmiana trafi do niego, gdy się obudzi."
     ),
     "Undo": "Cofnij",
+    "The other days will be locked unless they get hours too.": (
+        "Pozostałe dni będą zablokowane, jeśli też nie dostaną godzin."
+    ),
+    "No hours on {days}, so the television stays locked on them.": (
+        "Brak godzin: {days} — w te dni telewizor pozostaje zablokowany."
+    ),
     "{day} · hours": "{day} · godziny",
     "From": "Od",
     "To": "Do",
