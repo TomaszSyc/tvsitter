@@ -33,7 +33,7 @@ import pytest
 DRIVERS = Path(__file__).resolve().parent / "page"
 
 # Moved to the new page one at a time, by the task that rebuilds what each one drives.
-LEGACY = {"asking.js", "language.js"}
+LEGACY = {"language.js"}
 
 
 def served_to(driver: Path) -> str:

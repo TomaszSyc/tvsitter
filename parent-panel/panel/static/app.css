@@ -1152,3 +1152,117 @@ select.name option {
     scroll-behavior: auto !important;
   }
 }
+
+/* The Settings screen: three groups of hairline rows, opened from the gear. */
+
+.settings__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+}
+
+.settings__title {
+  margin: 0;
+  font-size: var(--size-title);
+  font-weight: 600;
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target);
+  margin-left: calc(-1 * var(--space-2));
+  padding: 0 var(--space-3) 0 var(--space-1);
+  border: 0;
+  background: transparent;
+  color: var(--secondary);
+  font-size: 15px;
+}
+
+.back svg {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.settings__group > * + * {
+  margin-top: 0;
+}
+
+.set {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--target);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid rgba(238, 243, 246, 0.06);
+}
+
+.set__title {
+  flex: 1 1 55%;
+  min-width: 0;
+  margin: 0;
+  font-size: 15px;
+}
+
+.set__value {
+  flex: 0 1 auto;
+  max-width: 100%;
+  margin: 0 0 0 auto;
+  overflow-wrap: anywhere;
+  text-align: right;
+  color: var(--secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The PIN field and its button on one line; the field takes what the button leaves. */
+.entry {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0 var(--space-1);
+}
+
+.field {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--target);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-small);
+  background: transparent;
+  letter-spacing: 0.4em;
+  font-size: var(--size-body);
+}
+
+.settings .actions--start,
+.settings .note,
+.settings .hint {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.settings .actions--start {
+  padding-top: var(--space-3);
+}
+
+.settings .empty--start {
+  margin: var(--space-3) 0 0;
+  text-align: left;
+  font-size: var(--size-small);
+}
+
+.settings .hint {
+  margin: var(--space-2) 0 0;
+}
+
+.settings .setting__select {
+  max-width: 55%;
+}

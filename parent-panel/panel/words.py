@@ -337,6 +337,25 @@ POLISH: dict[str, str] = {
     "No phone with the Home Assistant app was found.": (
         "Nie znaleziono telefonu z aplikacją Home Assistant."
     ),
+    # The Settings screen.
+    "Parent": "Rodzic",
+    "Parent PIN": "PIN rodzica",
+    "Set": "Ustawiony",
+    "Not set": "Nie ustawiony",
+    "Send time requests to": "Wysyłaj prośby o czas do",
+    "Second device": "Drugie urządzenie",
+    "Warning before the end": "Ostrzeżenie przed końcem",
+    "Block Settings on the television": "Blokuj Ustawienia na telewizorze",
+    "Hours from a Home Assistant schedule": "Godziny z harmonogramu Home Assistanta",
+    "Off": "Wyłączone",
+    "Stop following": "Przestań śledzić",
+    "To take the hours from a schedule, choose one in Home Assistant.": (
+        "Aby brać godziny z harmonogramu, wybierz go w Home Assistancie."
+    ),
+    "Status": "Stan",
+    "Version on the television": "Wersja na telewizorze",
+    "Last report": "Ostatni raport",
+    "Back": "Wstecz",
     # The page itself.
     "Everything here comes from Home Assistant.": (
         "Wszystko tutaj pochodzi z Home Assistanta."
