@@ -112,11 +112,12 @@
       }
       case "daily_limit":
       case "sleep_timer": {
-        // A new day is a new allowance; it starts when tomorrow's first hours do.
+        // A new day is a new allowance; it starts when tomorrow's first hours do. Asked
+        // from the last instant of today, so tomorrow is one day ahead of it.
         const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
         const next = opening(tv, new Date(midnight.getTime() - 1));
         if (!next) return phrase("Allowed again tomorrow");
-        return next.ahead === 0 ?
+        return next.ahead === 1 ?
           phrase("Allowed again tomorrow at {clock}", {clock: TS.clock(next.at)}) : null;
       }
       case "app_limit":

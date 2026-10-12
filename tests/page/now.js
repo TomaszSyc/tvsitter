@@ -262,6 +262,14 @@ async function main() {
     true);
   same("is allowed again tomorrow", text().indexOf("Allowed again tomorrow") >= 0,
     true);
+  await show(television({locked: true, lock_reason: "daily_limit", until_s: null,
+    hours: evenings}));
+  same("with hours, the day's time comes back when tomorrow's hours open", text()
+    .indexOf("Allowed again tomorrow at 16:00") >= 0, true);
+  await show(television({locked: true, lock_reason: "sleep_timer", until_s: null,
+    hours: evenings}));
+  same("and so does a sleep timer's", text()
+    .indexOf("Allowed again tomorrow at 16:00") >= 0, true);
   await show(television({locked: true, lock_reason: "manual", until_s: null}));
   same("a parent's own lock", text().indexOf("Locked by a parent") >= 0, true);
   await show(television({locked: true, lock_reason: "something_new", until_s: null}));
