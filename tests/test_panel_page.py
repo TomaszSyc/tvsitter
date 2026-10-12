@@ -10,9 +10,7 @@ So it runs, on a DOM small enough to read (`tests/page/dom.js`) rather than in a
 browser. Not a rendering test — nothing here knows what anything looks like. It taps
 the buttons, answers the writes, lands the polls, and asks what is left on the screen.
 
-Two pages for now. The drivers written for the old one-file page keep running against
-it until the screen that replaces what they test arrives with drivers of its own; every
-other driver runs against the new scripts, joined in the order the shell loads them.
+Every driver runs against the new scripts, joined in the order the shell loads them.
 
 TV Sitter — parental control for Android TV / Google TV.
 Copyright (C) 2026 Tomasz Syc
@@ -26,19 +24,11 @@ from pathlib import Path
 import shutil
 import subprocess
 
-from panel import page, shell
+from panel import shell
 from panel.words import words
 import pytest
 
 DRIVERS = Path(__file__).resolve().parent / "page"
-
-# Moved to the new page one at a time, by the task that rebuilds what each one drives.
-LEGACY = {"language.js"}
-
-
-def served_to(driver: Path) -> str:
-    """Return the script a driver runs against: the old page or the new one."""
-    return page._SCRIPT if driver.name in LEGACY else shell.script()
 
 
 @pytest.mark.parametrize(
@@ -53,7 +43,7 @@ def test_the_page_behaves(driver: Path, tmp_path: Path) -> None:
         pytest.skip("no Node here to run the page in")
 
     served = tmp_path / "page.js"
-    served.write_text(served_to(driver), encoding="utf-8")
+    served.write_text(shell.script(), encoding="utf-8")
     # The Polish words, in the shape the document carries them. Handed to every driver
     # and ignored by the ones that read the page in English.
     catalogue = tmp_path / "words.json"
@@ -69,11 +59,3 @@ def test_the_page_behaves(driver: Path, tmp_path: Path) -> None:
 
     # The driver names every check it made, so its own output is the failure report.
     assert done.returncode == 0, done.stdout + done.stderr
-
-
-def test_some_driver_runs_against_the_new_page() -> None:
-    """A rename that put every driver back in the old group would test nothing new."""
-    drivers = {one.name for one in DRIVERS.glob("*.js")} - {"dom.js"}
-
-    assert drivers - LEGACY
-    assert drivers >= LEGACY

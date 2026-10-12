@@ -66,11 +66,6 @@
     return made;
   }
 
-  function tile(name) {
-    const first = Array.from(String(name).trim())[0] || "?";
-    return element("span", "app__tile", first.toUpperCase());
-  }
-
   // ---- What the television reports, with what was just set laid over it. ----
 
   /** The apps to list: today's, without what no rule reaches, the most used first. */
@@ -303,7 +298,7 @@
     if (found) sheet.last = found;
     const one = sheet.last;
     if (!one) return;
-    sheet.tile.textContent = tile(one.name).textContent;
+    sheet.tile.textContent = TS.tile(one.name).textContent;
     sheet.title.textContent = one.name;
     sheet.sub.textContent = phrase("today {today} · this week {week}", {
       today: TS.length(one.minutes),
@@ -354,7 +349,7 @@
     // Kept apart from the button: `title` is a property of every element in a browser,
     // and an element written over it becomes a string.
     const parts = {
-      tile: tile(""),
+      tile: TS.tile(""),
       title: element("span", "app__title ellipsis"),
       sub: element("span", "app__sub"),
       tag: element("span", "tag"),
@@ -368,7 +363,7 @@
 
   function paintRow(drawn, row, one) {
     const parts = row.parts;
-    parts.tile.textContent = tile(one.name).textContent;
+    parts.tile.textContent = TS.tile(one.name).textContent;
     parts.title.textContent = one.name;
     parts.sub.textContent = today(one);
     const state = stateOf(drawn.tv, one);

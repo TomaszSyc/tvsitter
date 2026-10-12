@@ -364,6 +364,14 @@ POLISH: dict[str, str] = {
     "Sections": "Sekcje",
     "Now": "Teraz",
     "Today": "Dziś",
+    "Last seven days": "Ostatnie siedem dni",
+    "Yesterday {time}": "Wczoraj {time}",
+    "Nothing watched in the last seven days.": (
+        "W ostatnich siedmiu dniach nic nie oglądano."
+    ),
+    "The last seven days are not available from this television yet.": (
+        "Ten telewizor nie podaje jeszcze danych z ostatnich siedmiu dni."
+    ),
     "Rules": "Reguły",
     "Apps": "Aplikacje",
     "History": "Historia",

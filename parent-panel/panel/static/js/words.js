@@ -67,6 +67,15 @@
     return rest ? hours + "\u00a0h\u00a0" + rest + "\u00a0min" : hours + "\u00a0h";
   };
 
+  /** An app's mark: a tile with the first letter of its name, the one Apps and History share. */
+  TS.tile = function tile(name) {
+    const first = Array.from(String(name).trim())[0] || "?";
+    const made = document.createElement("span");
+    made.className = "app__tile";
+    made.textContent = first.toUpperCase();
+    return made;
+  };
+
   /** A time of day on the 24-hour clock the television itself shows. */
   TS.clock = function clock(at) {
     const two = (value) => String(value).padStart(2, "0");

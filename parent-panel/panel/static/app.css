@@ -1266,3 +1266,35 @@ select.name option {
 .settings .setting__select {
   max-width: 55%;
 }
+
+/* History: the heading of each list carries the list's total at its end, in mint. */
+.history__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.history__total {
+  color: var(--accent);
+  font-size: 17px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.history__line {
+  margin: 0 0 var(--space-1);
+  color: var(--tertiary);
+  font-size: var(--size-small);
+}
+
+.app__value {
+  flex: none;
+  color: var(--secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.history .empty {
+  margin: var(--space-3) 0;
+  text-align: left;
+}
