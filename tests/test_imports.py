@@ -54,6 +54,7 @@ PANEL_MODULES = [
     "panel.home_assistant",
     "panel.page",
     "panel.server",
+    "panel.shell",
     "panel.statistics",
     "panel.words",
 ]

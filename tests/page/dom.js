@@ -100,6 +100,7 @@ class El {
     return null;
   }
   setAttribute(name, value) { this._attrs.set(name, String(value)); }
+  removeAttribute(name) { this._attrs.delete(name); }
   getAttribute(name) {
     return this._attrs.has(name) ? this._attrs.get(name) : null;
   }
@@ -139,9 +140,13 @@ const document = new El("#document");
 document.activeElement = null;
 document.hidden = false;
 document.createElement = (tag) => new El(tag);
+// The new page draws its marks in SVG; the namespace changes nothing a test can see.
+document.createElementNS = (space, tag) => new El(tag);
 const known = new Map();
 ["banner", "nothing", "chooser", "tabs", "rail", "panels", "lead", "which",
-  "go-now", "go-today", "go-rules", "go-apps"].forEach((id) => {
+  "go-now", "go-today", "go-rules", "go-apps",
+  // The new page's landmarks, which its shell fills in.
+  "ts-header", "ts-offline", "ts-screen", "ts-bar"].forEach((id) => {
   const node = new El("div");
   node.id = id;
   // A destination in the rail is a mark and then its name, in that order, which is

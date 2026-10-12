@@ -5,10 +5,11 @@ container, and refusing everybody else because that is the whole of an Ingress a
 network security: the Supervisor is the only thing that should ever connect, and it
 always connects from one address.
 
-Six routes and no rendering. The page arrives once and asks for its own values
-afterwards, so nothing here builds markup out of a state — which is why none of the API
-routes ever answers with an error status. A 500 is a blank panel with nothing on it
-saying why; the sentence travels in the body instead, and the page shows it.
+Seven routes and no rendering. The page arrives once, its scripts and styles after it,
+and it asks for its own values afterwards, so nothing here builds markup out of a
+state — which is why none of the API routes ever answers with an error status. A 500
+is a blank panel with nothing on it saying why; the sentence travels in the body
+instead, and the page shows it.
 
 TV Sitter — parental control for Android TV / Google TV.
 Copyright (C) 2026 Tomasz Syc
@@ -26,7 +27,7 @@ from .api import apply, gathered
 from .automations import Automations, configure, offer
 from .blueprints import install
 from .home_assistant import HomeAssistant, Refused
-from .page import render_shell
+from .shell import STATIC, render_shell
 from .words import phrase, words
 
 _LOGGER = logging.getLogger("panel")
@@ -54,15 +55,22 @@ NOT_A_REQUEST = "That was not a request."
 UNKEPT = "Home Assistant would not keep that automation."
 UNMADE = "Home Assistant would not make that change."
 
+# What `static/` may hand out, and as what. Anything else in there — the shell's own
+# template above all, which is not a page until it has been filled — is not found.
+SERVED = {
+    ".js": "text/javascript",
+    ".css": "text/css",
+}
+
 
 async def index(request: web.Request) -> web.Response:
     """Answer with the page, which fetches everything on it for itself.
 
     The words come with it rather than after it, because the page says things before it
-    has asked Home Assistant anything — the destinations in the rail and the sentence
-    under the title are on the screen while the first request is still in flight, and a
-    rail that is briefly English is a rail that flickers. Asking which language costs
-    one small request per page load, and a page load is not a thing that happens often.
+    has asked Home Assistant anything — the tabs and the gear are on the screen while
+    the first request is still in flight, and tabs that are briefly English are tabs
+    that flicker. Asking which language costs one small request per page load, and a
+    page load is not a thing that happens often.
     """
     home: HomeAssistant = request.app["home"]
     tongue = await home.language() if home.authorised else "en"
@@ -185,6 +193,30 @@ async def make(request: web.Request) -> web.Response:
     return answer({"ok": True})
 
 
+async def static(request: web.Request) -> web.StreamResponse:
+    """Hand out one of the page's files, from inside `static/` and nowhere else.
+
+    A handler rather than `add_static`, which caches by default and serves whatever it
+    finds: here every answer is `no-store`, so an update reaches a phone that kept the
+    panel open, and only the kinds of file the page is made of leave the folder.
+    """
+    try:
+        found = (STATIC / request.match_info["path"]).resolve()
+    except (OSError, ValueError):
+        # A name no file can have, such as one with a NUL in it, is simply not here.
+        raise web.HTTPNotFound() from None
+    kind = SERVED.get(found.suffix)
+    # Resolved before it is checked, so `..`, an encoded one and a link pointing out of
+    # the folder all land outside it and are refused alike.
+    if kind is None or not found.is_relative_to(STATIC) or not found.is_file():
+        raise web.HTTPNotFound()
+    response = web.FileResponse(
+        found, headers={"Content-Type": f"{kind}; charset=utf-8"}
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 async def health(request: web.Request) -> web.Response:
     """Say the panel is up, for anything that wants to know without loading a page."""
     return web.json_response({"ok": True})
@@ -232,6 +264,7 @@ def build() -> web.Application:
     app.router.add_post("/api/do", do)
     app.router.add_get("/api/setup", setup)
     app.router.add_post("/api/setup", make)
+    app.router.add_get("/static/{path:.+}", static)
     app.router.add_get("/health", health)
 
     async def open_session(app: web.Application) -> None:

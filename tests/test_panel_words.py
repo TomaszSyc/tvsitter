@@ -7,7 +7,8 @@ Home Assistant, on one screen, for whoever happens to open it.
 
 So the sentences are read back out of the page itself and compared both ways. Every
 sentence the page can say has to be in the catalogue, and every entry in the catalogue
-has to be one the page can say.
+has to be one the page can say. The page is read from both of the places it lives while
+it moves: the old one-file script and the new static scripts.
 
 TV Sitter — parental control for Android TV / Google TV.
 Copyright (C) 2026 Tomasz Syc
@@ -18,8 +19,9 @@ from __future__ import annotations
 
 import re
 
-from panel.page import _SCRIPT, render_shell
+from panel.page import _SCRIPT
 from panel.server import NO_TOKEN, NOT_A_REQUEST, REFUSED, SILENT, UNKEPT, UNMADE
+from panel.shell import SCRIPTS, STATIC, render_shell
 from panel.words import LANGUAGES, POLISH, words
 import pytest
 
@@ -130,16 +132,27 @@ def _joined(part: str) -> str:
     return "".join(said).encode("latin-1", "backslashreplace").decode("unicode_escape")
 
 
+def sources() -> list[str]:
+    """Return the old page and every new script, each read on its own.
+
+    On its own rather than joined, so a sentence cannot be stitched together from the
+    end of one file and the start of the next.
+    """
+    scripts = sorted((STATIC / "js").glob("*.js"))
+    return [_SCRIPT] + [one.read_text(encoding="utf-8") for one in scripts]
+
+
 def asked() -> list[str]:
     """Every sentence the page can ask for, in the order it first asks."""
     found: list[str] = []
-    at = _SCRIPT.find("phrase(")
-    while at >= 0:
-        for branch in _branches(_argument(_SCRIPT, at + len("phrase"))):
-            one = _joined(branch)
-            if one and one not in found:
-                found.append(one)
-        at = _SCRIPT.find("phrase(", at + 1)
+    for source in sources():
+        at = source.find("phrase(")
+        while at >= 0:
+            for branch in _branches(_argument(source, at + len("phrase"))):
+                one = _joined(branch)
+                if one and one not in found:
+                    found.append(one)
+            at = source.find("phrase(", at + 1)
     return found
 
 
@@ -210,4 +223,5 @@ def test_no_translation_can_end_the_script_it_is_written_into() -> None:
     """The browser looks for the characters, not for a string, wherever they are."""
     page = render_shell(words("pl"), "pl")
 
-    assert page.lower().count("</script>") == 2
+    # The words, then one element per script file, each closed where it should be.
+    assert page.lower().count("</script>") == 1 + len(SCRIPTS)

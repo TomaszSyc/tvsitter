@@ -1,0 +1,59 @@
+/*
+ * The television's look, as names the layout can use.
+ *
+ * Taken one to one from `TvStyle.kt`, so the panel and the set are one product: the
+ * same navy, the same mint for what is active, the same amber for what needs a parent.
+ * Always dark, whatever the Home Assistant theme is — the panel is the television's
+ * remote, not part of the house's dashboard.
+ *
+ * TV Sitter — parental control for Android TV / Google TV.
+ * Copyright (C) 2026 Tomasz Syc
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* Palette. */
+  --ink: #0B1117;
+  --dusk: #2E7184;
+  --surface: #141D26;
+  --raised: #1C2732;
+  --line: #2C3A47;
+  --edge: #5A6B7A;
+  --text: #EEF3F6;
+  --secondary: #B4C1CC;
+  --tertiary: #8798A7;
+  --accent: #5BE1BE;
+  --warn: #F6C467;
+  --error: #F4A9A3;
+
+  /* The glow the lock screen has, falling from above. */
+  --glow: radial-gradient(120% 55% at 50% -12%, var(--dusk) 0%, var(--ink) 70%);
+
+  /* Spacing. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* Corners: chips and rows, the bottom sheet, and a pill (half its 44 px height). */
+  --radius-small: 12px;
+  --radius-sheet: 20px;
+  --radius-pill: 22px;
+
+  /* Type. */
+  --font: Roboto, system-ui, -apple-system, "Segoe UI", "Helvetica Neue", Arial,
+    sans-serif;
+  --size-label: 12px;
+  --size-small: 13px;
+  --size-body: 16px;
+  --size-title: 20px;
+  --size-large: 28px;
+  --size-hero: 46px;
+
+  /* The smallest thing a thumb is asked to hit. */
+  --target: 44px;
+}

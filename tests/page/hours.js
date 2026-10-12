@@ -7,7 +7,7 @@
 // completed — so nothing was ever lost, and it read as the panel refusing a change it
 // had in fact taken (#136).
 //
-// Run by tests/test_panel_grid.py, which hands it the page as the browser gets it.
+// Run by tests/test_panel_page.py, which hands it the page as the browser gets it.
 //
 // TV Sitter — parental control for Android TV / Google TV.
 // Copyright (C) 2026 Tomasz Syc

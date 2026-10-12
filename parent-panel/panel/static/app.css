@@ -1,0 +1,334 @@
+/*
+ * The layout: a header, the screen standing on the backdrop, the four tabs under the
+ * thumb, and the few parts every screen is built from.
+ *
+ * No cards. The television's lock screen puts its words straight on the glow, and so
+ * does this; sections are told apart by a small heading and spacing. The bottom sheet
+ * is the one raised surface, because it is the one thing that sits over something else.
+ *
+ * TV Sitter — parental control for Android TV / Google TV.
+ * Copyright (C) 2026 Tomasz Syc
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* An element with its own `display` would otherwise show while it is meant to hide. */
+[hidden] {
+  display: none !important;
+}
+
+html {
+  background: var(--ink);
+  -webkit-text-size-adjust: 100%;
+}
+
+/* No background of its own: the glow below sits between the page and this, and a body
+   colour would be painted over it. The navy comes from `html`. */
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--text);
+  font-family: var(--font);
+  font-size: var(--size-body);
+  line-height: 1.4;
+  -webkit-tap-highlight-color: transparent;
+  overflow-x: hidden;
+}
+
+/*
+ * The glow, fixed behind the page rather than painted on the body: a scrolled screen
+ * keeps the light where the lock screen has it, and a fixed background image is the
+ * one thing phone browsers still draw wrongly.
+ */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: var(--glow);
+  pointer-events: none;
+}
+
+button,
+select,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+/* One ring for everything that takes the focus, with a gap of backdrop inside it. */
+:focus-visible {
+  outline: 2px solid transparent;
+  box-shadow: 0 0 0 2px var(--ink), 0 0 0 4px var(--accent);
+}
+
+.top,
+.offline,
+.screen {
+  width: 100%;
+  max-width: 600px;
+  margin-inline: auto;
+}
+
+/* The header: the dial, whose television this is and what it is doing, the gear. */
+
+.top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: max(var(--space-5), env(safe-area-inset-top)) var(--space-4) var(--space-2);
+}
+
+.dial {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  color: var(--accent);
+}
+
+.who {
+  flex: 1;
+  min-width: 0;
+}
+
+.name {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: var(--size-title);
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The name as a choice, when there is more than one television to choose from. */
+select.name {
+  min-height: var(--target);
+  margin: -10px 0 -10px -4px;
+  padding: 0 28px 0 4px;
+  border: 0;
+  border-radius: var(--radius-small);
+  appearance: none;
+  background-color: transparent;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--secondary) 50%),
+    linear-gradient(135deg, var(--secondary) 50%, transparent 50%);
+  background-position: calc(100% - 14px) 52%, calc(100% - 9px) 52%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+}
+
+select.name option {
+  background: var(--raised);
+  color: var(--text);
+}
+
+.status {
+  margin: 2px 0 0;
+  overflow: hidden;
+  color: var(--secondary);
+  font-size: var(--size-small);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.status::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--tertiary);
+  vertical-align: 1px;
+}
+
+.status[data-tone="on"]::before {
+  background: var(--accent);
+}
+
+.status[data-tone="warn"]::before {
+  background: var(--warn);
+}
+
+.gear {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--target);
+  height: var(--target);
+  margin-right: -10px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--secondary);
+}
+
+.gear svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* Said once, under the header, while Home Assistant is not answering. */
+.offline {
+  margin-block: 0;
+  padding: 0 var(--space-4) var(--space-2);
+  color: var(--error);
+  font-size: var(--size-small);
+}
+
+/* The screen, clear of the tab bar however tall the phone's own bar under it is. */
+.screen {
+  --bar-height: 64px;
+  padding: var(--space-2) var(--space-4)
+    calc(var(--bar-height) + env(safe-area-inset-bottom) + var(--space-5));
+}
+
+.empty {
+  margin: var(--space-6) 0;
+  color: var(--secondary);
+  text-align: center;
+}
+
+.heading {
+  margin: var(--space-5) 0 var(--space-2);
+  color: var(--tertiary);
+  font-size: var(--size-label);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* The four tabs, fixed under the thumb. */
+
+.bar {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: center;
+  padding: 6px var(--space-2) calc(6px + env(safe-area-inset-bottom));
+  border-top: 1px solid rgba(238, 243, 246, 0.06);
+  background: rgba(11, 17, 23, 0.92);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+.tab {
+  flex: 1;
+  max-width: 132px;
+  min-height: 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 2px 0;
+  border: 0;
+  border-radius: var(--radius-small);
+  background: transparent;
+  color: var(--tertiary);
+  font-size: var(--size-label);
+  font-weight: 500;
+}
+
+.tab svg {
+  width: 56px;
+  height: 28px;
+  padding: 3px 17px;
+  border-radius: 14px;
+  transition: background-color 0.15s ease;
+}
+
+.tab[aria-current="page"] {
+  color: var(--accent);
+}
+
+.tab[aria-current="page"] svg {
+  background: rgba(91, 225, 190, 0.14);
+}
+
+/* Pills: every button a screen puts in front of a parent. */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: var(--target);
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  background: var(--raised);
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.pill--accent {
+  background: var(--accent);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.pill--outline {
+  border-color: var(--edge);
+  background: transparent;
+}
+
+.pill--warn {
+  background: var(--warn);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.pill:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+@media (hover: hover) {
+  .pill:not(:disabled):hover,
+  .gear:hover,
+  .tab:hover {
+    filter: brightness(1.12);
+  }
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}

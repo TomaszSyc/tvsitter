@@ -1,9 +1,10 @@
-"""The panel's script, checked for the one thing Python cannot see in it.
+"""The panel's scripts, checked for the things Python cannot see in them.
 
-`page.py` carries sixty kilobytes of JavaScript inside a string. Python imports it
-happily whatever is written there, every panel test passes, the add-on builds, the
-container starts, and the parent gets a blank page with a parse error in a console
-nobody has open. A stray bracket in a card nothing else touches is a whole panel gone.
+The page is a handful of JavaScript files served as they are, with no build step to
+complain. Python imports the panel happily whatever is written in them, every panel test
+passes, the add-on builds, the container starts, and the parent gets a blank page with a
+parse error in a console nobody has open. A stray bracket in a screen nothing else
+touches is a whole panel gone.
 
 `node --check` is the cheapest answer: it parses and does not run. Skipped rather than
 failed where there is no Node, because a machine without one is not a machine with a
@@ -16,40 +17,73 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 from __future__ import annotations
 
-from pathlib import Path
 import shutil
 import subprocess
 
-from panel.page import _SCRIPT, render_shell
+from panel.shell import SCRIPTS, STATIC, render_shell
 import pytest
 
+SCRIPT_DIR = STATIC / "js"
 
-def test_the_script_parses(tmp_path: Path) -> None:
-    """Hand the script to Node exactly as the browser gets it."""
+
+@pytest.mark.parametrize("name", SCRIPTS)
+def test_every_script_parses(name: str) -> None:
+    """Hand each file to Node exactly as the browser gets it."""
     node = shutil.which("node")
     if node is None:
         pytest.skip("no Node here to parse it with")
 
     # The extension matters: `--check` reads a `.js` file as a script, which is what a
-    # plain `<script>` element makes of it, and a `.mjs` as a module, which it is not.
-    written = tmp_path / "page.js"
-    written.write_text(_SCRIPT, encoding="utf-8")
-
+    # plain `<script src>` makes of it, and a `.mjs` as a module, which it is not.
     done = subprocess.run(
-        [node, "--check", str(written)], capture_output=True, text=True, check=False
+        [node, "--check", str(SCRIPT_DIR / name)],
+        capture_output=True,
+        text=True,
+        check=False,
     )
 
     assert done.returncode == 0, done.stderr
 
 
-def test_the_script_is_closed_inside_the_document() -> None:
-    """An unescaped closing tag ends the script early wherever it appears.
+def test_the_shell_names_every_script_once() -> None:
+    """A file on disk the shell does not load is a screen that never appears.
 
-    The browser looks for the characters and not for a string, so one written inside a
-    quoted sentence would cut the page off mid-function — and it would still be a valid
-    script as far as the test above is concerned.
+    And one the shell loads that is not on disk is a 404 in the middle of the load
+    order, which leaves every script after it without the names it expects.
     """
-    assert "</script" not in _SCRIPT.lower()
-    # Two blocks: the words the page says, then the page. Both have to be closed once
-    # and no more, and a third would mean something has been cut in half.
-    assert render_shell().lower().count("</script>") == 2
+    page = render_shell()
+    on_disk = sorted(path.name for path in SCRIPT_DIR.glob("*.js"))
+
+    assert sorted(SCRIPTS) == on_disk
+    assert len(set(SCRIPTS)) == len(SCRIPTS)
+    for name in SCRIPTS:
+        # Relative, because an Ingress App is served under a path the Supervisor
+        # invents per session and an absolute address would leave the App altogether.
+        assert page.count(f'<script src="static/js/{name}"></script>') == 1
+    # In the order given: each file finds the names the ones before it left on `TS`.
+    places = [page.index(f"static/js/{name}") for name in SCRIPTS]
+    assert places == sorted(places)
+
+
+def test_the_shell_carries_both_stylesheets_relative() -> None:
+    """The tokens first, so the layout reads colours that are already defined."""
+    page = render_shell()
+
+    tokens = page.index('<link rel="stylesheet" href="static/tokens.css">')
+    layout = page.index('<link rel="stylesheet" href="static/app.css">')
+    assert tokens < layout
+
+
+@pytest.mark.parametrize("name", SCRIPTS)
+def test_no_script_closes_the_document(name: str) -> None:
+    """Served from a file it cannot end a script element, but the drivers concatenate.
+
+    And a file that once moved back inline would cut the page off mid-function while
+    still being a valid script as far as the test above is concerned.
+    """
+    assert "</script" not in (SCRIPT_DIR / name).read_text(encoding="utf-8").lower()
+
+
+def test_the_document_closes_each_script_once() -> None:
+    """The words the page says, then one element per file, and nothing cut in half."""
+    assert render_shell().lower().count("</script>") == 1 + len(SCRIPTS)

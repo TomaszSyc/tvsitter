@@ -225,6 +225,9 @@ POLISH: dict[str, str] = {
     "Today": "Dziś",
     "Rules": "Reguły",
     "Apps": "Aplikacje",
+    "History": "Historia",
+    "Settings": "Ustawienia",
+    "No connection to Home Assistant": "Brak połączenia z Home Assistantem",
     # What the panel itself says when a change cannot be made. Only the sentences that
     # are the same every time: the ones carrying a television's name are built where
     # the name is known and stay in English until they are made into templates.

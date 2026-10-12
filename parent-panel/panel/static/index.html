@@ -1,0 +1,27 @@
+<!doctype html>
+<!--
+  The parent's page. A template: `shell.py` fills in the language, the words and the
+  scripts, and the scripts fill in everything else. Never served as it is.
+
+  TV Sitter — parental control for Android TV / Google TV.
+  Copyright (C) 2026 Tomasz Syc
+  SPDX-License-Identifier: AGPL-3.0-only
+-->
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0B1117">
+<title>TV Sitter</title>
+<link rel="stylesheet" href="static/tokens.css">
+<link rel="stylesheet" href="static/app.css">
+</head>
+<body>
+<header id="ts-header" class="top"></header>
+<p id="ts-offline" class="offline" role="status" hidden></p>
+<main id="ts-screen" class="screen"></main>
+<nav id="ts-bar" class="bar"></nav>
+<script>const SAID = {{said}};</script>
+{{scripts}}</body>
+</html>

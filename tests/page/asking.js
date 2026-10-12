@@ -6,7 +6,7 @@
 // what this drives is the half that was missing: the phones are offered, what is
 // already chosen comes back chosen, and what is picked is what gets posted (#104).
 //
-// Run by tests/test_panel_grid.py, which hands over the page.
+// Run by tests/test_panel_page.py, which hands over the page.
 //
 // TV Sitter — parental control for Android TV / Google TV.
 // Copyright (C) 2026 Tomasz Syc

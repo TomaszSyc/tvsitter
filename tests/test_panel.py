@@ -9,7 +9,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from aiohttp.test_utils import TestClient, TestServer
+from panel import server
 from panel.home_assistant import Television, collect
+import pytest
 
 DEVICE = "b0fc4e4987a5b78b71faf37e6a219e9b"
 
@@ -192,3 +195,49 @@ def test_the_rules_come_from_the_television_without_the_name_tacked_on() -> None
     }
 
     assert television.rules == {"daily_limit_s": 3600}
+
+
+# A real server on the loopback: the routing and the path checks are aiohttp's and the
+# handler's together, and only a request that travels through both tests either.
+@pytest.mark.usefixtures("socket_enabled")
+async def test_static_files_are_served_without_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The page's files, from inside `static/` only, and never kept by anybody.
+
+    A phone that keeps yesterday's script after an update runs it against today's
+    state, which is a panel broken in a way nobody can reproduce on their own machine.
+    """
+    # The test client connects from the loopback, not from the Supervisor, and the
+    # blueprints belong in a Home Assistant's configuration, not in the test run.
+    monkeypatch.setattr(server, "INGRESS", "127.0.0.1")
+    monkeypatch.setattr(server, "install", lambda: [])
+    monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
+
+    async with TestClient(TestServer(server.build())) as client:
+        script = await client.get("/static/js/main.js")
+        style = await client.get("/static/tokens.css")
+        page = await client.get("/")
+        outside = [
+            await client.get(path)
+            for path in (
+                "/static/../server.py",
+                "/static/%2E%2E/server.py",
+                "/static/js/..%2F..%2Fserver.py",
+                "/static/js/missing.js",
+                "/static/js/main%00.js",
+                # The shell's template, which is not a page until it has been filled.
+                "/static/index.html",
+            )
+        ]
+
+        assert script.status == 200
+        assert script.headers["Cache-Control"] == "no-store"
+        assert script.content_type == "text/javascript"
+        assert "window.TS" in await script.text()
+        assert style.status == 200
+        assert style.headers["Cache-Control"] == "no-store"
+        assert style.content_type == "text/css"
+        assert page.status == 200
+        assert '<script src="static/js/main.js"></script>' in await page.text()
+        assert [one.status for one in outside] == [404] * len(outside)

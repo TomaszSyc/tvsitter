@@ -6,7 +6,7 @@
 // the document, document into `SAID`, `SAID` through `phrase`, `phrase` onto a box a
 // parent reads. A sentence can be translated, shipped and still come out in English.
 //
-// Run by tests/test_panel_grid.py, which hands over the page and the Polish words.
+// Run by tests/test_panel_page.py, which hands over the page and the Polish words.
 //
 // TV Sitter — parental control for Android TV / Google TV.
 // Copyright (C) 2026 Tomasz Syc
