@@ -245,6 +245,56 @@ POLISH: dict[str, str] = {
     "Read-only: the hours come from {helper}.": (
         "Tylko do odczytu: godziny pochodzą z {helper}."
     ),
+    # The Rules screen: one day, how much and when.
+    "Day": "Dzień",
+    "How much": "Ile",
+    "When": "Kiedy",
+    "As daily": "Jak limit dzienny",
+    "The daily limit: {time}": "Limit dzienny: {time}",
+    "No daily limit is set": "Limit dzienny nie jest ustawiony",
+    "15 minutes less": "15 minut mniej",
+    "15 minutes more": "15 minut więcej",
+    "Use the daily limit": "Użyj limitu dziennego",
+    "To be spent within the marked hours (window: {time}).": (
+        "Do wykorzystania w zaznaczonych godzinach (okno: {time})."
+    ),
+    "No hours are marked on any day, so it can be spent at any time.": (
+        "Żaden dzień nie ma zaznaczonych godzin, więc można go wykorzystać o każdej "
+        "porze."
+    ),
+    "No hours on this day: the television stays locked.": (
+        "Ten dzień nie ma godzin: telewizor pozostaje zablokowany."
+    ),
+    "The hours come to only {time}, so no more than that can be watched.": (
+        "Godzin jest tylko {time} — więcej nie da się obejrzeć."
+    ),
+    "Add hours": "Dodaj godziny",
+    "Edit the hours from {from} to {to}": "Edytuj godziny od {from} do {to}",
+    "Copy these hours to": "Skopiuj te godziny na",
+    # After "Copy these hours to", so lower case.
+    "weekdays": "dni robocze",
+    "the weekend": "weekend",
+    "the whole week": "cały tydzień",
+    "Copied": "Skopiowano",
+    "The television is enforcing other hours, so these are its own.": (
+        "Telewizor egzekwuje inne godziny, więc pokazane są jego własne."
+    ),
+    "The television is asleep. The change goes when it wakes.": (
+        "Telewizor śpi. Zmiana trafi do niego, gdy się obudzi."
+    ),
+    "Undo": "Cofnij",
+    "{day} · hours": "{day} · godziny",
+    "From": "Od",
+    "To": "Do",
+    "Delete": "Usuń",
+    "Cancel": "Anuluj",
+    "The end has to be after the start.": "Koniec musi być po początku.",
+    "For days without their own.": "Dla dni bez własnego limitu.",
+    "Remove the limit": "Usuń limit",
+    "Start": "Włącz",
+    "Cancel the timer": "Anuluj wyłącznik",
+    "The television turns off at {clock}.": "Telewizor wyłączy się o {clock}.",
+    "The sleep timer is off.": "Wyłącznik czasowy jest wyłączony.",
     # Asking for more time.
     "Asking for more time": "Prośba o więcej czasu",
     "Ask": "Zapytaj",

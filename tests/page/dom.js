@@ -159,6 +159,10 @@ const known = new Map();
   known.set(id, node);
   document.appendChild(node);
 });
+// Where the bottom sheet is put: outside the screen, so a redraw of the screen cannot
+// reach it.
+document.body = new El("body");
+document.appendChild(document.body);
 document.getElementById = (id) => known.get(id) || null;
 document.elementFromPoint = () => null;
 

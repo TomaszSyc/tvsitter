@@ -475,10 +475,430 @@ select.name option {
   font-variant-numeric: tabular-nums;
 }
 
+/* Smaller pills, for the choices beside a figure rather than the actions of a screen. */
+.pill--small {
+  padding: 0 14px;
+  font-size: var(--size-small);
+}
+
+.pill--danger {
+  border-color: rgba(244, 169, 163, 0.5);
+  background: transparent;
+  color: var(--error);
+}
+
+/* A note that reports rather than warns. */
+.note--quiet {
+  color: var(--secondary);
+}
+
+/* The Rules screen. */
+
+/* A change held for a sleeping television: amber, on top, with the way back. */
+.held {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-3) 0 0;
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  border-left: 3px solid var(--warn);
+  border-radius: var(--radius-small);
+  background: rgba(246, 196, 103, 0.09);
+}
+
+.held__text {
+  flex: 1;
+  margin: 0;
+  font-size: var(--size-small);
+}
+
+.held__undo {
+  flex: none;
+  min-width: var(--target);
+  min-height: var(--target);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--warn);
+  font-size: var(--size-small);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* The week as seven chips; the day being edited in mint. */
+.days {
+  display: flex;
+  gap: var(--space-1);
+  margin-top: var(--space-4);
+}
+
+.day {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--target);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-small);
+  background: transparent;
+  color: var(--secondary);
+  font-size: var(--size-small);
+}
+
+.day--on {
+  background: var(--accent);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.limit__row,
+.setting {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.limit__figure {
+  flex: 1;
+  margin: 0;
+  font-size: var(--size-large);
+  font-weight: 600;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.stepper {
+  flex: none;
+  display: flex;
+  gap: var(--space-3);
+}
+
+.stepper__button {
+  display: grid;
+  place-items: center;
+  width: var(--target);
+  height: var(--target);
+  padding: 0;
+  border: 1px solid var(--edge);
+  border-radius: 50%;
+  background: transparent;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.stepper__button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.limit__sub,
+.limit__warn,
+.when__sealed {
+  margin: var(--space-1) 0 0;
+  font-size: var(--size-small);
+}
+
+.limit__sub {
+  color: var(--secondary);
+}
+
+.limit__warn {
+  color: var(--warn);
+}
+
+.when__sealed {
+  margin-bottom: var(--space-3);
+  color: var(--tertiary);
+}
+
+.limit .pill--small,
+.daily .pill--small {
+  margin-top: var(--space-3);
+}
+
+.limit .note,
+.when .note,
+.daily .note,
+.sleep .note,
+.sleep .why {
+  text-align: left;
+}
+
+/*
+ * The day as a time axis: an hour line every hour, a time every second one, and the
+ * allowed hours as outlined blocks on it. Laid out by the page (top and height in
+ * pixels), because the blocks are placed by the minute.
+ */
+/* Room under the last line for the midnight label, which hangs below it. */
+.axis {
+  position: relative;
+  margin: var(--space-2) 0 var(--space-6);
+}
+
+.axis__marks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.axis__mark {
+  position: absolute;
+  right: 0;
+  left: 0;
+  border-top: 1px solid rgba(238, 243, 246, 0.06);
+}
+
+.axis__time {
+  position: absolute;
+  top: 2px;
+  left: 0;
+  color: var(--tertiary);
+  font-size: var(--size-label);
+  font-variant-numeric: tabular-nums;
+}
+
+.axis__lane {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 52px;
+  cursor: copy;
+}
+
+.block {
+  position: absolute;
+  right: 4px;
+  left: 0;
+  display: flex;
+  align-items: flex-start;
+  padding: 5px 10px;
+  overflow: hidden;
+  border: 1.5px solid var(--accent);
+  border-radius: 9px;
+  /* Mint over the navy rather than over the hour lines, which would show through. */
+  background: linear-gradient(rgba(91, 225, 190, 0.18), rgba(91, 225, 190, 0.18)),
+    var(--ink);
+  color: var(--text);
+  font-size: var(--size-small);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* Half an hour is a line of text and no more, and its thumb target reaches past it. */
+.block--short {
+  align-items: center;
+  padding-block: 0;
+  font-size: var(--size-label);
+  overflow: visible;
+}
+
+.block--short::before {
+  content: "";
+  position: absolute;
+  inset: -14px 0;
+}
+
+/* Hours that begin before the axis does: cut at its top, said in full on the block. */
+.block--clipped {
+  border-top-style: dashed;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.block:disabled {
+  cursor: default;
+}
+
+.copy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.copy__label {
+  width: 100%;
+  color: var(--tertiary);
+  font-size: var(--size-small);
+}
+
+.copy .pill--small {
+  margin: 0;
+}
+
+.setting__name {
+  flex: 1;
+  min-width: 0;
+}
+
+.setting__title,
+.setting__hint {
+  margin: 0;
+}
+
+.setting__hint {
+  color: var(--tertiary);
+  font-size: var(--size-small);
+}
+
+.setting__value {
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* A native choice, so a phone opens its own picker; drawn in the panel's look. */
+.setting__select,
+.wheel__select {
+  min-height: var(--target);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-small);
+  appearance: none;
+  background-color: transparent;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--secondary) 50%),
+    linear-gradient(135deg, var(--secondary) 50%, transparent 50%);
+  background-position: calc(100% - 16px) 52%, calc(100% - 11px) 52%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+  font-variant-numeric: tabular-nums;
+}
+
+.setting__select {
+  flex: none;
+  padding: 0 32px 0 12px;
+}
+
+.setting__select option,
+.wheel__select option {
+  background: var(--raised);
+  color: var(--text);
+}
+
+.setting__actions {
+  justify-content: flex-start;
+  margin-top: var(--space-3);
+}
+
+/*
+ * The bottom sheet: the one raised surface. Over a dimmed page, from the bottom, and
+ * above the tab bar, which the backdrop covers along with everything else.
+ */
+.sheet__layer {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.sheet__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  animation: sheet-fade 0.2s ease;
+}
+
+.sheet {
+  position: relative;
+  width: 100%;
+  max-width: 600px;
+  max-height: 90vh;
+  margin-inline: auto;
+  padding: var(--space-3) var(--space-5)
+    calc(var(--space-5) + env(safe-area-inset-bottom));
+  overflow-y: auto;
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  background: var(--surface);
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.5);
+  animation: sheet-rise 0.22s ease-out;
+}
+
+.sheet:focus {
+  outline: none;
+}
+
+.sheet__grab {
+  width: 36px;
+  height: 4px;
+  margin: 0 auto var(--space-3);
+  border-radius: 2px;
+  background: var(--line);
+}
+
+.sheet__title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.wheels {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-5);
+  padding: var(--space-5) 0 var(--space-3);
+}
+
+.wheel {
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.wheel__label {
+  color: var(--tertiary);
+  font-size: var(--size-label);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.wheel__select {
+  min-width: 124px;
+  min-height: 56px;
+  padding: 0 34px 0 18px;
+  background-color: var(--raised);
+  border-color: var(--line);
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.sheet__actions {
+  flex-wrap: nowrap;
+  padding-top: var(--space-4);
+}
+
+.sheet__actions .pill {
+  flex: 1;
+  padding: 0 var(--space-2);
+}
+
+@keyframes sheet-rise {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes sheet-fade {
+  from {
+    opacity: 0;
+  }
+}
+
 @media (hover: hover) {
   .pill:not(:disabled):hover,
   .gear:hover,
-  .tab:hover {
+  .tab:hover,
+  .day:hover,
+  .stepper__button:not(:disabled):hover,
+  .block:not(:disabled):hover {
     filter: brightness(1.12);
   }
 }
