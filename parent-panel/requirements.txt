@@ -6,4 +6,4 @@
 # not the only thing that ran the moment this repository went public — Dependabot opened thirty
 # advisories against it, two of them high. 3.14.3 is the first release patched for both, and it
 # is what the development environment here had been resolving to all along.
-aiohttp==3.14.3
+aiohttp==3.14.5
