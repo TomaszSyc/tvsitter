@@ -13,6 +13,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
+import app.tvsitter.rules.Deadlines
 import app.tvsitter.rules.Rules
 import app.tvsitter.rules.contract.Alert
 import app.tvsitter.rules.contract.AlertKind
@@ -230,7 +231,7 @@ class EnforcerService : Service() {
             this,
             trusted = clock,
             rules = { activeRules?.rules ?: Rules.NONE },
-            sleepAtMs = { locks?.sleepAtMs ?: 0 },
+            deadlines = { locks?.deadlines ?: Deadlines.NONE },
             // The day that just closed, before the counter forgets it. Published retained, so
             // a Home Assistant that was down at four in the morning still gets yesterday.
             onDayRolled = { closing ->

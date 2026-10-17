@@ -46,6 +46,14 @@ data class LockState(
     fun covered(nowMs: Long): Boolean = budget || manualInForce(nowMs)
 
     /**
+     * When the granted time ends and a parent's lock comes back, epoch millis, or null.
+     *
+     * Handed to the engine, so the countdown, the warnings and `until_s` know the lock is coming
+     * back. Without it a panel read "no limit" for the whole of the granted time.
+     */
+    fun grantEndsAtMs(nowMs: Long): Long? = pausedUntilMs.takeIf { manual && it > nowMs }
+
+    /**
      * What to remember across a reboot.
      *
      * A manual lock outranks a budget one even while it is standing down, and that ordering is

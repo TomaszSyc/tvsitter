@@ -259,8 +259,9 @@ class LockStateTest {
         // And the engine, handed the moved deadline, lets the screen off and brings it back.
         val engine = RuleEngine(BudgetClock(ZoneId.of("Europe/Warsaw")))
         val day = BudgetState(day = LocalDate.of(2026, 8, 22))
-        val during = engine.judge(Rules.NONE, day, null, now + minute, sleepAtMs = grant.sleepAtMs)
-        val after = engine.judge(Rules.NONE, day, null, now + 15 * minute, sleepAtMs = grant.sleepAtMs)
+        val moved = Deadlines(sleepAtMs = grant.sleepAtMs)
+        val during = engine.judge(Rules.NONE, day, null, now + minute, moved)
+        val after = engine.judge(Rules.NONE, day, null, now + 15 * minute, moved)
         assertFalse(during.state == BudgetVerdict.SPENT, "lifted for the quarter hour")
         assertEquals(BudgetVerdict.SPENT, after.state)
         assertEquals(LockReason.SLEEP_TIMER, after.reason)
@@ -336,6 +337,17 @@ class LockStateTest {
 
         assertTrue(change.effects!!.covered)
         assertEquals(0, change.state.pausedUntilMs)
+    }
+
+    @Test
+    fun `granted time has an end only while a parent's lock is standing down`() {
+        val locked = LockTransitions.lockManually(nothing).state
+        val standing = LockTransitions.standDownFor(locked, seconds = 900, nowMs = now).state
+
+        assertEquals(now + 15 * minute, standing.grantEndsAtMs(now))
+        assertNull(standing.grantEndsAtMs(now + 15 * minute), "the time is up and the lock is back")
+        assertNull(locked.grantEndsAtMs(now), "a lock in force is not counting down to anything")
+        assertNull(nothing.grantEndsAtMs(now))
     }
 
     @Test

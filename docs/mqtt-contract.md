@@ -111,7 +111,9 @@ Three rules the correctness of the whole thing rests on:
   nothing else: a window closing at half past seven ends the evening with an hour of budget
   left, and `until_s` is the number the television is counting down to. Keeping them apart is
   deliberate — redefining `remaining_today_s` to mean "whichever runs out first" without
-  changing its name is the kind of change nobody finds afterwards.
+  changing its name is the kind of change nobody finds afterwards. A parent's lock standing
+  down for granted time counts too, from 0.11.40: its return ends viewing like any rule, and
+  before that a day with no limit read `null` for the whole of the granted time.
 - `pin_set` — whether a parent PIN exists on the TV. Not the PIN and not its hash: nothing
   that could be attacked offline leaves the television. What it answers is whether the lock
   can be lifted at the set itself, which is worth knowing before the evening Home Assistant

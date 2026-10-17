@@ -127,6 +127,11 @@ const actions = () => {
     .map((one) => plain(one.textContent)).join(",") : "";
 };
 const asking = () => all(screen, "ask").find(shown) || null;
+/** The large figure of the hero, as a parent reads it. */
+const figure = () => {
+  const one = all(screen, "hero__figure").find(shown);
+  return one ? plain(one.textContent) : null;
+};
 const status = () => find(header, (one) => one.classList.contains("status"));
 const changes = () => sent.filter((one) => one.url === "api/do")
   .map((one) => JSON.parse(one.options.body));
@@ -185,6 +190,16 @@ async function main() {
   same("nothing to be allowed until", text().indexOf("allowed until"), -1);
   await show(television({until_s: "not a number"}));
   same("an odd until_s is left out", text().indexOf("allowed until"), -1);
+  // Half an hour granted against a parent's lock, on a day with no limit: the lock comes
+  // back at the end of it, so "no limit" would be the wrong answer to "how long is left".
+  await show(television({limit_today: null, remaining_today: null, until_s: 1800}));
+  same("time until a lock comes back is what is left, not no limit", figure(), "30 min");
+  same("and it says until when", text().indexOf("allowed until 19:14") >= 0, true);
+  // The hours closing before the budget runs out end the evening first.
+  await show(television({until_s: 1200}));
+  same("whichever ends first is the figure, not the budget it outruns", figure(),
+    "20 min");
+  same("nor is it a share of a limit it is not", text().indexOf("of 2 h"), -1);
 
   process.stdout.write("\na waiting request comes first\n");
   const request = {id: "ab12", asked_minutes: 20, asked_at: NOW - 60000,

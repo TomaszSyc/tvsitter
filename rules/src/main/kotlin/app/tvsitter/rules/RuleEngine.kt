@@ -20,6 +20,15 @@ enum class LockReason(val wire: String) {
      */
     SLEEP_TIMER("sleep_timer"),
 
+    /**
+     * Time a parent granted against their own lock is running out, and the lock comes back.
+     *
+     * Counted down and warned about like a rule, but it never covers the screen from here: the
+     * lock that returns is the parent's, and [LockTransitions.resumeAfterStandDown] puts it back.
+     * Ahead of the rules in a tie, because that returning lock is what actually ends the evening.
+     */
+    GRANTED_TIME("granted_time"),
+
     /** The hours do not allow it. Asking for more time cannot answer this one. */
     OUTSIDE_WINDOW("outside_window"),
 
@@ -84,6 +93,35 @@ data class Judgement(
 }
 
 /**
+ * What a parent decided for tonight, as deadlines in epoch millis, each null for none.
+ *
+ * Not rules and not stored with them — one evening's decisions, which arrive as commands — but
+ * each one ends viewing the way a rule does, so they reach the engine together.
+ */
+data class Deadlines(
+    /**
+     * When tonight's sleep timer covers the screen.
+     *
+     * Once passed it keeps returning zero, which is what keeps the lock up. So whoever lifts that
+     * lock has to clear the deadline as well, or it comes straight back — the same trap the
+     * suspended-limit rule in the engine exists to avoid.
+     */
+    val sleepAtMs: Long? = null,
+    /**
+     * When a parent's lock, standing down for time they granted, comes back.
+     *
+     * Counted down and warned about only. At zero it drops out rather than covering the screen:
+     * the lock state brings the parent's lock back, and a second way of covering it would be a
+     * budget lock that a restart restores as one that lifts by itself.
+     */
+    val grantEndsAtMs: Long? = null,
+) {
+    companion object {
+        val NONE: Deadlines = Deadlines()
+    }
+}
+
+/**
  * Turns the rules, the clock and what has been watched into one answer.
  *
  * Every rule ends up as the same shape — a number of seconds before viewing has to stop — which
@@ -100,17 +138,18 @@ class RuleEngine(private val clock: BudgetClock) {
      * What should be happening, given the rules, the clock, what has been watched and any
      * deadline a parent has set for tonight.
      *
-     * [sleepAtMs] is not a rule and is not stored with them — it is one evening's decision, in
-     * epoch millis, or null for none. It arrives here rather than being handled separately so
-     * that it inherits the warning ladder, the countdown and the lock without a second copy of
-     * any of them; that it is a command rather than a rule is a question for the transport, not
+     * The [deadlines] arrive here rather than being handled separately so that they inherit the
+     * warning ladder, the countdown and — for the sleep timer — the lock without a second copy of
+     * any of them; that they are commands rather than rules is a question for the transport, not
      * for the arithmetic.
-     *
-     * A deadline that has passed keeps returning zero, which is what keeps the lock up. So
-     * whoever lifts that lock has to clear the deadline as well, or it comes straight back —
-     * the same trap the suspended-limit rule below exists to avoid.
      */
-    fun judge(rules: Rules, state: BudgetState, appId: String?, nowMs: Long, sleepAtMs: Long? = null): Judgement {
+    fun judge(
+        rules: Rules,
+        state: BudgetState,
+        appId: String?,
+        nowMs: Long,
+        deadlines: Deadlines = Deadlines.NONE,
+    ): Judgement {
         val moment = Instant.ofEpochMilli(nowMs)
         val day = clock.budgetDay(moment).dayOfWeek
         val second = secondOfBudgetDay(moment.atZone(clock.zone).toLocalTime())
@@ -126,7 +165,9 @@ class RuleEngine(private val clock: BudgetClock) {
             window?.let { Constraint(LockReason.OUTSIDE_WINDOW, secondsUntilClose(it, second)) },
             state.remainingSeconds(rules.limitFor(day))?.let { Constraint(LockReason.DAILY_LIMIT, it) },
             appConstraint(rules, state, appId),
-            sleepAtMs?.let { Constraint(LockReason.SLEEP_TIMER, secondsUntil(it, nowMs)) },
+            deadlines.sleepAtMs?.let { Constraint(LockReason.SLEEP_TIMER, secondsUntil(it, nowMs)) },
+            deadlines.grantEndsAtMs?.let { secondsUntil(it, nowMs) }?.takeIf { it > 0 }
+                ?.let { Constraint(LockReason.GRANTED_TIME, it) },
         )
 
         val binding = constraints.minWithOrNull(

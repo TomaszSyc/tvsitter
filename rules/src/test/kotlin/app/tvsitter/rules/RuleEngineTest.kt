@@ -299,7 +299,7 @@ class RuleEngineTest {
             onDay("2026-08-31"),
             appId = null,
             nowMs = at("2026-08-31T20:30:00"),
-            sleepAtMs = at("2026-08-31T21:00:00"),
+            deadlines = Deadlines(sleepAtMs = at("2026-08-31T21:00:00")),
         )
 
         assertEquals(1_800L, judgement.remainingSeconds)
@@ -317,7 +317,7 @@ class RuleEngineTest {
             onDay("2026-08-31"),
             appId = null,
             nowMs = at("2026-08-31T20:56:00"),
-            sleepAtMs = at("2026-08-31T21:00:00"),
+            deadlines = Deadlines(sleepAtMs = at("2026-08-31T21:00:00")),
         )
 
         assertEquals(BudgetVerdict.WARN, judgement.state)
@@ -331,7 +331,7 @@ class RuleEngineTest {
             onDay("2026-08-31"),
             appId = null,
             nowMs = at("2026-08-31T21:00:00"),
-            sleepAtMs = at("2026-08-31T21:00:00"),
+            deadlines = Deadlines(sleepAtMs = at("2026-08-31T21:00:00")),
         )
 
         assertEquals(BudgetVerdict.SPENT, judgement.state)
@@ -346,7 +346,7 @@ class RuleEngineTest {
             onDay("2026-08-31"),
             appId = null,
             nowMs = at("2026-08-31T23:00:00"),
-            sleepAtMs = at("2026-08-31T21:00:00"),
+            deadlines = Deadlines(sleepAtMs = at("2026-08-31T21:00:00")),
         )
 
         assertEquals(0, judgement.remainingSeconds)
@@ -362,7 +362,7 @@ class RuleEngineTest {
             state,
             appId = null,
             nowMs = at("2026-08-31T20:30:00"),
-            sleepAtMs = at("2026-08-31T21:00:00"),
+            deadlines = Deadlines(sleepAtMs = at("2026-08-31T21:00:00")),
         )
 
         assertEquals(1_800L, judgement.remainingSeconds)
@@ -380,7 +380,7 @@ class RuleEngineTest {
             state,
             appId = null,
             nowMs = at("2026-08-31T20:30:00"),
-            sleepAtMs = at("2026-08-31T21:00:00"),
+            deadlines = Deadlines(sleepAtMs = at("2026-08-31T21:00:00")),
         )
 
         assertEquals(300, judgement.remainingSeconds, "the budget, with five minutes on it")
@@ -398,6 +398,54 @@ class RuleEngineTest {
 
         assertEquals(BudgetVerdict.WITHIN, judgement.state)
         assertNull(judgement.remainingSeconds)
+    }
+
+    @Test
+    fun `time granted against a parent's own lock is how long viewing goes on`() {
+        // Without it a panel read "no limit" for the half hour before the lock came back.
+        val judgement = engine.judge(
+            Rules.NONE,
+            onDay("2026-08-31"),
+            appId = null,
+            nowMs = at("2026-08-31T20:30:00"),
+            deadlines = Deadlines(grantEndsAtMs = at("2026-08-31T21:00:00")),
+        )
+
+        assertEquals(1_800L, judgement.remainingSeconds)
+        assertEquals(BudgetVerdict.WITHIN, judgement.state)
+    }
+
+    @Test
+    fun `the end of granted time warns on the way, like every other rule`() {
+        val judgement = engine.judge(
+            Rules(warnBeforeSeconds = listOf(300)),
+            onDay("2026-08-31"),
+            appId = null,
+            nowMs = at("2026-08-31T20:56:00"),
+            deadlines = Deadlines(grantEndsAtMs = at("2026-08-31T21:00:00")),
+        )
+
+        assertEquals(BudgetVerdict.WARN, judgement.state)
+        assertEquals(300, judgement.decision.warnAtSeconds)
+        assertEquals(LockReason.GRANTED_TIME, judgement.reason)
+    }
+
+    @Test
+    fun `granted time running out does not cover the screen from here`() {
+        // The lock that comes back is the parent's own, and the lock state brings it back. A
+        // second way of covering the screen would be a budget lock the restart logic restores
+        // as one that lifts by itself.
+        val state = onDay("2026-08-31").copy(usedMillis = 3_600_000)
+        val judgement = engine.judge(
+            Rules(dailyLimitSeconds = 5_400),
+            state,
+            appId = null,
+            nowMs = at("2026-08-31T21:00:00"),
+            deadlines = Deadlines(grantEndsAtMs = at("2026-08-31T21:00:00")),
+        )
+
+        assertEquals(BudgetVerdict.WITHIN, judgement.state)
+        assertEquals(1_800L, judgement.remainingSeconds, "the allowance is what is left to count")
     }
 
     @Test

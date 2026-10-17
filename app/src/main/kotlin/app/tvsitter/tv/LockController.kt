@@ -9,6 +9,7 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import app.tvsitter.rules.Deadlines
 import app.tvsitter.rules.Judgement
 import app.tvsitter.rules.LockCause
 import app.tvsitter.rules.LockChange
@@ -160,6 +161,19 @@ class LockController(
         set(value) {
             memory.sleepAtMs = value
         }
+
+    /**
+     * Tonight's sleep timer and the end of any time granted against a parent's lock, for the
+     * engine.
+     *
+     * The second is why this exists: without it nothing counted down to the lock coming back, so
+     * a panel read "no limit" and the child had no warning. The lock itself still comes back from
+     * here, not from the engine.
+     */
+    val deadlines: Deadlines get() = Deadlines(
+        sleepAtMs = sleepAtMs.takeIf { it > 0 },
+        grantEndsAtMs = state.grantEndsAtMs(now()),
+    )
 
     /** Arms tonight's deadline, or cancels one already set. Zero and less both cancel. */
     fun sleepIn(minutes: Int) {

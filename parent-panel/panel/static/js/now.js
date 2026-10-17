@@ -23,6 +23,7 @@
   const MINUTE_MS = 60 * 1000;
   const MINUTES_PER_HOUR = 60;
   const MS_PER_SECOND = 1000;
+  const SECONDS_PER_MINUTE = 60;
   const DAYS_AHEAD = 8;
   // How long the television waits for an answer (docs/mqtt-contract.md). A set switched
   // off inside it leaves its last state saying a request waits, all evening.
@@ -261,12 +262,23 @@
     const left = TS.number(tv.remaining_today);
     const limit = TS.number(tv.limit_today);
     const until = TS.number(tv.until_s);
+    // Whatever ends viewing first is what is left: the hours closing, bedtime, or a lock
+    // coming back when the time granted against it is up. The day's budget is the answer
+    // only when nothing ends sooner, and "no limit" never was while a lock was coming back.
+    const sooner = until !== null && (left === null || until / SECONDS_PER_MINUTE < left);
     const parts = [line("hero__label", phrase("Left today"))];
-    parts.push(left === null ?
-      line("hero__figure hero__figure--word", phrase("No limit")) :
-      line("hero__figure", TS.length(left)));
+    if (sooner) {
+      parts.push(line("hero__figure", TS.length(until / SECONDS_PER_MINUTE)));
+    } else {
+      parts.push(left === null ?
+        line("hero__figure hero__figure--word", phrase("No limit")) :
+        line("hero__figure", TS.length(left)));
+    }
     const under = [];
-    if (limit !== null) under.push(phrase("of {time}", {time: TS.length(limit)}));
+    // "20 min of 2 h" would read as a share of the limit, which a closing window is not.
+    if (limit !== null && !sooner) {
+      under.push(phrase("of {time}", {time: TS.length(limit)}));
+    }
     if (until !== null) {
       const end = new Date(Date.now() + Math.max(0, until) * MS_PER_SECOND);
       under.push(phrase("allowed until {clock}", {clock: TS.clock(end)}));

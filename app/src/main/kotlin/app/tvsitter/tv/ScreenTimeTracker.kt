@@ -12,6 +12,7 @@ import app.tvsitter.rules.Attention
 import app.tvsitter.rules.AttentionRule
 import app.tvsitter.rules.BudgetClock
 import app.tvsitter.rules.BudgetState
+import app.tvsitter.rules.Deadlines
 import app.tvsitter.rules.Judgement
 import app.tvsitter.rules.RuleEngine
 import app.tvsitter.rules.Rules
@@ -35,8 +36,8 @@ class ScreenTimeTracker(
     /** The one the lock reads too, so a deadline means the same instant to both. */
     private val trusted: TrustedClock,
     private val rules: () -> Rules = { Rules.NONE },
-    /** Tonight's deadline, epoch millis, or zero for none. Asked for on every sample. */
-    private val sleepAtMs: () -> Long = { 0 },
+    /** What a parent decided for tonight. Asked for on every sample. */
+    private val deadlines: () -> Deadlines = { Deadlines.NONE },
     /** Given the day that just closed, before the counter forgets it. */
     private val onDayRolled: (BudgetState) -> Unit = {},
     private val onJudgement: (Judgement) -> Unit = {},
@@ -298,7 +299,7 @@ class ScreenTimeTracker(
             state,
             appDuringInterval,
             nowMs,
-            sleepAtMs = sleepAtMs().takeIf { it > 0 },
+            deadlines(),
         )
         onJudgement(judgement)
     }
