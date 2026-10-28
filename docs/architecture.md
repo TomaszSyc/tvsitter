@@ -1492,9 +1492,12 @@ for weeks between restarts. A launcher the lock did not know about would be sent
 it came forward behind a lock, and with an allow-list up it would be sent home every ten seconds
 for being an app nobody ticked; a dream it brought with it would be charged as viewing.
 
-- **Every home screen, not the one HOME resolves to.** A set carries several at once — Google's,
-  its setup wizard's, one installed over adb — and whichever is in front is the television at
-  rest rather than a child getting round anything.
+- **The firmware's launchers plus the chosen one, not only the one HOME resolves to.** A set
+  carries several at once — Google's, its setup wizard's — and whichever is in front is the
+  television at rest rather than a child getting round anything. An installed launcher counts
+  only while HOME resolves to it: declaring HOME costs an app one intent filter, and a player
+  that also calls itself a launcher must not walk past the allow-list, the budgets and the lock.
+  Choosing it takes Settings or adb, which is a parent's decision.
 - **Fallbacks out.** `com.android.tv.settings` answers HOME too, with a `FallbackHome` at
   priority -1000 that Android shows only when nothing else answers. Counting it would exempt
   Settings from the lock and take away half of D30. A negative priority is a fallback; when no
