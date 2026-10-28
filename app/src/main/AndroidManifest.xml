@@ -32,6 +32,14 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
+        <!--
+            Every home screen, so the lock and the allow-list never send one home (D40). Without
+            it a refused QUERY_ALL_PACKAGES would hide every launcher but the default.
+        -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.HOME" />
+        </intent>
     </queries>
 
     <uses-permission android:name="android.permission.INTERNET" />

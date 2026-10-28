@@ -57,6 +57,7 @@ class LockController(
 
     /** The same list the counter uses to decide that standby is not watching (D20). */
     private val screenSavers = ScreenSaverPackages(context)
+    private val homeScreens = HomeScreenPackages(context)
     private val settingsApps = SettingsPackages(context)
 
     private var state = LockState()
@@ -213,7 +214,7 @@ class LockController(
     val exemptPackages: Set<String>
         get() = buildSet {
             add(context.packageName)
-            displacer.homePackage?.let { add(it) }
+            addAll(homeScreens.all)
             addAll(screenSavers.all)
             addAll(SYSTEM_PACKAGES)
         }
@@ -359,7 +360,7 @@ class LockController(
         if (!overlay.isShowing) return
         // Our own screens are windows on this overlay rather than activities, so anything of
         // ours in front is the setup screen a parent opened deliberately.
-        if (packageName == context.packageName || packageName == displacer.homePackage) return
+        if (packageName == context.packageName || homeScreens.contains(packageName)) return
         // A screen saver behind a lock is the television idling, not a child getting round it.
         // Sending it home dismissed the saver, which came straight back, and the two fought
         // every two seconds for as long as the lock was up — measured, #95. That kept the panel

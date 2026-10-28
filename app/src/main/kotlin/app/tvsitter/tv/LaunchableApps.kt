@@ -33,8 +33,9 @@ import android.util.Log
  * same thing here as in `per_app_names`. An activity label and an application label differ often
  * enough that two names for one package on one dashboard would read as a bug.
  *
- * Re-resolved on a timer, unlike [ScreenSaverPackages] and [SettingsPackages], which resolve once
- * because their answer cannot change while the process lives. This one can, and installing an app
+ * Re-resolved on a timer, unlike [SettingsPackages], which resolves once because its answer cannot
+ * change while the process lives, and unlike [ScreenSaverPackages], which is cheap enough to ask on
+ * every check (D40). This one can change, and installing an app
  * is precisely the event an allow-list has to hear about — this service runs for weeks between
  * restarts, so resolving once would mean a new app stayed untickable until something killed it.
  *

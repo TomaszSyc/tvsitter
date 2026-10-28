@@ -8,7 +8,6 @@ package app.tvsitter.tv
 import android.content.Context
 import android.content.Intent
 import android.service.dreams.DreamService
-import android.util.Log
 
 /**
  * Which packages are screen savers, so their time is not charged to anybody.
@@ -21,30 +20,21 @@ import android.util.Log
  * TV one. `com.google.android.apps.tv.dreamx` is what this particular television happens to
  * use; another set would use its own, and a hard-coded name would be wrong there and nowhere
  * would say so.
+ *
+ * Asked on every check rather than once (D40): a launcher installed after start can bring its
+ * own dream, and until the service restarted that dream's evening would be charged as viewing.
  */
 class ScreenSaverPackages(context: Context) {
 
-    private val packages: Set<String> = resolve(context)
+    private val reading = PackageReading("screen savers") {
+        context.packageManager
+            .queryIntentServices(Intent(DreamService.SERVICE_INTERFACE), 0)
+            .mapNotNull { it.serviceInfo?.packageName }
+            .toSet()
+    }
 
-    fun contains(packageName: String?): Boolean = packageName != null && packageName in packages
+    fun contains(packageName: String?): Boolean = packageName != null && packageName in reading.read()
 
     /** The whole set, for the state payload that tells Home Assistant what it cannot rule on. */
-    val all: Set<String> get() = packages
-
-    private fun resolve(context: Context): Set<String> {
-        val found = runCatching {
-            context.packageManager
-                .queryIntentServices(Intent(DreamService.SERVICE_INTERFACE), 0)
-                .mapNotNull { it.serviceInfo?.packageName }
-                .toSet()
-        }.getOrElse {
-            Log.w(EnforcerService.TAG, "could not list screen savers; none will be excluded", it)
-            emptySet()
-        }
-
-        // Logged because an empty set is silent and wrong: it means every screen saver counts
-        // as viewing, and the only way to notice is to read this line.
-        Log.i(EnforcerService.TAG, "screen savers: ${found.sorted()}")
-        return found
-    }
+    val all: Set<String> get() = reading.read()
 }

@@ -566,8 +566,9 @@ thing in the foreground.
 
 Detected by asking the package manager which packages provide a `DreamService`, not by naming
 that package. It is what this television happens to use; another set uses its own, and a
-hard-coded name would be wrong there with nothing to say so. The resolved set is logged at
-startup, because an empty set is silent and means every screen saver counts as viewing.
+hard-coded name would be wrong there with nothing to say so. The resolved set is logged when it
+changes, the first time included, because an empty set is silent and means every screen saver
+counts as viewing. It is asked on every check rather than once (D40).
 
 That query needs package visibility on Android 11 and later, declared as a `<queries>` intent
 for `android.service.dreams.DreamService`. Deliberately not `QUERY_ALL_PACKAGES`: that is a
@@ -1480,3 +1481,32 @@ translations, script list) and `server.py` serves `/static/*`.
 What did not change: the panel still talks to Home Assistant and never to the broker (D34), and
 enforcement is still on the television. History and trends (stage 2) and exceptions and modes
 (stage 3) are designed to land on these screens and are not built.
+
+### D40 — the home screen and the screen savers are read per check (2026-10-28)
+
+Both were resolved once: the home screen `by lazy` in `Displacer`, the screen savers in the
+constructor of `ScreenSaverPackages`. That was right while the only way to change either was a
+firmware update, which restarts the service anyway. It stopped being right with a second
+launcher installed over adb: the answer changes while the process lives, and this service runs
+for weeks between restarts. A launcher the lock did not know about would be sent home as soon as
+it came forward behind a lock, and with an allow-list up it would be sent home every ten seconds
+for being an app nobody ticked; a dream it brought with it would be charged as viewing.
+
+- **Every home screen, not the one HOME resolves to.** A set carries several at once — Google's,
+  its setup wizard's, one installed over adb — and whichever is in front is the television at
+  rest rather than a child getting round anything.
+- **Fallbacks out.** `com.android.tv.settings` answers HOME too, with a `FallbackHome` at
+  priority -1000 that Android shows only when nothing else answers. Counting it would exempt
+  Settings from the lock and take away half of D30. A negative priority is a fallback; when no
+  real launcher is left, the fallback is what HOME opens and then it counts. The rule is
+  `HomeScreens` in `:rules`, so it is tested without a television.
+- **Asked on every read.** A package-manager query costs about a millisecond. The counter asks
+  for the screen savers two or three times per ten-second sample, and an app switch adds a few
+  more through the lock and the state payload — a handful of binder calls on the main thread,
+  none inside an accessibility event. Cheaper than a package broadcast receiver, and it cannot
+  miss an event.
+- **A failed query keeps the last answer.** An empty home set is the one answer that makes the
+  allow-list fight the launcher, so a refusal degrades to yesterday's list, never to nothing.
+  Logged only when the answer changes, so a read every ten seconds does not flood the log.
+- **Declared in `<queries>`.** `MAIN` + `HOME` sits beside the other intents, so a refused
+  `QUERY_ALL_PACKAGES` still leaves every launcher visible.

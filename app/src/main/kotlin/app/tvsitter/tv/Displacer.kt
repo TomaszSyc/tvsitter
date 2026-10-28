@@ -7,7 +7,6 @@ package app.tvsitter.tv
 
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -48,15 +47,6 @@ class Displacer(
     private var lastAtMs = 0L
     private var recentTrips = mutableListOf<Long>()
     private var lastFightAtMs = 0L
-
-    /** Resolved once. Sending the home screen home would be a fight with nobody. */
-    val homePackage: String? by lazy {
-        val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
-        context.packageManager
-            .resolveActivity(home, PackageManager.MATCH_DEFAULT_ONLY)
-            ?.activityInfo
-            ?.packageName
-    }
 
     fun sendHome() {
         val nowMs = System.currentTimeMillis()
