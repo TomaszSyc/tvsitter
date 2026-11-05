@@ -1,6 +1,6 @@
 # Development and CI tooling only. The integration itself declares no requirements and
 # gets its dependencies from Home Assistant at runtime.
-ruff==0.16.9
+ruff==0.17.3
 pytest==9.0.3
 
 # Home Assistant is here so CI can import the integration against the real thing. That is
@@ -8,11 +8,11 @@ pytest==9.0.3
 # until somebody's instance refuses to load the integration. Pinned deliberately; the pip
 # entry in dependabot.yml turns each new release into a pull request that asks "does this
 # still import?".
-homeassistant==2026.8.2
+homeassistant==2026.10.4
 # Required by homeassistant.components.mqtt, which core does not pull in by itself.
 paho-mqtt==2.1.0
 
 # Home Assistant's own test fixtures, so the config flows can be stepped through against a
-# real `hass`. Each release pins one Home Assistant version — 0.13.356 pins 2026.8.2 — so this
+# real `hass`. Each release pins one Home Assistant version — 0.13.375 pins 2026.10.4 — so this
 # and the pin above have to move together. test_imports.py fails if they ever disagree.
-pytest-homeassistant-custom-component==0.13.356
+pytest-homeassistant-custom-component==0.13.375

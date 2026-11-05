@@ -19,6 +19,7 @@ from custom_components.tvsitter.const import (
     CONF_PENDING_RULES,
     CONF_SCHEDULE,
     DOMAIN,
+    SCHEDULE_SERVICE_GET,
     SCHEMA_VERSION,
 )
 from custom_components.tvsitter.coordinator import TvSitterClient, merge_pending
@@ -32,7 +33,6 @@ from custom_components.tvsitter.sensor import RulesSensor
 from custom_components.tvsitter.switch import BlockSettingsSwitch
 from custom_components.tvsitter.text import ParentPinText
 from homeassistant.components.schedule.const import DOMAIN as SCHEDULE_DOMAIN
-from homeassistant.components.schedule.const import SERVICE_GET as SERVICE_GET_SCHEDULE
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 
@@ -664,7 +664,7 @@ async def test_a_followed_grid_is_read_again_rather_than_held(
 
     hass.services.async_register(
         SCHEDULE_DOMAIN,
-        SERVICE_GET_SCHEDULE,
+        SCHEDULE_SERVICE_GET,
         read,
         supports_response=SupportsResponse.ONLY,
     )

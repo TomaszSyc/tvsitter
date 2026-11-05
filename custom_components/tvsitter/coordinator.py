@@ -17,9 +17,6 @@ from homeassistant.components import mqtt
 from homeassistant.components.schedule.const import (
     DOMAIN as SCHEDULE_DOMAIN,
 )
-from homeassistant.components.schedule.const import (
-    SERVICE_GET as SERVICE_GET_SCHEDULE,
-)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.event import (
@@ -36,6 +33,7 @@ from .const import (
     PAYLOAD_ONLINE,
     QUIET_AFTER_SECONDS,
     RULE_WINDOWS,
+    SCHEDULE_SERVICE_GET,
     SCHEMA_VERSION,
     SILENCE_CHECK_SECONDS,
     TOPIC_ALERT,
@@ -514,7 +512,7 @@ class TvSitterClient:
         """
         answer = await self._hass.services.async_call(
             SCHEDULE_DOMAIN,
-            SERVICE_GET_SCHEDULE,
+            SCHEDULE_SERVICE_GET,
             {"entity_id": entity_id},
             blocking=True,
             return_response=True,

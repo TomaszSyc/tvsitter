@@ -119,6 +119,10 @@ SERVICE_USE_SCHEDULE: Final = "use_schedule"
 # followed, because the next import would undo whatever was painted (D33, amended).
 SERVICE_FORGET_SCHEDULE: Final = "forget_schedule"
 ATTR_SCHEDULE: Final = "schedule"
+# The schedule helper's own action, named here rather than imported. Home Assistant
+# 2026.11 dropped `SERVICE_GET` from `schedule.const` for an enum in `services.py`, and
+# the integration stopped loading; the action's name is the stable part.
+SCHEDULE_SERVICE_GET: Final = "get_schedule"
 
 # The way to throw away a rule change that is waiting for a television which is not
 # coming back — a set sold, a prefix retyped. Without it the change haunts the entry for
